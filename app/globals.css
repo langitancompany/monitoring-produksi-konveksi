@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Optimasi Hardware Acceleration */
+.will-change-transform {
+  will-change: transform;
+}
+
+/* Smooth Scrolling */
+.overflow-y-auto, .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Disable Text Selection untuk UI Elements */
+button, .cursor-pointer {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Area cetak disembunyikan dari layar normal */
+.print-only {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+}
+
+/* ============================================================
+   CATATAN: Cetak resi A6 massal (menu Pengiriman) TIDAK LAGI
+   memakai CSS global apa pun. Prosesnya sekarang membangun dokumen
+   HTML+CSS-nya sendiri di dalam iframe tersembunyi yang terpisah
+   total dari halaman ini (lihat handlePrintMassal di
+   POShippingList.tsx). Jadi tidak ada lagi aturan #print-receipt-a6
+   / @media print / @page di sini — sengaja dihapus supaya tidak ada
+   dua sumber CSS print yang bisa bentrok lagi seperti sebelumnya.
+   ============================================================ */
+/* ── Countdown PO: angka bergulir (komponen POCountdown) ── */
+@keyframes po-cd-in {
+  from { transform: translateY(-100%); opacity: 0; filter: blur(6px); }
+  to   { transform: translateY(0);     opacity: 1; filter: blur(0); }
+}
+@keyframes po-cd-out {
+  from { transform: translateY(0);    opacity: 1; filter: blur(0); }
+  to   { transform: translateY(100%); opacity: 0; filter: blur(6px); }
+}
+.po-cd-in  { animation: po-cd-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.po-cd-out { animation: po-cd-out 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .po-cd-in, .po-cd-out { animation: none; }
+  .po-cd-out { display: none; }
+}

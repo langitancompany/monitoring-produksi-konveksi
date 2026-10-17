@@ -1,0 +1,114 @@
+// hooks/useAuth.ts
+//
+// Sesi login + profil user yang sedang masuk. Dipakai oleh app/page.tsx.
+
+import { useState, useEffect, useCallback } from "react";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { UserData, resolvePermissions } from "@/types";
+
+export interface CurrentUser extends UserData {
+  id: string;
+}
+
+interface UseAuthProps {
+  supabase: SupabaseClient;
+  showAlert: (
+    title: string,
+    message: string,
+    type?: "success" | "error",
+  ) => void;
+  showConfirm: (title: string, message: string, onConfirm: () => void) => void;
+}
+
+export function useAuth({ supabase, showAlert, showConfirm }: UseAuthProps) {
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [loadingUser, setLoadingUser] = useState(true);
+
+  // ─── Init Session ─────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const initSession = async () => {
+      setLoadingUser(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session) {
+        const { data: userData } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", session.user.id)
+          .single();
+
+        if (userData) {
+          setCurrentUser({
+            id: session.user.id,
+            username: userData.username || "",
+            name: userData.name || "User",
+            role: userData.role || "produksi",
+            roles: userData.roles ?? null,
+            password: "",
+            permissions: resolvePermissions(userData.permissions),
+            address: userData.address,
+            dob: userData.dob,
+            no_wa: userData.no_wa || null,
+            avatar_url: userData.avatar_url,
+          });
+        }
+      }
+
+      setLoadingUser(false);
+    };
+
+    initSession();
+  }, [supabase]);
+
+  // ─── Logout ───────────────────────────────────────────────────────────────
+
+  const handleLogout = useCallback(() => {
+    showConfirm("Logout", "Keluar aplikasi?", async () => {
+      await supabase.auth.signOut();
+      window.location.reload();
+    });
+  }, [showConfirm, supabase]);
+
+  // ─── Update Profil ────────────────────────────────────────────────────────
+
+  const handleUpdateProfile = useCallback(
+    async (newData: any, onSuccess: () => void) => {
+      if (!currentUser) return;
+
+      const noWa = newData.no_wa?.trim() || null;
+
+      const { error } = await supabase
+        .from("users")
+        .update({
+          name: newData.name,
+          address: newData.address,
+          dob: newData.dob,
+          no_wa: noWa,
+          avatar_url: newData.avatar_url,
+        })
+        .eq("id", currentUser.id);
+
+      if (!error) {
+        setCurrentUser((prev) =>
+          prev ? { ...prev, ...newData, no_wa: noWa } : prev,
+        );
+        onSuccess();
+        showAlert("Sukses", "Profil diperbarui");
+      } else {
+        showAlert("Gagal", error.message, "error");
+      }
+    },
+    [currentUser, supabase, showAlert],
+  );
+
+  return {
+    currentUser,
+    setCurrentUser,
+    loadingUser,
+    handleLogout,
+    handleUpdateProfile,
+  };
+}
