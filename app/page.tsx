@@ -39,6 +39,7 @@ import { useUsers } from "@/hooks/useUsers";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useOrders } from "@/hooks/useOrders";
 import { useProductionTypes } from "@/hooks/useProductionTypes";
+import { useUpload } from "@/hooks/useUpload";
 
 // ─── Layout & UI ─────────────────────────────────────────────────────────────
 import Sidebar from "@/app/components/layout/Sidebar";
@@ -73,10 +74,11 @@ const CreateOrder = dynamic(
 const OrderDetail = dynamic(
   () => import("@/app/components/orders/OrderDetail"),
 );
+const EditOrder = dynamic(() => import("@/app/components/orders/EditOrder"));
 
-type OrderView = "list" | "detail" | "create";
+type OrderView = "list" | "detail" | "create" | "edit";
 const isOrderView = (v: string | null): v is OrderView =>
-  v === "list" || v === "detail" || v === "create";
+  v === "list" || v === "detail" || v === "create" || v === "edit";
 const isOrderTab = (t: ActiveTab) => t === "orders_utama" || t === "orders_lain";
 const kategoriOf = (t: ActiveTab): OrderKategori =>
   t === "orders_lain" ? "non_utama" : "utama";
@@ -88,6 +90,8 @@ export default function KonveksiApp() {
   const [isRestored, setIsRestored] = useState(false);
   const [view, setView] = useState<OrderView>("list");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  // pesanan yang sedang dihapus dari daftar (spinner di tombol Hapus kartu)
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [alertState, setAlertState] = useState<{
     isOpen: boolean;
     title: string;
@@ -157,9 +161,22 @@ export default function KonveksiApp() {
     ordersLoading,
     ordersError,
     fetchOrders,
+    writeLog,
     isCreating,
     handleCreateOrder,
+    isSaving,
+    applyStepUpdate,
+    applyKendalaUpdate,
+    handleEditOrder,
+    handleDeleteOrder,
   } = useOrders({ supabase, currentUser, fetchNotifications, showAlert });
+
+  const { isUploading, uploadProof } = useUpload({
+    supabase,
+    currentUser,
+    writeLog,
+    showAlert,
+  });
 
   // Muat data awal begitu login berhasil
   useEffect(() => {
@@ -279,28 +296,75 @@ export default function KonveksiApp() {
       );
     }
 
-    if (view === "detail" && selectedOrderId) {
-      return selectedOrder ? (
+    if ((view === "detail" || view === "edit") && selectedOrderId) {
+      if (!selectedOrder) {
+        return (
+          <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center text-zinc-400 dark:text-zinc-600">
+            <p className="text-sm font-semibold mb-2 text-zinc-600 dark:text-zinc-300">
+              Data pesanan tidak ditemukan.
+            </p>
+            <p className="text-xs max-w-xs mx-auto mb-4">
+              Pesanan mungkin belum selesai dimuat atau sudah dihapus.
+            </p>
+            <button
+              onClick={backToList}
+              className="text-xs font-semibold text-[#124540] dark:text-[#49BFB4] underline underline-offset-2"
+            >
+              Kembali ke daftar pesanan
+            </button>
+          </div>
+        );
+      }
+
+      // Pesanan sudah di Sampah (dihapus orang lain / dari tab lain)
+      if (selectedOrder.deleted_at) {
+        return (
+          <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center text-zinc-400 dark:text-zinc-600">
+            <p className="text-sm font-semibold mb-2 text-zinc-600 dark:text-zinc-300">
+              Pesanan ini sudah dipindah ke Sampah.
+            </p>
+            <button
+              onClick={backToList}
+              className="text-xs font-semibold text-[#124540] dark:text-[#49BFB4] underline underline-offset-2"
+            >
+              Kembali ke daftar pesanan
+            </button>
+          </div>
+        );
+      }
+
+      if (view === "edit") {
+        return (
+          <EditOrder
+            order={selectedOrder}
+            productionTypes={productionTypes}
+            isSubmitting={isSaving}
+            onCancel={() => setView("detail")}
+            onSubmit={async (data) => {
+              if (await handleEditOrder(selectedOrder, data)) setView("detail");
+            }}
+          />
+        );
+      }
+
+      return (
         <OrderDetail
           order={selectedOrder}
           productionTypes={productionTypes}
+          currentUser={currentUser}
+          isSaving={isSaving}
+          isUploading={isUploading}
+          applyStepUpdate={applyStepUpdate}
+          applyKendalaUpdate={applyKendalaUpdate}
+          uploadProof={uploadProof}
+          showAlert={showAlert}
+          showConfirm={showConfirm}
           onBack={backToList}
+          onEdit={() => setView("edit")}
+          onDelete={async (o) => {
+            if (await handleDeleteOrder(o)) backToList();
+          }}
         />
-      ) : (
-        <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center text-zinc-400 dark:text-zinc-600">
-          <p className="text-sm font-semibold mb-2 text-zinc-600 dark:text-zinc-300">
-            Data pesanan tidak ditemukan.
-          </p>
-          <p className="text-xs max-w-xs mx-auto mb-4">
-            Pesanan mungkin belum selesai dimuat atau sudah dihapus.
-          </p>
-          <button
-            onClick={backToList}
-            className="text-xs font-semibold text-[#124540] dark:text-[#49BFB4] underline underline-offset-2"
-          >
-            Kembali ke daftar pesanan
-          </button>
-        </div>
       );
     }
 
@@ -313,11 +377,29 @@ export default function KonveksiApp() {
         canCreate={
           currentUser.role === "supervisor" || p?.orders?.create === true
         }
+        canDelete={
+          currentUser.role === "supervisor" || p?.orders?.delete === true
+        }
+        deletingOrderId={deletingOrderId}
         onNewOrder={() => setView("create")}
         onSelectOrder={(id) => {
           setSelectedOrderId(id);
           setView("detail");
         }}
+        onDeleteOrder={(o) =>
+          showConfirm(
+            "Hapus pesanan?",
+            `Pesanan ${o.kode_produksi} (${o.nama_pemesan}) akan dipindah ke Sampah. Data tidak hilang dan bisa dipulihkan.`,
+            async () => {
+              setDeletingOrderId(o.id);
+              try {
+                await handleDeleteOrder(o);
+              } finally {
+                setDeletingOrderId(null);
+              }
+            },
+          )
+        }
       />
     );
   };

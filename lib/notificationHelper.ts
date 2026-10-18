@@ -47,126 +47,49 @@ export const sendNotification = async (
   }
 };
 
-// 2. Kirim ke User berdasarkan Role (Massal)
-// ✅ UPDATED: Tambah parameter orderId
-// Contoh usage: sendToRoles(['produksi', 'supervisor'], 'Judul', 'Pesan', 'order-uuid')
-export const sendToRoles = async (
-  roles: string[], 
-  title: string, 
-  body: string, 
-  orderId?: string
-) => {
-  const supabase = createClient();
-  
+// 2 & 3. Kirim ke banyak user (per role / semua user).
+// Penerima dicari di SERVER (/api/notify, service role) — dari browser, user
+// non-admin tidak boleh membaca daftar user lain sehingga hasilnya kosong
+// (lihat docs/PRD.md §13.4). Gagal kirim tidak boleh menggagalkan aksi utama,
+// jadi error hanya dicatat di console.
+async function notifyServer(payload: {
+  roles?: string[];
+  all?: boolean;
+  title: string;
+  message: string;
+  orderId?: string;
+}) {
   try {
-    // Cari User ID yang punya salah satu role tersebut.
-    // Cek DUA kolom: `role` (role utama, data lama) dan `roles` (array, role ganda).
-    // Kalau hanya cek `role`, user dengan role ganda (mis. QC + Produksi) yang role
-    // utamanya 'produksi' tidak akan menerima notifikasi untuk role 'qc'.
-    const list = roles.join(',');
-    const { data: users, error: fetchError } = await supabase
-      .from('users')
-      .select('id')
-      .or(`role.in.(${list}),roles.ov.{${list}}`);
-
-    if (fetchError) {
-      console.error('❌ Error fetch users by role:', fetchError);
-      return;
-    }
-
-    if (users && users.length > 0) {
-      // Simpan notifikasi ke database (batch insert untuk efisiensi)
-      const notifications = users.map(u => ({
-        user_id: u.id,
-        title,
-        message: body,
-        order_id: orderId, // ✅ Tambahkan order_id
-        is_read: false
-      }));
-
-      const { error: insertError } = await supabase.from('notifications').insert(notifications);
-
-      if (insertError) {
-        console.error('❌ Error insert notifications:', insertError);
-      } else {
-        console.log(`📢 Broadcast ke role [${roles.join(', ')}] berhasil (${users.length} users).`);
-      }
-
-      // (Opsional) Kirim push notification secara paralel
-      const promises = users.map(u => 
-        fetch('/api/send-notification', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: u.id, title, body }),
-        }).catch(err => {
-          // Silent fail untuk push notification
-          console.log('ℹ️ Push notification tidak tersedia');
-        })
-      );
-      await Promise.all(promises);
-    } else {
-      console.log(`ℹ️ Tidak ada user dengan role [${roles.join(', ')}]`);
+    const res = await fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      console.error('❌ /api/notify gagal:', res.status, json?.error);
     }
   } catch (error) {
-    console.error('❌ Error sendToRoles:', error);
+    console.error('❌ Tidak bisa menghubungi /api/notify:', error);
   }
+}
+
+// Contoh: sendToRoles(['produksi', 'supervisor'], 'Judul', 'Pesan', 'order-uuid')
+export const sendToRoles = async (
+  roles: string[],
+  title: string,
+  body: string,
+  orderId?: string
+) => {
+  await notifyServer({ roles, title, message: body, orderId });
 };
 
-// 3. Kirim ke SEMUA User
-// ✅ UPDATED: Tambah parameter orderId
 export const sendToAllUsers = async (
-  title: string, 
-  body: string, 
+  title: string,
+  body: string,
   orderId?: string
 ) => {
-  const supabase = createClient();
-  
-  try {
-    const { data: users, error: fetchError } = await supabase
-      .from('users')
-      .select('id');
-
-    if (fetchError) {
-      console.error('❌ Error fetch all users:', fetchError);
-      return;
-    }
-
-    if (users && users.length > 0) {
-      // Simpan notifikasi ke database (batch insert)
-      const notifications = users.map(u => ({
-        user_id: u.id,
-        title,
-        message: body,
-        order_id: orderId, // ✅ Tambahkan order_id
-        is_read: false
-      }));
-
-      const { error: insertError } = await supabase.from('notifications').insert(notifications);
-
-      if (insertError) {
-        console.error('❌ Error insert notifications:', insertError);
-      } else {
-        console.log(`📢 Broadcast ke SEMUA USER berhasil (${users.length} users).`);
-      }
-
-      // (Opsional) Kirim push notification secara paralel
-      const promises = users.map(u => 
-        fetch('/api/send-notification', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: u.id, title, body }),
-        }).catch(err => {
-          // Silent fail untuk push notification
-          console.log('ℹ️ Push notification tidak tersedia');
-        })
-      );
-      await Promise.all(promises);
-    } else {
-      console.log('ℹ️ Tidak ada user di database');
-    }
-  } catch (error) {
-    console.error('❌ Error sendToAllUsers:', error);
-  }
+  await notifyServer({ all: true, title, message: body, orderId });
 };
 
 // 4. Tandai notifikasi sebagai sudah dibaca

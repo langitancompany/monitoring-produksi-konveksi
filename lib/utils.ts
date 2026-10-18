@@ -89,3 +89,59 @@ export function typeLabel(
   if (!value) return "-";
   return types.find((t) => t.value === value)?.name ?? value;
 }
+
+/** Tanggal + jam lokal, mis. "17 Okt 2026, 14.05" (ISO dari database → tampilan). */
+export const formatDateTime = (dateStr?: string | null) => {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr; // data lama yang bukan ISO: tampilkan apa adanya
+  return d.toLocaleString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+// ─── Penamaan file bukti (storage) ───────────────────────────────────────────
+// Pola sama dengan Sablon: YYYY-MM-DD_KodeProduksi_JenisDokumen.ext
+
+/** "Selesai Potong" → "SelesaiPotong" (buang karakter khusus & spasi) */
+export function sanitizeFilenamePart(str: string): string {
+  return str
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "");
+}
+
+/** Label dokumen untuk nama file, dari key tahap (mis. "packing" → "Packing"). */
+export function getDocumentLabel(stepKey: string): string {
+  switch (stepKey) {
+    case "approval":
+      return "ApprovalDesain";
+    case "mockup":
+      return "Mockup";
+    case "packing":
+      return "Packing";
+    case "pengiriman":
+      return "BuktiKirim";
+    case "penerimaan":
+      return "BuktiTerima";
+    case "kendala":
+      return "BuktiKendala";
+    default:
+      return sanitizeFilenamePart(stepKey) || "Dokumen";
+  }
+}
+
+/** YYYY-MM-DD_KodeProduksi_JenisDokumen (tanpa ekstensi). */
+export function generateStorageFilename(
+  jenisDokumen: string,
+  kodeProduksi: string,
+  tanggal: Date = new Date(),
+): string {
+  const kode = kodeProduksi.replace(/[#/\\]/g, "").replace(/\s+/g, "-").trim();
+  return `${toLocalISODate(tanggal)}_${kode}_${jenisDokumen}`;
+}

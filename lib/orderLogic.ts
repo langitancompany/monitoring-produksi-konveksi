@@ -10,6 +10,7 @@ import { sendToRoles, sendToAllUsers } from "./notificationHelper";
 export const triggerOrderNotifications = async (
   orderData: Order,
   oldStatus?: string,
+  opts: { forceDeadlineCheck?: boolean } = {},
 ) => {
   const finalStatus = orderData.status;
   const title = `Update: ${orderData.kode_produksi}`;
@@ -42,14 +43,18 @@ export const triggerOrderNotifications = async (
         await sendToRoles(["produksi", "supervisor", "manager"], "⚠️ REVISI QC", `QC gagal: ${qc?.qc?.notes ?? "-"}`, orderId);
         break;
       }
+      case "Kirim":
+        await sendToRoles(["admin", "supervisor"], title, "Pesanan siap dikirim.", orderId);
+        break;
       case "Selesai":
         await sendToAllUsers("✅ Pesanan Selesai", `Order ${orderData.kode_produksi} telah selesai sepenuhnya!`, orderId);
         break;
     }
   }
 
-  // 3. Mepet / telat
-  if (orderData.deadline && finalStatus !== "Selesai" && finalStatus !== "Kirim") {
+  // 3. Mepet / telat — hanya saat status berpindah (atau deadline diubah),
+  // supaya tiap klik tombol tahap tidak membanjiri notifikasi yang sama.
+  if ((oldStatus !== finalStatus || opts.forceDeadlineCheck) && orderData.deadline && finalStatus !== "Selesai" && finalStatus !== "Kirim") {
     const diffDays = Math.ceil(
       (new Date(orderData.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
     );

@@ -1,17 +1,51 @@
 // app/components/orders/OrderDetail.tsx
-// Detail pesanan. BAGIAN 1: hanya baca (info + daftar tahap).
-// BAGIAN 2 menambah aksi tiap tahap (approval, upload, QC, kendala, edit, hapus).
+// Detail pesanan — susunan sama dengan Sablon: header & info pesanan, lalu
+// 4 kartu tahap: 01 Approval · 02 Produksi (+ kendala) · 03 QC & Packing · 04 Pengiriman.
+// Semua tahap dikerjakan dengan upload foto; pengunggah & waktunya tampil.
+// Hak akses: orders (edit/hapus), produksi (approval, mockup, potong, jahit),
+// finishing (QC, packing, kirim, terima) — aturan di lib/steps.ts & lib/access.ts.
 "use client";
 
 import React from "react";
-import { ArrowLeft, Check, Circle, Phone } from "lucide-react";
-import type { Order, ProductionTypeData } from "@/types/order";
-import { formatDate, getStatusColor, openWA, typeLabel } from "@/lib/utils";
+import { ChevronRight, Loader2, Pencil, Phone, Trash2 } from "lucide-react";
+import type { KendalaNote, Order, ProductionStep, ProductionTypeData } from "@/types/order";
+import type { UserData } from "@/types";
+import type { ActionLog, OrderFields } from "@/hooks/useOrders";
+import { useOrderDetail } from "@/hooks/useOrderDetail";
+import { can, canAny } from "@/lib/access";
+import { canUndoStep, stepPosition, stepUndoPerms, stepWorkPerms } from "@/lib/steps";
+import { formatDate, getDeadlineStatus, getStatusColor, openWA, typeLabel } from "@/lib/utils";
+import type { StepCtx } from "./detail/stepUi";
+import StepApproval from "./detail/StepApproval";
+import StepProduksi from "./detail/StepProduksi";
+import StepFinishing from "./detail/StepFinishing";
 
 interface Props {
   order: Order;
   productionTypes: ProductionTypeData[];
+  currentUser: UserData & { id: string };
+  /** sedang ada penyimpanan berjalan */
+  isSaving: boolean;
+  isUploading: boolean;
+  applyStepUpdate: (
+    order: Order,
+    stepKey: string,
+    patch: Partial<ProductionStep>,
+    options?: { log?: ActionLog; fields?: OrderFields; also?: Record<string, Partial<ProductionStep>> },
+  ) => Promise<boolean>;
+  applyKendalaUpdate: (order: Order, kendala: KendalaNote[], log: ActionLog) => Promise<boolean>;
+  uploadProof: (
+    order: Pick<Order, "id" | "kode_produksi" | "status">,
+    file: File,
+    label: string,
+    opts?: { allowPdf?: boolean; highRes?: boolean },
+  ) => Promise<string | null>;
+  showAlert: (title: string, message: string, type?: "success" | "error") => void;
+  showConfirm: (title: string, message: string, onConfirm: () => void) => void;
   onBack: () => void;
+  onEdit: () => void;
+  /** dipanggil setelah konfirmasi; menghapus = pindah ke Sampah */
+  onDelete: (order: Order) => void;
 }
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -21,30 +55,112 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
   </div>
 );
 
-export default function OrderDetail({ order, productionTypes, onBack }: Props) {
+export default function OrderDetail(props: Props) {
+  const {
+    order, productionTypes, currentUser, isSaving, isUploading,
+    applyStepUpdate, applyKendalaUpdate, uploadProof, showAlert, showConfirm,
+    onBack, onEdit, onDelete,
+  } = props;
+
+  const detail = useOrderDetail({
+    order, currentUser, applyStepUpdate, applyKendalaUpdate, uploadProof, showAlert, showConfirm,
+  });
+
+  const disabled = isSaving || isUploading || detail.busyKey !== null;
+  const canEdit = can(currentUser, "orders", "edit");
+  const canDelete = can(currentUser, "orders", "delete");
+  const canKendala = canAny(currentUser, [["produksi", "edit"], ["finishing", "edit"], ["orders", "edit"]]);
+  const canDeleteKendala = canAny(currentUser, [["produksi", "delete"], ["finishing", "delete"], ["orders", "delete"]]);
+  const isLate = getDeadlineStatus(order.deadline, order.status) === "overdue" && order.status !== "Ada Kendala";
+
+  const indexOf = (key: string) => order.steps.findIndex((s) => s.key === key);
+  const ctx: StepCtx = {
+    order,
+    disabled,
+    busyKey: detail.busyKey,
+    canWork: (key) => canAny(currentUser, stepWorkPerms(key)),
+    canUndo: (key) => {
+      const i = indexOf(key);
+      return i >= 0 && canUndoStep(order.steps, i) && canAny(currentUser, stepUndoPerms(key));
+    },
+    position: (key) => {
+      const i = indexOf(key);
+      return i >= 0 ? stepPosition(order.steps, i) : "locked";
+    },
+    onUpload: detail.uploadStep,
+    onUndo: detail.undoStep,
+  };
+
+  const confirmDelete = () =>
+    showConfirm(
+      "Hapus pesanan?",
+      `Pesanan ${order.kode_produksi} (${order.nama_pemesan}) akan dipindah ke Sampah. Data tidak hilang dan bisa dipulihkan.`,
+      () => onDelete(order),
+    );
+
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors duration-150">
-        <ArrowLeft className="w-4 h-4" /> Kembali ke daftar
-      </button>
-
-      <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 md:p-6 space-y-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="font-mono tabular-nums text-xs text-zinc-500 dark:text-zinc-400">{order.kode_produksi}</p>
-            <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">{order.nama_pemesan}</h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Pesanan {order.kategori === "utama" ? "Utama" : "Non-Utama"}
-            </p>
-          </div>
-          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${getStatusColor(order.status)}`}>{order.status}</span>
+    <div className="max-w-3xl mx-auto space-y-4 md:space-y-6 pb-24 relative">
+      {/* Tombol aksi atas */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <button
+          onClick={onBack}
+          className="text-xs md:text-sm text-zinc-500 dark:text-zinc-400 hover:text-[#49BFB4] flex items-center gap-2 font-semibold p-2 -ml-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors duration-150"
+        >
+          <ChevronRight className="w-4 h-4 md:w-5 md:h-5 rotate-180" /> Kembali
+        </button>
+        <div className="flex flex-wrap gap-2">
+          {canEdit && (
+            <button
+              onClick={onEdit}
+              disabled={disabled}
+              className="bg-[#124540] text-white px-3 py-1.5 rounded-md text-xs md:text-sm font-semibold flex items-center gap-2 hover:bg-emerald-700 disabled:opacity-60 transition-colors duration-150"
+            >
+              <Pencil className="w-3 h-3" /> Edit
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={confirmDelete}
+              disabled={disabled}
+              className="bg-red-600 text-white px-3 py-1.5 rounded-md text-xs md:text-sm font-semibold flex items-center gap-2 hover:bg-red-700 disabled:opacity-70 disabled:cursor-not-allowed transition-colors duration-150"
+            >
+              {isSaving ? (<><Loader2 className="w-3 h-3 animate-spin" /> Menghapus...</>) : (<><Trash2 className="w-3 h-3" /> Hapus</>)}
+            </button>
+          )}
         </div>
+      </div>
 
+      {/* Info pesanan */}
+      <div className="bg-white dark:bg-zinc-950 p-5 md:p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex-1">
+          <h1 className="text-xl md:text-2xl font-semibold text-zinc-900 dark:text-white mb-1">{order.nama_pemesan}</h1>
+          <div className="text-xs md:text-sm text-zinc-500 dark:text-zinc-400 font-medium flex flex-wrap gap-2 md:gap-3 items-center">
+            <span className="font-mono tabular-nums bg-zinc-100 dark:bg-zinc-900 px-2 py-0.5 rounded-md text-zinc-600 dark:text-zinc-300">
+              #{order.kode_produksi}
+            </span>
+            <span className="font-mono tabular-nums">{order.jumlah} Pcs</span>
+            <span className={isLate ? "font-mono tabular-nums text-red-600 dark:text-red-400 font-semibold" : "font-mono tabular-nums"}>
+              {formatDate(order.deadline)}
+            </span>
+            <span className="text-[10px] uppercase tracking-wide">{order.kategori === "utama" ? "Pesanan Utama" : "Non-Utama"}</span>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 items-end w-full md:w-auto">
+          <div className={`px-2.5 py-1 rounded-full font-semibold text-[11px] uppercase tracking-wide text-center w-full md:w-auto border ${getStatusColor(order.status)}`}>
+            {order.status}
+          </div>
+          {isLate && (
+            <div className="px-2.5 py-1 rounded-full font-semibold text-[11px] bg-red-600 text-white uppercase tracking-wide text-center w-full md:w-auto">
+              Telat Deadline
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Detail pesanan */}
+      <div className="bg-white dark:bg-zinc-950 p-5 md:p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-4">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <Row label="Jenis produksi">{order.jenis_produksi ? typeLabel(order.jenis_produksi, productionTypes) : "Belum dipilih"}</Row>
-          <Row label="Jumlah"><span className="font-mono tabular-nums">{order.jumlah}</span> pcs</Row>
           <Row label="Tanggal masuk">{formatDate(order.tanggal_masuk)}</Row>
-          <Row label="Deadline">{formatDate(order.deadline)}</Row>
           <Row label="No. HP">
             {order.no_hp ? (
               <button onClick={() => openWA(order.no_hp)} className="inline-flex items-center gap-1 font-mono tabular-nums text-[#124540] dark:text-[#49BFB4] underline underline-offset-2">
@@ -55,31 +171,45 @@ export default function OrderDetail({ order, productionTypes, onBack }: Props) {
           <Row label="Alamat">{order.alamat_pemesan || "-"}</Row>
         </div>
 
+        {order.items.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.12em] mb-1.5">Item pesanan</p>
+            <ul className="divide-y divide-zinc-100 dark:divide-zinc-900 rounded-md border border-zinc-200 dark:border-zinc-800">
+              {order.items.map((it) => (
+                <li key={it.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <span className="text-zinc-900 dark:text-zinc-100">
+                    {typeLabel(it.jenis_produksi, productionTypes)}
+                    {it.catatan && <span className="text-xs text-zinc-400 dark:text-zinc-500"> — {it.catatan}</span>}
+                  </span>
+                  <span className="font-mono tabular-nums text-zinc-600 dark:text-zinc-300">{it.jumlah} pcs</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {order.kategori === "utama" && order.items.length === 0 && (
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 italic">Jenis produksi & item ditentukan saat Approval.</p>
+        )}
         {order.catatan_pesanan && <Row label="Catatan">{order.catatan_pesanan}</Row>}
       </div>
 
-      <div className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 md:p-6">
-        <h3 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 mb-4">Tahapan Produksi</h3>
-        <ol className="space-y-3">
-          {order.steps.map((s, i) => (
-            <li key={s.id} className="flex items-start gap-3">
-              <span className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${s.isCompleted ? "bg-[#124540] text-white" : "border border-zinc-300 dark:border-zinc-700 text-zinc-400"}`}>
-                {s.isCompleted ? <Check className="w-3.5 h-3.5" /> : <Circle className="w-2.5 h-2.5" />}
-              </span>
-              <div className="min-w-0">
-                <p className={`text-sm font-semibold ${s.isCompleted ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-500 dark:text-zinc-400"}`}>
-                  {i + 1}. {s.name}
-                </p>
-                {s.isCompleted && s.completedAt && (
-                  <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
-                    {formatDate(s.completedAt)}{s.uploadedBy ? ` · ${s.uploadedBy}` : ""}
-                  </p>
-                )}
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
+      {/* 01 Approval */}
+      <StepApproval ctx={ctx} productionTypes={productionTypes} onApproval={detail.submitApproval} />
+
+      {/* 02 Produksi */}
+      <StepProduksi
+        ctx={ctx}
+        productionTypes={productionTypes}
+        canKendala={canKendala}
+        canDeleteKendala={canDeleteKendala}
+        onAddKendala={detail.addKendala}
+        onResolveKendala={detail.resolveKendala}
+        onDeleteKendala={detail.deleteKendala}
+        onAddKendalaBukti={detail.addKendalaBukti}
+      />
+
+      {/* 03 QC & Packing, 04 Pengiriman */}
+      <StepFinishing ctx={ctx} onQC={detail.submitQC} />
     </div>
   );
 }

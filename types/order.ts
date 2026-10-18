@@ -57,8 +57,13 @@ export interface ProductionStep {
   completedAt?: string | null;
   /** khusus type 'qc': hasil pemeriksaan */
   qc?: { passed: boolean | null; notes: string; checkedBy?: string };
-  /** user yang mengerjakan tahap ini (dasar gaji produksi) */
+  /**
+   * ID user (users.id) yang mengerjakan tahap ini — dasar gaji produksi (Bagian 5).
+   * Disimpan ID, bukan nama, supaya tetap benar kalau nama user diganti.
+   */
   doneBy?: string[];
+  /** catatan singkat saat tahap diselesaikan (mis. catatan Approval) */
+  note?: string;
 }
 
 export interface KendalaNote {
@@ -75,6 +80,8 @@ export interface KendalaNote {
 export interface Order {
   id: string;
   created_at: string;
+  /** diisi database tiap update; dipakai untuk mendeteksi dua orang mengubah pesanan bersamaan */
+  updated_at?: string;
   kode_produksi: string;
   kategori: OrderKategori;
   nama_pemesan: string;
@@ -107,4 +114,29 @@ export interface NewOrderInput {
   catatan_pesanan: string;
   /** hanya non_utama */
   jenis_produksi?: string;
+}
+
+/** Data dari form "Edit pesanan" (hanya field informasi, bukan tahap/status). */
+export interface EditOrderInput {
+  nama_pemesan: string;
+  no_hp: string;
+  alamat_pemesan: string;
+  tanggal_masuk: string;
+  deadline: string;
+  catatan_pesanan: string;
+  jumlah: number;
+  /** non_utama: kategori pemesanan; utama: diabaikan (ikut item pertama) */
+  jenis_produksi?: string | null;
+  /** hanya dipakai pesanan utama yang Approval-nya sudah selesai */
+  items?: OrderItem[];
+}
+
+/** Data dari form Approval pesanan utama. */
+export interface ApprovalInput {
+  items: OrderItem[];
+  /** file approval yang baru dipilih (diupload saat simpan) */
+  file?: File | null;
+  /** atau tautan (mis. Google Drive) */
+  link?: string;
+  catatan?: string;
 }

@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.2",
+  version: "V.1.3",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Pengelolaan user via API, pesanan utama & non-utama",
+  notes: "Alur produksi: aksi tahap, upload bukti, QC, kendala",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.3",
+    date: "2026-10-18",
+    changes: [
+      "Detail pesanan kini interaktif dengan 4 kartu seperti Sablon: 01 Approval, 02 Produksi (Potong Kain & Jahit), 03 QC & Packing, 04 Pengiriman — dikerjakan berurutan sesuai hak akses.",
+      "Daftar pesanan kini berbentuk papan Kanban (Pesanan Masuk, Produksi, Finishing, Pengiriman) seperti Sablon, dengan kartu & progress bar di HP, filter, urutan paling mendesak, dan tombol hapus.",
+      "Semua tahap dikerjakan dengan upload foto; nama pengunggah dan waktunya tampil di setiap tahap.",
+      "QC gagal wajib bercatatan dan membuka kembali tahap Produksi; upload foto bukti dikompres otomatis; laporan kendala bisa disertai foto.",
+      "Edit data pesanan dan hapus pesanan (dipindah ke Sampah). Semua aksi tercatat di log dan memicu notifikasi.",
+      "Notifikasi ke banyak penerima kini diproses di server sehingga sampai ke semua role terkait; perubahan bersamaan oleh dua orang pada satu pesanan dicegah.",
+    ],
+  },
   {
     version: "1.2",
     date: "2026-10-17",

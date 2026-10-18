@@ -4,7 +4,7 @@
 > **baca dokumen ini dulu**, lalu kerjakan bagian berikutnya di tabel *Status*.
 > Perbarui tabel Status dan changelog setiap selesai satu bagian.
 
-Terakhir diperbarui: 17 Oktober 2026 · Versi aplikasi: V.1.2 (Bagian 1 + pengelolaan user selesai; skema database dicocokkan dengan skema asli Sablon)
+Terakhir diperbarui: 17 Oktober 2026 · Versi aplikasi: V.1.3 (Bagian 2 selesai — belum diuji di database/storage sungguhan)
 
 ---
 
@@ -36,8 +36,8 @@ dan **Pesanan Non-Utama**.
 | 0 | Kerangka | Login, profil, pengguna & hak akses, pengumuman, notifikasi, backup, Tentang App, pindah unit | ✅ selesai |
 | 1 | Fondasi pesanan | Model data, template tahap, status otomatis, Pengaturan → Jenis Produksi, daftar pesanan, form pesanan baru, detail (hanya baca), migration `001` (umum) & `002` (inti) berdasar skema asli Sablon | ✅ selesai (belum diuji di database sungguhan) |
 | 1.5 | Pengelolaan user | `/api/users` (tambah/ubah/hapus: akun login + profil sekaligus), form Pengguna memakai Email Login, tanpa kolom password | ✅ selesai (belum diuji di Supabase sungguhan) |
-| 2 | Alur produksi | Aksi tiap tahap di Detail (Approval, Potong, Jahit, QC, Packing, Kirim, Terima), upload file, kendala, edit & hapus (ke Sampah), log, notifikasi (penerima dihitung di server — lihat §13.4) | ⬜ berikutnya |
-| 3 | Arsip & pemantauan | Pesanan Selesai, Sampah, Log Aktivitas, Kalender | ⬜ |
+| 2 | Alur produksi | Aksi tiap tahap di Detail (Approval, Potong, Jahit, QC, Packing, Kirim, Terima — 4 kartu gaya Sablon), upload file, kendala, edit & hapus (ke Sampah), log, notifikasi (penerima dihitung di server — lihat §13.4) | ✅ selesai (belum diuji di Supabase/storage sungguhan; `tsc` penuh belum bisa dijalankan — lihat §14) |
+| 3 | Arsip & pemantauan | Pesanan Selesai, Sampah, Log Aktivitas, Kalender | ⬜ berikutnya |
 | 4 | Catatan Rapat | Terintegrasi dengan menu produksi (ikuti Sablon) | ⬜ |
 | 5 | Config Harga & Gaji | Rate gaji per item/tahap, Gaji & Upah, slip gaji | ⬜ |
 | 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon) | ⬜ |
@@ -88,9 +88,9 @@ penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 ```
 app/page.tsx                      kerangka & routing tab
 app/components/{auth,layout,ui,misc,dashboard,orders,settings}
-app/api/                          users (kelola user) · send-notification · backup · health · version
-hooks/   useAuth useUsers useNotifications useOrders useProductionTypes useUnitAccess useUpdateCheck
-lib/     config steps utils orderLogic notificationHelper roles changelog tabs apiAuth supabaseAdmin userAdmin
+app/api/                          users (kelola user) · notify (broadcast per role/semua) · send-notification (1 user) · backup · health · version
+hooks/   useAuth useUsers useNotifications useOrders useOrderDetail useUpload useProductionTypes useUnitAccess useUpdateCheck
+lib/     config steps access orderItems utils orderLogic notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
 types/   index.ts (user & hak akses)  order.ts (pesanan)
 supabase/migrations/              001 base_umum · 002 konveksi_core
 supabase/optional/                salin user dari Sablon (hanya untuk supervisor pertama)
@@ -165,11 +165,11 @@ QC/Packing = *Finishing* · Pengiriman/Penerimaan = *Kirim*.
 
 ---
 
-## 7. Spesifikasi bagian yang belum dikerjakan
+## 7. Spesifikasi bagian (Bagian 2 sudah dikerjakan — lihat §14)
 
 Acuan Sablon ada di kolom kanan — **baca file itu dulu**.
 
-### Bagian 2 — Alur produksi
+### Bagian 2 — Alur produksi ✅ (ringkasan hasil di §14)
 - `OrderDetail` interaktif: kartu tiap tahap dengan tombol aksi sesuai `type` dan hak akses (`produksi`, `finishing`, `orders`).
 - **Approval (utama):** pilih satu/lebih jenis produksi dari `production_types` aktif + jumlah per item (→ `items`, `jenis_produksi` = jenis pertama), upload file/link approval, catatan. Simpan → tahap selesai.
 - **Kendala:** tambah/selesaikan, boleh dengan foto bukti → status `Ada Kendala`.
@@ -269,6 +269,7 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 ## 12. Riwayat
 
 - **V.1.0** — Kerangka (zip `monitoring-produksi-konveksi`): login, profil, pengguna, pengumuman, notifikasi, backup, Tentang App, pindah unit.
+- **V.1.3** — Bagian 2: aksi tiap tahap, upload bukti, Approval (items), QC & revisi, kendala, edit & hapus ke Sampah, `/api/notify`.
 - **V.1.2** — Pengelolaan user lewat `/api/users` (akun login + profil sekaligus); kolom password dihapus dari skema.
 - **V.1.1** — Bagian 1: model pesanan, template tahap, status otomatis, Jenis Produksi di Pengaturan, daftar & form pesanan (utama/non-utama), detail hanya-baca, migration `002`.
 
@@ -298,9 +299,40 @@ Sablon: `finance_accounts, finance_categories, finance_vendors, finance_expenses
 - **Butuh data seed** dari Sablon sebelum Bagian 6 (minta ke pemilik): `select * from finance_accounts / finance_categories / finance_settings` dan definisi `finance_expense_seq`, indeks unik `finance_expenses(source, source_ref)`, serta grant/policy kolom lain yang belum terlihat.
 
 ### 13.4 Catatan desain untuk Bagian 2
-- Policy `users` hanya mengizinkan baca baris sendiri (atau semua bila admin/supervisor). `lib/notificationHelper.ts` mencari penerima lewat `from('users')` dari browser → untuk user non-admin hasilnya kosong, sehingga notifikasi ke role lain tidak terkirim. **Pindahkan pencarian penerima ke API server** (service role), mis. `/api/notify { roles | all, title, message, orderId }`, dan panggil dari `triggerOrderNotifications`.
+- ✅ SUDAH dikerjakan di Bagian 2 (`/api/notify`). Catatan awal: Policy `users` hanya mengizinkan baca baris sendiri (atau semua bila admin/supervisor). `lib/notificationHelper.ts` mencari penerima lewat `from('users')` dari browser → untuk user non-admin hasilnya kosong, sehingga notifikasi ke role lain tidak terkirim. **Pindahkan pencarian penerima ke API server** (service role), mis. `/api/notify { roles | all, title, message, orderId }`, dan panggil dari `triggerOrderNotifications`.
 - `notifications` INSERT hanya untuk `is_staff()`; baca/ubah hanya milik sendiri.
 
 ### 13.5 Hal yang belum terverifikasi
 Isi `PGRST_DB_SCHEMAS` (apakah schema pertama dipakai sebagai default bila client tidak menyebut schema — Konveksi selalu menyebut schema eksplisit), publication `supabase_realtime` di Sablon, daftar bucket, dan GRANT tingkat tabel. Trigger/fungsi pada schema `auth` tidak ikut terquery (cek bila ingin memastikan pembuatan user).
 
+
+---
+
+## 14. Hasil Bagian 2 (V.1.3) — baca sebelum lanjut
+
+**Pintu tunggal perubahan pesanan:** `commitOrder()` di `hooks/useOrders.ts`. Semua aksi
+(tahap, kendala, edit) lewat sini: hitung `deriveStatus` → update → log → notifikasi → `fetchOrders`.
+Pengaman dua-orang-sekaligus: update memakai `.eq('updated_at', …)`; bila 0 baris berubah,
+perubahan ditolak & data dimuat ulang. **Belum diuji** (format timestamp PostgREST).
+
+**Keputusan yang saya ambil (ubah bila pemilik tidak setuju):**
+1. `deriveStatus`: *Revisi* hanya selama Produksi Massal belum diselesaikan ulang; setelah itu status *Finishing* (menunggu QC diulang).
+2. **Tampilan sama dengan Sablon: 4 kartu bernomor** — 01 Approval · 02 Produksi (Potong Kain & Jahit + Lapor Kendala) · 03 QC & Packing (dua kolom; non-utama hanya QC) · 04 Pengiriman (Bukti Kirim & Bukti Terima). Pemetaan tahap→kartu = `section` di `STEP_TEMPLATES` (`lib/steps.ts`); komponen: `orders/detail/StepApproval|StepProduksi|StepFinishing|stepUi`. **Semua tahap = upload foto** (kecuali Approval = form, QC = Lolos/Revisi). Tiap tahap selesai menampilkan **"Oleh: nama | waktu"** (`step.uploadedBy`, `step.completedAt`). Tidak ada pemilih pekerja: **pengunggah = pekerja** → `step.doneBy` berisi ID pengunggah (bukan nama); saat revisi QC, pekerja lama tetap tercatat dan pengunggah baru ditambahkan (dasar gaji Bagian 5). Tampilan memakai KEY tahap, bukan `step.type` tersimpan.
+3. Approval: wajib file (gambar/PDF) **atau** link; jumlah pesanan otomatis = total item.
+4. Izin: Approval = `produksi.create` atau `orders.edit`; Potong/Jahit/Mockup = `produksi.edit`; QC/Packing/Kirim/Terima = `finishing.edit`; batalkan tahap = `*.delete`; kendala = `produksi.edit`/`finishing.edit`/`orders.edit`. Approval & Detail tidak bisa dibatalkan (ubah lewat Edit).
+5. Notifikasi deadline mepet/telat hanya saat status berpindah atau deadline diubah (bukan tiap klik). Ditambah notifikasi status *Kirim* ke admin & supervisor.
+6. File storage: `production-proofs/konveksi/{orderId}/YYYY-MM-DD_Kode_Jenis_HHmmss.ext`. Awalan 3 tingkat ini **wajib**: cron `cleanup-storage` Sablon memindai 2 tingkat dan menghapus file yang tak dikenal. Saran: tambahkan pengecualian folder `konveksi` di cron itu.
+
+**Keterbatasan diketahui:**
+- Gaji borongan memakai pengunggah foto sebagai pekerja. Kalau penjahit/tukang potong tidak punya akun sendiri dan yang upload orang lain (mis. admin), gaji tercatat ke pengunggah — butuh keputusan pemilik (§11 no. 3 & 8).
+- Catatan per kartu ("Catatan" di bawah kartu 02/03/04 pada Sablon) belum ada: itu bagian dari Catatan Rapat (Bagian 4, tabel `production_notes`).
+- Approval pesanan utama tetap berupa form (jenis produksi + jumlah per item + file/link), bukan hanya upload mockup seperti Sablon, karena item dipakai untuk gaji & tagihan.
+- Hapus file dari storage saat tahap dibatalkan **belum** dilakukan (hanya dilepas dari pesanan); pembersihan dikerjakan di Bagian 3 (hapus permanen).
+- Pesanan baru: pesan "Pesanan Baru" memberi notifikasi ke semua user termasuk pembuatnya (perilaku Sablon).
+- `npm install` dan `next build` tidak bisa dijalankan di lingkungan pengerjaan (tanpa internet). Verifikasi dilakukan dengan `tsc` + stub tipe dan 28 uji logika (urutan tahap, QC→revisi→QC ulang, validasi item, nama file). **Jalankan `npm install && npx tsc --noEmit && npm run build` di komputer Anda sebelum deploy.**
+
+**Daftar pesanan (gaya Sablon):** `orders/OrderList.tsx` — Kanban desktop 4 kolom (Pesanan Masuk · Produksi · Finishing · Pengiriman, dengan penghitung), kartu + progress bar di HP, filter Semua/Proses/Telat/Kendala/Siap Kirim + bulan + jenis + pencarian, urut paling mendesak (telat → ≤3 hari → tanggal masuk), tombol Hapus (konfirmasi → Sampah). Kolom ditentukan `currentPhase()` (tahap aktif, `lib/steps.ts`), BUKAN `status`, jadi pesanan "Ada Kendala"/"Revisi" tetap di kolom tahap sebenarnya (Sablon memasukkannya ke On Process). "Siap Kirim" = status Kirim saja; pesanan Selesai ada di menu Pesanan Selesai (Bagian 3). Chip PIC/Helper Sablon tidak dibawa (Konveksi belum punya penanggung jawab per pesanan).
+
+**Perubahan nama tahap:** `pengiriman` kini berlabel "Bukti Kirim (Resi)", `penerimaan` "Bukti Terima (User)" (mengikuti Sablon).
+
+**Pertanyaan terbuka yang makin mendesak (§11):** no. 3 & 8 (siapa mengerjakan Potong/Jahit; perlu role penjahit?) — menentukan Bagian 5.
