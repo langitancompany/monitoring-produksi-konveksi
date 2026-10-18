@@ -4,10 +4,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Users, Layers, Megaphone, Bell, Database } from "lucide-react";
+import { Users, UsersRound, Layers, Megaphone, Bell, Database } from "lucide-react";
 import { UserData } from "@/types";
 import type { OrderKategori, ProductionTypeData } from "@/types/order";
+import type { TeamData, TeamInput } from "@/types/team";
 import UsersTab from "@/app/components/settings/tabs/UsersTab";
+import TeamsTab from "@/app/components/settings/tabs/TeamsTab";
 import ProductionTypesTab from "@/app/components/settings/tabs/ProductionTypesTab";
 import AnnouncementsTab from "@/app/components/settings/tabs/AnnouncementsTab";
 import NotificationsTab from "@/app/components/settings/tabs/NotificationsTab";
@@ -26,9 +28,14 @@ interface SettingsPageProps {
   onDeleteProductionType: (id: string) => void;
   onSaveUser: (u: any) => Promise<boolean>;
   onDeleteUser: (id: string) => void;
+  teams: TeamData[];
+  teamsError: string | null;
+  onSaveTeam: (t: TeamInput) => Promise<boolean>;
+  onToggleTeam: (t: TeamData) => void;
+  onDeleteTeam: (t: TeamData) => void;
 }
 
-type TabId = "pengguna" | "produksi" | "pengumuman" | "notifikasi" | "backup";
+type TabId = "pengguna" | "tim" | "produksi" | "pengumuman" | "notifikasi" | "backup";
 
 export default function SettingsPage({
   users,
@@ -39,6 +46,11 @@ export default function SettingsPage({
   onDeleteProductionType,
   onSaveUser,
   onDeleteUser,
+  teams,
+  teamsError,
+  onSaveTeam,
+  onToggleTeam,
+  onDeleteTeam,
 }: SettingsPageProps) {
   const isManagement = ["admin", "manager", "supervisor"].includes(
     currentUser.role,
@@ -49,6 +61,7 @@ export default function SettingsPage({
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = (
     [
       { id: "pengguna", label: "Pengguna", icon: Users, show: true },
+      { id: "tim", label: "Tim", icon: UsersRound, show: true },
       { id: "produksi", label: "Jenis Produksi", icon: Layers, show: true },
       {
         id: "pengumuman",
@@ -131,6 +144,16 @@ export default function SettingsPage({
             users={users}
             onSaveUser={onSaveUser}
             onDeleteUser={onDeleteUser}
+          />
+        )}
+        {active === "tim" && (
+          <TeamsTab
+            teams={teams}
+            users={users}
+            teamsError={teamsError}
+            onSave={onSaveTeam}
+            onToggle={onToggleTeam}
+            onDelete={onDeleteTeam}
           />
         )}
         {active === "produksi" && (

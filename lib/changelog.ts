@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.6",
+  version: "V.1.7",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Dashboard ringkasan produksi, perbaikan hitungan telat, pengetatan hak akses",
+  notes: "Tim produksi: buat tim dari user, pilih tim saat membuat pesanan",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.7",
+    date: "2026-10-18",
+    changes: [
+      "Tab baru Pengaturan → Tim: buat tim produksi (mis. Tim Jahit Kaos, Tim Jahit Seragam) dari user yang ada di tab Pengguna. Tiap tim tampil sebagai kartu berisi avatar anggotanya; bisa diubah, dinonaktifkan, atau dihapus. Satu user boleh masuk ke beberapa tim.",
+      "Form Pesanan Baru dan Edit Pesanan kini punya pilihan Tim pengerjaan (boleh dikosongkan). Tim beserta avatar anggotanya tampil di Detail Pesanan, dan perubahan tim tercatat di Log Aktivitas.",
+      "Hak akses: mengganti tim sebuah pesanan hanya bisa oleh yang boleh mengedit pesanan; user yang dihapus otomatis keluar dari semua tim. Butuh menjalankan migration 006.",
+    ],
+  },
   {
     version: "1.6",
     date: "2026-10-18",

@@ -6,19 +6,26 @@
 import React, { useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import type { NewOrderInput, OrderKategori, ProductionTypeData } from "@/types/order";
+import type { UserData } from "@/types";
+import type { TeamData } from "@/types/team";
 import { toLocalISODate } from "@/lib/utils";
 import { inputCls, labelCls } from "@/app/components/settings/settingsShared";
+import TeamPicker from "./TeamPicker";
 
 interface Props {
   kategori: OrderKategori;
   /** pilihan kategori pesanan (hanya dipakai untuk non_utama) */
   nonUtamaTypes: ProductionTypeData[];
+  /** tim aktif yang bisa dipilih (Pengaturan → Tim) */
+  teams: TeamData[];
+  /** semua user — untuk menampilkan avatar anggota tim yang dipilih */
+  users: UserData[];
   isSubmitting: boolean;
   onCancel: () => void;
   onSubmit: (data: NewOrderInput) => void;
 }
 
-export default function CreateOrder({ kategori, nonUtamaTypes, isSubmitting, onCancel, onSubmit }: Props) {
+export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isSubmitting, onCancel, onSubmit }: Props) {
   const isNon = kategori === "non_utama";
   const [form, setForm] = useState<NewOrderInput>({
     kategori,
@@ -30,6 +37,7 @@ export default function CreateOrder({ kategori, nonUtamaTypes, isSubmitting, onC
     deadline: "",
     catatan_pesanan: "",
     jenis_produksi: isNon ? nonUtamaTypes[0]?.value ?? "" : undefined,
+    team_id: null,
   });
   const set = <K extends keyof NewOrderInput>(k: K, v: NewOrderInput[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -87,6 +95,8 @@ export default function CreateOrder({ kategori, nonUtamaTypes, isSubmitting, onC
             </select>
           </div>
         )}
+
+        <TeamPicker value={form.team_id ?? null} onChange={(id) => set("team_id", id)} teams={teams} users={users} disabled={isSubmitting} />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>

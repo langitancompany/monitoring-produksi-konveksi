@@ -6,20 +6,26 @@
 import React, { useMemo, useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import type { EditOrderInput, Order, OrderItem, ProductionTypeData } from "@/types/order";
+import type { UserData } from "@/types";
+import type { TeamData } from "@/types/team";
 import { sumItems, validateItems } from "@/lib/orderItems";
 import { inputCls, labelCls } from "@/app/components/settings/settingsShared";
 import ItemsEditor from "./detail/ItemsEditor";
+import TeamPicker from "./TeamPicker";
 
 interface Props {
   order: Order;
   /** semua jenis produksi (aktif & tidak) — dipilah di sini per kategori */
   productionTypes: ProductionTypeData[];
+  /** semua tim (aktif & tidak) — dipilah di sini */
+  teams: TeamData[];
+  users: UserData[];
   isSubmitting: boolean;
   onCancel: () => void;
   onSubmit: (data: EditOrderInput) => void;
 }
 
-export default function EditOrder({ order, productionTypes, isSubmitting, onCancel, onSubmit }: Props) {
+export default function EditOrder({ order, productionTypes, teams, users, isSubmitting, onCancel, onSubmit }: Props) {
   const isNon = order.kategori === "non_utama";
   const approvalDone = order.steps.find((s) => s.key === "approval")?.isCompleted === true;
   const editItems = !isNon && approvalDone; // item jadi sumber jumlah
@@ -35,6 +41,7 @@ export default function EditOrder({ order, productionTypes, isSubmitting, onCanc
     jenis_produksi: order.jenis_produksi ?? "",
   });
   const [items, setItems] = useState<OrderItem[]>(order.items);
+  const [teamId, setTeamId] = useState<string | null>(order.team_id ?? null);
   const [error, setError] = useState<string | null>(null);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -43,6 +50,12 @@ export default function EditOrder({ order, productionTypes, isSubmitting, onCanc
   const nonUtamaOptions = useMemo(
     () => productionTypes.filter((t) => t.kategori === "non_utama" && (t.is_active || t.value === order.jenis_produksi)),
     [productionTypes, order.jenis_produksi],
+  );
+
+  // Tim aktif + tim pesanan ini sekarang (walau sudah dinonaktifkan, agar tidak hilang diam-diam)
+  const teamOptions = useMemo(
+    () => teams.filter((t) => t.is_active || t.id === order.team_id),
+    [teams, order.team_id],
   );
 
   const submit = (e: React.FormEvent) => {
@@ -66,6 +79,7 @@ export default function EditOrder({ order, productionTypes, isSubmitting, onCanc
     onSubmit({
       ...form,
       jenis_produksi: isNon ? form.jenis_produksi : order.jenis_produksi,
+      team_id: teamId,
       ...(editItems ? { items } : {}),
     });
   };
@@ -111,6 +125,8 @@ export default function EditOrder({ order, productionTypes, isSubmitting, onCanc
             </select>
           </div>
         )}
+
+        <TeamPicker value={teamId} onChange={setTeamId} teams={teamOptions} users={users} disabled={isSubmitting} />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>

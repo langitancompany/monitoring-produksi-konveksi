@@ -10,11 +10,14 @@ import React from "react";
 import { ChevronRight, Loader2, Pencil, Phone, Trash2 } from "lucide-react";
 import type { KendalaNote, Order, ProductionStep, ProductionTypeData } from "@/types/order";
 import type { UserData } from "@/types";
+import type { TeamData } from "@/types/team";
 import type { ActionLog, OrderFields } from "@/hooks/useOrders";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useOrderDetail } from "@/hooks/useOrderDetail";
 import { useOrderNotes } from "@/hooks/useOrderNotes";
 import { can, canAny } from "@/lib/access";
+import { teamLabel, teamMembers } from "@/lib/teams";
+import TeamAvatars from "@/app/components/ui/TeamAvatars";
 import { canUndoStep, stepPosition, stepUndoPerms, stepWorkPerms } from "@/lib/steps";
 import { formatDate, getDeadlineStatus, getStatusColor, openWA, typeLabel } from "@/lib/utils";
 import type { StepCtx } from "./detail/stepUi";
@@ -27,6 +30,9 @@ interface Props {
   supabase: SupabaseClient;
   order: Order;
   productionTypes: ProductionTypeData[];
+  /** semua tim + semua user — untuk menampilkan tim pesanan beserta avatar anggotanya */
+  teams: TeamData[];
+  users: UserData[];
   currentUser: UserData & { id: string };
   /** sedang ada penyimpanan berjalan */
   isSaving: boolean;
@@ -61,7 +67,7 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
 
 export default function OrderDetail(props: Props) {
   const {
-    supabase, order, productionTypes, currentUser, isSaving, isUploading,
+    supabase, order, productionTypes, teams, users, currentUser, isSaving, isUploading,
     applyStepUpdate, applyKendalaUpdate, uploadProof, showAlert, showConfirm,
     onBack, onEdit, onDelete,
   } = props;
@@ -79,6 +85,8 @@ export default function OrderDetail(props: Props) {
   const canKendala = canAny(currentUser, [["produksi", "edit"], ["finishing", "edit"], ["orders", "edit"]]);
   const canDeleteKendala = canAny(currentUser, [["produksi", "delete"], ["finishing", "delete"], ["orders", "delete"]]);
   const isLate = getDeadlineStatus(order.deadline, order.status) === "overdue" && order.status !== "Ada Kendala";
+  const team = order.team_id ? teams.find((t) => t.id === order.team_id) ?? null : null;
+  const teamMemberList = teamMembers(team, users);
 
   const indexOf = (key: string) => order.steps.findIndex((s) => s.key === key);
   const ctx: StepCtx = {
@@ -177,6 +185,17 @@ export default function OrderDetail(props: Props) {
           </Row>
           <Row label="Alamat">{order.alamat_pemesan || "-"}</Row>
         </div>
+
+        <Row label="Tim pengerjaan">
+          {order.team_id ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-semibold">{teamLabel(teams, order.team_id)}</span>
+              {team && <TeamAvatars members={teamMemberList} max={8} size="sm" />}
+            </div>
+          ) : (
+            <span className="text-zinc-400 dark:text-zinc-500">Belum ditentukan</span>
+          )}
+        </Row>
 
         {order.items.length > 0 && (
           <div>

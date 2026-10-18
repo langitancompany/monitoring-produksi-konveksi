@@ -40,6 +40,7 @@ import { useUsers } from "@/hooks/useUsers";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useOrders } from "@/hooks/useOrders";
 import { useProductionTypes } from "@/hooks/useProductionTypes";
+import { useTeams } from "@/hooks/useTeams";
 import { useUpload } from "@/hooks/useUpload";
 
 // ─── Layout & UI ─────────────────────────────────────────────────────────────
@@ -177,6 +178,17 @@ export default function KonveksiApp() {
     handleDeleteType,
   } = useProductionTypes({ supabase, showAlert, showConfirm });
 
+  // Tim produksi (Pengaturan → Tim). Dipanggil SEBELUM useOrders: nama tim dipakai di log pesanan.
+  const {
+    teams,
+    activeTeams,
+    teamsError,
+    fetchTeams,
+    handleSaveTeam,
+    handleToggleTeam,
+    handleDeleteTeam,
+  } = useTeams({ supabase, showAlert, showConfirm });
+
   const {
     orders,
     activeOrders,
@@ -198,7 +210,7 @@ export default function KonveksiApp() {
     handleDeleteOrder,
     handleRestoreOrder,
     handlePermanentDelete,
-  } = useOrders({ supabase, currentUser, fetchNotifications, showAlert });
+  } = useOrders({ supabase, currentUser, fetchNotifications, showAlert, teams });
 
   const { isUploading, uploadProof } = useUpload({
     supabase,
@@ -210,8 +222,8 @@ export default function KonveksiApp() {
   // Muat data awal begitu login berhasil
   useEffect(() => {
     if (!currentUser?.id) return;
-    void Promise.all([fetchUsers(), fetchOrders(), fetchProductionTypes()]);
-  }, [currentUser?.id, fetchUsers, fetchOrders, fetchProductionTypes]);
+    void Promise.all([fetchUsers(), fetchOrders(), fetchProductionTypes(), fetchTeams()]);
+  }, [currentUser?.id, fetchUsers, fetchOrders, fetchProductionTypes, fetchTeams]);
 
   const selectedOrder = useMemo(
     () => orders.find((o: Order) => o.id === selectedOrderId),
@@ -338,6 +350,8 @@ export default function KonveksiApp() {
         <CreateOrder
           kategori={kategori}
           nonUtamaTypes={activeNonUtama}
+          teams={activeTeams}
+          users={usersList}
           isSubmitting={isCreating}
           onCancel={backToList}
           onSubmit={async (data) => {
@@ -393,6 +407,8 @@ export default function KonveksiApp() {
           <EditOrder
             order={selectedOrder}
             productionTypes={productionTypes}
+            teams={teams}
+            users={usersList}
             isSubmitting={isSaving}
             onCancel={() => setView("detail")}
             onSubmit={async (data) => {
@@ -407,6 +423,8 @@ export default function KonveksiApp() {
           supabase={supabase}
           order={selectedOrder}
           productionTypes={productionTypes}
+          teams={teams}
+          users={usersList}
           currentUser={currentUser}
           isSaving={isSaving}
           isUploading={isUploading}
@@ -602,6 +620,11 @@ export default function KonveksiApp() {
                 users={usersList}
                 onSaveUser={handleSaveUser}
                 onDeleteUser={handleDeleteUser}
+                teams={teams}
+                teamsError={teamsError}
+                onSaveTeam={handleSaveTeam}
+                onToggleTeam={handleToggleTeam}
+                onDeleteTeam={handleDeleteTeam}
               />
             )}
 

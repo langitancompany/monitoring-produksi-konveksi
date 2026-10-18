@@ -4,7 +4,7 @@
 > **baca dokumen ini dulu**, lalu kerjakan bagian berikutnya di tabel *Status*.
 > Perbarui tabel Status dan changelog setiap selesai satu bagian.
 
-Terakhir diperbarui: 18 Oktober 2026 · Versi aplikasi: V.1.6 (Bagian 7 selesai di kode, **belum diuji** di database/browser sungguhan — migration `005` belum dijalankan dan Dashboard baru belum dilihat pemilik. Bagian 0–4 sudah diuji pemilik di database sungguhan)
+Terakhir diperbarui: 18 Oktober 2026 · Versi aplikasi: V.1.7 (Bagian 8 — Tim Produksi — selesai di kode; migration `006` sudah diuji di PostgreSQL 16 lokal tetapi **belum dijalankan di Supabase pemilik** dan tampilannya belum dilihat pemilik di browser. Bagian 7 juga masih **belum diuji pemilik** — migration `005` belum dijalankan di Supabase pemilik, Dashboard baru belum dilihat. Bagian 0–4 sudah diuji pemilik di database sungguhan)
 
 ---
 
@@ -39,9 +39,10 @@ dan **Pesanan Non-Utama**.
 | 2 | Alur produksi | Aksi tiap tahap di Detail (Approval, Potong, Jahit, QC, Packing, Kirim, Terima — 4 kartu gaya Sablon), upload file, kendala, edit & hapus (ke Sampah), log, notifikasi (penerima dihitung di server — lihat §13.4) | ✅ selesai, sudah diuji pemilik di Supabase/storage sungguhan (18 Okt 2026) |
 | 3 | Arsip & pemantauan | Pesanan Selesai, Sampah (pulihkan / hapus permanen + file), Log Aktivitas, Kalender + migration `003` | ✅ selesai, sudah diuji pemilik di database sungguhan (18 Okt 2026) |
 | 4 | Catatan Rapat | Catatan per pesanan di kartu 02/03/04 + menu rekap mingguan (ikuti Sablon) + migration `004` | ✅ selesai, sudah diuji pemilik di database & browser (18 Okt 2026) |
-| 5 | Config Harga & Gaji | Rate gaji per item/tahap, Gaji & Upah, slip gaji. **Konsep sudah dijawab pemilik (§17); kodenya (termasuk PJ/tim di form pesanan) dibuat di akhir** | ⏸ menunggu urutan dari pemilik |
+| 5 | Config Harga & Gaji | Rate gaji per item/tahap, Gaji & Upah, slip gaji. **Konsep sudah dijawab pemilik (§17); kodenya (termasuk PJ di form pesanan) dibuat di akhir.** Tim produksi-nya sudah ada sejak Bagian 8 | ⏸ menunggu urutan dari pemilik |
 | 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon) | ⬜ |
 | 7 | Dashboard & finishing | Dashboard ringkasan, tampilan Kanban, pengetatan RLS, rapikan lint | ✅ selesai di kode, **belum diuji** (migration `005`, Dashboard di browser) — rincian & sisa pekerjaan di §18 |
+| 8 | Tim Produksi | Pengaturan → Tim (kartu + avatar anggota), pilihan Tim di Pesanan Baru/Edit, tampil di Detail Pesanan, migration `006` | ✅ selesai di kode, migration diuji di Postgres lokal, **belum diuji** di Supabase & browser pemilik — rincian di §19 |
 
 Pekerjaan dibagi per bagian **sengaja** (batas token). Selesaikan satu bagian
 penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
@@ -82,18 +83,18 @@ penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 - **Supabase:** satu instance, **schema per unit** (`monitoring_konveksi`). Sesi login dibagi lintas subdomain lewat cookie domain `.langitan.co` (`authCookieOptions()` di `lib/config.ts`; dimatikan saat localhost).
 - **Server-only:** route API di `app/api/*` memakai `getSupabaseAdmin()` (service role) + `requireUser()` (cek sesi & role). Operasi sensitif (uang, hapus user) harus lewat API, bukan langsung dari browser.
 - **Deploy:** Coolify di VPS sendiri, `Dockerfile` standalone, health check `/api/health`. Variabel `NEXT_PUBLIC_*` = Build Variable.
-- **Env:** lihat `.env.example`. **Setup database:** README → "Menyiapkan Supabase" (`supabase/migrations/001_base_umum.sql` lalu `002_konveksi_core.sql`, `003_calendar.sql`, `004_production_notes.sql`, lalu `005_rls_hardening.sql`).
+- **Env:** lihat `.env.example`. **Setup database:** README → "Menyiapkan Supabase" (`supabase/migrations/001_base_umum.sql` lalu `002_konveksi_core.sql`, `003_calendar.sql`, `004_production_notes.sql`, `005_rls_hardening.sql`, lalu `006_teams.sql`).
 
 ### Struktur folder (inti)
 ```
 app/page.tsx                      kerangka & routing tab
 app/components/{auth,layout,ui,misc,dashboard,orders,settings}
 app/api/                          users (kelola user) · notify (broadcast per role/semua) · send-notification (1 user) · backup · health · version
-hooks/   useAuth useUsers useNotifications useOrders useOrderDetail useOrderNotes useUpload useProductionTypes useUnitAccess useUpdateCheck
-lib/     config steps access orderItems utils orderLogic orderArchive meetingNotes dashboardStats notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
-types/   index.ts (user & hak akses)  order.ts (pesanan)
-supabase/migrations/              001 base_umum · 002 konveksi_core · 003 calendar · 004 production_notes · 005 rls_hardening
-tests/                            uji logika murni (jalankan: npx tsx tests/dashboardStats.test.ts)
+hooks/   useAuth useUsers useNotifications useOrders useOrderDetail useOrderNotes useUpload useProductionTypes useTeams useUnitAccess useUpdateCheck
+lib/     config steps access orderItems utils orderLogic orderArchive meetingNotes dashboardStats teams notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
+types/   index.ts (user & hak akses)  order.ts (pesanan)  team.ts (tim)
+supabase/migrations/              001 base_umum · 002 konveksi_core · 003 calendar · 004 production_notes · 005 rls_hardening · 006 teams
+tests/                            uji logika murni (jalankan: npx tsx tests/teams.test.ts). Catatan: `tests/dashboardStats.test.ts` yang disebut §18 TIDAK ada di zip yang diserahkan ke pengerjaan Bagian 8 (folder `tests/` dibuat baru di V.1.7) — cek apakah file itu masih ada di repo asli
 supabase/optional/                salin user dari Sablon (hanya untuk supervisor pertama)
 supabase/patches/                 perbaikan untuk database SABLON (bukan Konveksi)
 docs/PRD.md                       dokumen ini
@@ -124,6 +125,13 @@ lihat README.
 | `kendala` (jsonb) | `KendalaNote[]` |
 | `status` | hasil `deriveStatus()`; "Telat" tidak disimpan (dari deadline) |
 | `assigned_to, created_by, deleted_at` | `deleted_at` = di Sampah (soft delete) |
+| `team_id` | tim pengerjaan (→ `teams.id`, opsional). Migration `006`. `on delete set null`: menghapus tim tidak menghapus pesanan |
+
+### `teams` — tim produksi (migration `006`)
+`id, name, description, member_ids (uuid[]), is_active, created_at, updated_at`.
+Nama unik tanpa membedakan huruf besar/kecil (`lower(btrim(name))`). `member_ids` berisi `users.id`;
+satu user boleh ada di banyak tim. Array tidak punya foreign key, jadi trigger `trg_users_remove_from_teams`
+mengeluarkan user dari semua tim saat user dihapus. Pesanan **tidak** menyimpan salinan anggota tim (lihat §19 no. 7).
 
 ### `order_logs` — log aktivitas
 `order_id, kode_produksi, category (STATUS|FILE|KENDALA|QC|REVISI|SISTEM), event_name, description, old_value, new_value, oleh, metadata`.
@@ -211,6 +219,8 @@ Acuan Sablon ada di kolom kanan — **baca file itu dulu**.
 Tipe: `UserPermissions` (`types/index.ts`). Saat ini: `dashboard, orders, produksi, finishing, salary, keuangan, settings`. `supervisor` selalu boleh semuanya.
 Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`; satu user boleh banyak role). Tambah role baru bila perlu (mis. penjahit) — **tanyakan pemilik**.
 
+**Tim produksi tidak punya modul izin sendiri:** kelola tim (tambah/ubah/nonaktifkan/hapus) memakai izin `settings` (`create`/`edit`/`delete`, sama seperti Jenis Produksi); **melihat** daftar tim boleh semua staf (supaya form pesanan bisa menampilkan pilihan tim); memilih/mengganti tim di pesanan = `orders.create` / `orders.edit`.
+
 ---
 
 ## 9. Panduan UI/tema (samakan dengan Sablon)
@@ -246,6 +256,7 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 - Operasi uang/gaji harus lewat API server + fungsi database (pola `fin_*` Sablon), bukan
   insert langsung dari browser.
 - **Penjaga kolom `orders` (migration `005`):** trigger `guard_orders_update` membatasi tiap kelompok kolom ke izin yang sesuai (data pemesan/deadline/assigned_to = `orders.edit`; items/jumlah = `orders.edit` atau `produksi.create`; steps/kendala/status = izin produksi/finishing/orders.edit; kode, kategori, pembuat = tidak boleh berubah). Menambah kolom baru di `orders`? **Tambahkan ke trigger itu**, kalau tidak kolomnya hanya dijaga policy longgar.
+- **Tim (migration `006`):** tabel `teams` ber-RLS (baca = `is_staff()`, tulis = `settings.create/edit/delete`, tanpa grant `anon`). `team_id` ditambahkan ke penjaga `guard_orders_update` (grup data pemesan: butuh `orders.edit`). Pengecualian disengaja: `team_id` boleh menjadi NULL bila timnya baru dihapus (aksi otomatis `on delete set null`) — kalau tidak, user yang boleh menghapus tim tetapi tidak punya `orders.edit` akan gagal menghapus tim yang sedang dipakai pesanan. Fungsi `guard_orders_update` kini didefinisikan di `006` (salinan `005` + `team_id`); **mengubahnya lagi harus mulai dari versi `006`, bukan `005`**.
 - Jangan commit `.env*`. `SUPABASE_SERVICE_ROLE_KEY` dan `FIREBASE_PRIVATE_KEY` hanya di server.
 - Firebase web config & VAPID key masih memakai project yang sama dengan Sablon.
 - Policy storage bucket `production-proofs` berlaku untuk seluruh bucket (bukan per folder).
@@ -265,11 +276,13 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 8. **Role baru** (penjahit, tukang potong) atau cukup role yang ada? ✅ DIJAWAB: cukup role yang ada (`produksi`, `qc`, `admin`) — lihat §17.
 9. **Keuangan:** DP/lunas/invoice sama dengan Sablon?
 10. **Catatan Rapat:** bentuk integrasi persis dengan produksi (baca Sablon dulu, konfirmasi bila ragu).
+11. **Tim produksi:** ✅ DIJAWAB (18 Okt 2026) — tim dibuat dari user di Pengaturan → Tim, tampil sebagai kartu avatar, dipilih saat input pesanan (§19). **Masih terbuka untuk Bagian 5:** (a) bila anggota tim berubah, apakah gaji pesanan lama ikut berubah? (b) apakah anggota tim dibatasi role `produksi`? (c) apakah tim juga perlu dipakai filter di daftar pesanan/Dashboard?
 
 ---
 
 ## 12. Riwayat
 
+- **V.1.7** — Bagian 8: Tim Produksi (Pengaturan → Tim berupa kartu avatar anggota, pilihan Tim di Pesanan Baru & Edit, tampil di Detail Pesanan, log perubahan tim), migration `006`, tes `tests/teams.test.ts`.
 - **V.1.6** — Bagian 7: Dashboard ringkasan produksi, perbaikan hitungan Telat/Mepet (zona waktu), migration `005` (penjaga kolom `orders`, hapus log hanya supervisor), pembersihan import/variabel tak terpakai.
 - **V.1.5** — Bagian 4: catatan produksi di detail pesanan (kartu 02/03/04), menu Catatan Rapat (rekap mingguan + cetak/PDF), migration `004`; hapus `StepCard.tsx` sisa lama.
 - **V.1.4** — Bagian 3: Pesanan Selesai, Kalender (+ agenda), Log Aktivitas, Sampah (pulihkan / hapus permanen), migration `003`.
@@ -336,7 +349,7 @@ perubahan ditolak & data dimuat ulang. Sudah diuji pemilik di database sungguhan
 - Pesanan baru: pesan "Pesanan Baru" memberi notifikasi ke semua user termasuk pembuatnya (perilaku Sablon).
 - `npm install` dan `next build` tidak bisa dijalankan di lingkungan pengerjaan (tanpa internet). Verifikasi dilakukan dengan `tsc` + stub tipe dan 28 uji logika (urutan tahap, QC→revisi→QC ulang, validasi item, nama file). **Jalankan `npm install && npx tsc --noEmit && npm run build` di komputer Anda sebelum deploy.**
 
-**Daftar pesanan (gaya Sablon):** `orders/OrderList.tsx` — Kanban desktop 4 kolom (Pesanan Masuk · Produksi · Finishing · Pengiriman, dengan penghitung), kartu + progress bar di HP, filter Semua/Proses/Telat/Kendala/Siap Kirim + bulan + jenis + pencarian, urut paling mendesak (telat → ≤3 hari → tanggal masuk), tombol Hapus (konfirmasi → Sampah). Kolom ditentukan `currentPhase()` (tahap aktif, `lib/steps.ts`), BUKAN `status`, jadi pesanan "Ada Kendala"/"Revisi" tetap di kolom tahap sebenarnya (Sablon memasukkannya ke On Process). "Siap Kirim" = status Kirim saja; pesanan Selesai ada di menu Pesanan Selesai (Bagian 3). Chip PIC/Helper Sablon tidak dibawa (Konveksi belum punya penanggung jawab per pesanan).
+**Daftar pesanan (gaya Sablon):** `orders/OrderList.tsx` — Kanban desktop 4 kolom (Pesanan Masuk · Produksi · Finishing · Pengiriman, dengan penghitung), kartu + progress bar di HP, filter Semua/Proses/Telat/Kendala/Siap Kirim + bulan + jenis + pencarian, urut paling mendesak (telat → ≤3 hari → tanggal masuk), tombol Hapus (konfirmasi → Sampah). Kolom ditentukan `currentPhase()` (tahap aktif, `lib/steps.ts`), BUKAN `status`, jadi pesanan "Ada Kendala"/"Revisi" tetap di kolom tahap sebenarnya (Sablon memasukkannya ke On Process). "Siap Kirim" = status Kirim saja; pesanan Selesai ada di menu Pesanan Selesai (Bagian 3). Chip PIC/Helper Sablon tidak dibawa (Konveksi belum punya penanggung jawab per pesanan). Sejak V.1.7 pesanan punya **Tim** (tampil di Detail Pesanan, §19) tetapi belum ada chip tim di kartu daftar/Kanban.
 
 **Perubahan nama tahap:** `pengiriman` kini berlabel "Bukti Kirim (Resi)", `penerimaan` "Bukti Terima (User)" (mengikuti Sablon).
 
@@ -424,7 +437,11 @@ Hapus catatan = penulisnya atau supervisor (RLS `created_by_id = auth.uid()` ata
 
 **Jawaban pemilik:** alur gaji **sama seperti Sablon**. Penerima gaji ditentukan oleh **role user**: tim produksi (`produksi`),
 tim QC (`qc`), dan admin (`admin`). Saat **pesanan dibuat**, diisi **PJ (penanggung jawab)** dan **tim produksinya**.
-**Kodenya dibuat di akhir** (bukan sekarang) — jangan membangun field PJ/tim atau perhitungan gaji sebelum diminta.
+**Kodenya dibuat di akhir** (bukan sekarang) — jangan membangun field PJ atau perhitungan gaji sebelum diminta.
+
+> **Pembaruan 18 Okt 2026 (V.1.7):** pemilik meminta bagian **tim** dikerjakan lebih dulu, terpisah dari gaji.
+> Hasilnya (§19): tabel `teams` + `orders.team_id`, tim dibuat di Pengaturan → Tim, dipilih di form pesanan.
+> Ini menggantikan rencana `helper_id` di bawah. **Yang masih belum dibuat:** PJ (`assigned_to`) di form pesanan, semua perhitungan gaji, dan pembagian PJ : tim.
 
 **Cara kerja di Sablon (dibaca dari `SalaryView.tsx`, `FixedSalaryView.tsx`, `CreateOrder.tsx`, 18 Okt 2026):**
 1. **Produksi (per pesanan):** kolom `orders.assigned_to` (PJ, wajib) dan `orders.helper_id` (Helper, opsional) diisi di form Pesanan Baru & Edit.
@@ -438,13 +455,15 @@ tim QC (`qc`), dan admin (`admin`). Saat **pesanan dibuat**, diisi **PJ (penangg
 
 **Pemetaan ke Konveksi (asumsi saya — konfirmasi saat membangun):**
 - Role: tidak perlu role baru (menjawab §11 no. 8). `lib/roles.ts` sudah punya `produksi`, `qc`, `admin`.
-- Kolom baru di `orders`: `assigned_to` (PJ) dan `helper_id` (tim produksi) + isian di `CreateOrder`/`EditOrder` (pilihan = user ber-role `produksi`, seperti Sablon).
-  Perlu migration baru (nomor berikutnya), mengganti pemakaian `step.doneBy` sebagai dasar gaji (keterbatasan di §14 terselesaikan lewat cara ini).
+- ~~Kolom baru di `orders`: `helper_id` (tim produksi)~~ → **diganti `team_id`** (V.1.7, migration `006`, §19). Tersisa untuk Bagian 5: `assigned_to` (PJ) + isiannya di `CreateOrder`/`EditOrder`
+  (kolom `assigned_to` sudah ada sejak `002` dan sudah dijaga trigger, tetapi belum dipakai UI), serta mengganti `step.doneBy` sebagai dasar gaji (keterbatasan di §14 terselesaikan lewat PJ + tim).
+- ⚠️ **Sebelum membangun gaji, putuskan soal riwayat anggota tim** (§11 no. 11a): pesanan hanya menyimpan `team_id`, bukan daftar anggota saat itu. Kalau anggota tim diganti sesudah pesanan selesai,
+  gaji yang dihitung dari `teams.member_ids` untuk pesanan lama ikut berubah. Pilihan: simpan salinan anggota (`team_member_ids`) di pesanan saat tahap produksi selesai.
 - Dasar nominal produksi: **rate per item (jenis produksi)** dari `items` (§7 Bagian 5), bukan komposisi gesut Sablon. Cara membagi antara PJ dan tim → pertanyaan di bawah.
 - Tim QC & admin: ikuti Sablon (poin 2–3), dengan basis qty = `jumlah` / total `items`.
 
 **Pertanyaan yang harus dikonfirmasi sebelum membangun (jangan menebak):**
-1. **Tim produksi** satu orang (seperti `helper_id` Sablon) atau **beberapa orang** per pesanan?
+1. ~~**Tim produksi** satu orang atau beberapa orang per pesanan?~~ ✅ Beberapa orang, lewat Tim (§19). Satu pesanan = satu tim.
 2. **Pembagian PJ : tim** — memakai 70% : 30% seperti sistem lama Sablon, atau persentase lain / upah dasar tetap per profesi?
 3. **Admin** — bonus per closing + per pcs seperti Sablon? (PRD §13.2 awalnya menyebut gaji tetap & bonus "tidak dibawa"; keputusan ini perlu dipastikan.)
 4. **Tahap yang dihargai** — apakah Potong Kain dan Jahit punya rate berbeda, dan siapa yang mengerjakan Potong (PJ/tim yang sama)?
@@ -521,4 +540,54 @@ Aturan menulis tanggal baru: **jangan** bandingkan tanggal dengan `new Date("YYY
   (tabel `finance_*`, view `v_*`, fungsi `fin_*`, trigger penjaga) — zip Sablon yang dikirim hanya berisi `010`–`011`; isi `finance_accounts`,
   `finance_categories`, `finance_settings`; definisi `finance_expense_seq` dan indeks unik `finance_expenses(source, source_ref)`. Tanpa itu skema uang akan menebak-nebak. Juga konfirmasi §11 no. 9 (DP/lunas/invoice sama dengan Sablon?) dan no. 7.
 - **Bagian 5 (Config Harga & Gaji)** — dikerjakan paling akhir atas permintaan pemilik; jawab dulu 5 pertanyaan di §17.
-  Saat itu tambahkan juga kolom `assigned_to`/tim ke penjaga trigger (`assigned_to` sudah dijaga: butuh `orders.edit`) dan penjaga kolom gaji/harga.
+  `assigned_to` dan `team_id` sudah dijaga trigger (butuh `orders.edit`, `team_id` lewat `006`); tinggal tambahkan penjaga kolom gaji/harga.
+
+
+---
+
+## 19. Hasil Bagian 8 (V.1.7) — baca sebelum lanjut
+
+**Permintaan pemilik (18 Okt 2026):** membuat tim dari user yang ada di Pengaturan → Pengguna, supaya saat input pesanan baru bisa memilih
+timnya (konveksi punya tim sendiri-sendiri: tim jahit kaos, tim jahit seragam, dst.), ditampilkan sebagai **kartu berisi avatar** anggota.
+
+**Yang ada:**
+- **Pengaturan → Tim** (tab baru, ikon `UsersRound`, tampil untuk semua yang boleh membuka Pengaturan): `settings/tabs/TeamsTab.tsx`. Tiap tim = kartu
+  (nama, deskripsi, deretan avatar anggota saling menumpuk maks. 8 lalu bulatan "+N", nama depan anggota, jumlah anggota). Tombol Ubah / Nonaktifkan / Hapus
+  seperti Jenis Produksi. Form tim = modal: nama, deskripsi, dan daftar user dengan kotak cari + centang (avatar, nama, role).
+- **Pilihan Tim di Pesanan Baru dan Edit Pesanan** (`orders/TeamPicker.tsx`): dropdown "Belum ditentukan" + tim aktif; setelah dipilih muncul pratinjau avatar & nama anggota.
+  Di Edit, tim pesanan yang sekarang tetap muncul walau sudah dinonaktifkan (tidak hilang diam-diam).
+- **Detail Pesanan:** baris "Tim pengerjaan" berisi nama tim + avatar anggota.
+- **Log Aktivitas:** pesanan dibuat dengan tim → tercatat ("…dibuat, tim X"); tim diganti → "Tim: A → B" di log "Pesanan Diedit" (nama tim, bukan ID).
+- **Komponen & logika:** `ui/TeamAvatars.tsx` (dipakai 3 tempat), `hooks/useTeams.ts` (pola `useProductionTypes`, tapi simpan mengembalikan true/false agar modal tak tertutup bila gagal,
+  dan cek 0-baris akibat RLS), `lib/teams.ts` (validasi, ID yatim, label, inisial, terjemahan galat; murni & teruji), `types/team.ts`.
+- **Migration `006_teams.sql`:** tabel `teams`, kolom `orders.team_id`, trigger keluarkan-user-dihapus-dari-tim, RLS, penjaga `guard_orders_update` diperbarui (§10), `notify pgrst, 'reload schema'`.
+
+**Keputusan yang saya ambil (ubah bila pemilik tidak setuju):**
+1. **Anggota = kolom `member_ids uuid[]`**, bukan tabel penghubung. Alasan: satu tim tersimpan dalam satu perintah (tidak mungkin nama tersimpan tapi anggota gagal) dan kode lebih sederhana.
+   Konsekuensi: tidak ada foreign key → dijaga trigger saat user dihapus, dan tampilan melewati ID yang user-nya sudah tak ada (`teamMembers`). Bila nanti butuh laporan rumit, bisa dipindah ke tabel penghubung.
+2. **Tim opsional** di pesanan (boleh "Belum ditentukan"), berlaku untuk pesanan **utama dan non-utama**. (PJ di Sablon wajib; PJ Konveksi belum dibangun.)
+3. **Satu user boleh di banyak tim**, dan **semua user bisa jadi anggota** (tidak dibatasi role `produksi`) — user ber-role admin/QC pun bisa dipilih. Belum ada pembatasan karena pemilik belum menjawab (§11 no. 11b).
+4. **Izin = modul `settings`** (§8), tanpa modul izin baru, supaya tidak perlu mengubah tabel hak akses. Baca daftar tim = semua staf.
+5. **Menghapus tim tidak menghapus pesanan**; `team_id` jadi kosong dan tidak bisa dikembalikan. Karena itu tombol **Nonaktifkan** disarankan (kartu jadi redup, hilang dari pilihan form, pesanan lama tetap menampilkannya). Konfirmasi hapus sudah menjelaskan ini.
+6. **Nama tim unik** (tanpa membedakan huruf besar/kecil & spasi ujung), maks. 60 karakter; deskripsi maks. 200. Aturan sama di aplikasi dan database.
+7. **Pesanan hanya menyimpan `team_id`, tidak menyimpan salinan anggota.** Mengubah anggota tim mengubah tampilan di SEMUA pesanan yang memakai tim itu, termasuk pesanan lama/selesai. Aman untuk tampilan; **berbahaya untuk gaji** — lihat peringatan di §17.
+8. **Kompatibel dengan database yang belum di-migrate:** `team_id` hanya dikirim bila diisi/diubah, jadi membuat pesanan tanpa tim tetap jalan sebelum `006` dijalankan. Tab Tim menampilkan pesan yang menunjuk file migration, dan tombol "+ Tim Baru" dinonaktifkan.
+9. **Belum dikerjakan (sengaja, di luar permintaan):** chip tim di kartu daftar/Kanban, filter per tim, notifikasi ke anggota tim, tim di Dashboard/Kalender, pembatasan anggota per role.
+
+**Verifikasi (dikerjakan di lingkungan dengan akses npm & PostgreSQL 16 lokal, 18 Okt 2026):**
+- `npx tsc --noEmit` bersih. `npx eslint .`: jumlah masalah **sama persis sebelum dan sesudah** (85, semuanya lama — `any` yang ditoleransi §3 no. 8 dan satu `set-state-in-effect` di `app/page.tsx`); 7 file baru: 0 masalah.
+- `tests/teams.test.ts`: **15 uji lulus** (`npx tsx tests/teams.test.ts`). Ditambah uji render server (SSR) `TeamsTab`, `TeamPicker`, `TeamAvatars` (kartu, "+N", ID user terhapus tidak dihitung, tim kosong/nonaktif, pesan migration) — uji sekali pakai, tidak disimpan.
+- **Migration `001`–`006` dijalankan berurutan di PostgreSQL 16 (dengan stub `auth.uid()` dan role Supabase) tanpa galat**, `006` dijalankan ulang dua kali tanpa galat (idempotent). Ini juga satu-satunya pembuktian bahwa **`005` sintaksnya benar** — tetapi stub itu bukan Supabase asli.
+- Perilaku database yang terbukti: user non-staff tidak bisa membaca tim; tanpa `settings.create/edit` tidak bisa tambah/ubah tim; nama kembar & nama kosong ditolak; user dengan `produksi.edit` tanpa `orders.edit` **ditolak** saat mengganti/mengosongkan `team_id` tetapi tetap bisa mengubah status (alur lama tidak rusak); admin dengan `orders.edit` bisa ganti tim; user dengan `settings.delete` tanpa `orders.edit` **berhasil menghapus tim yang dipakai pesanan** (pesanan tetap ada, `team_id` jadi NULL); menghapus user mengeluarkannya dari semua tim; supervisor lolos semua.
+- **`next build` TIDAK dijalankan** (butuh Google Fonts, PRD §3 no. 7). Jalankan `npm install && npx tsc --noEmit && npm run build` di komputer Anda sebelum deploy. Catatan: `npm ci` (dipakai `Dockerfile`) gagal di npm 10.9.7 karena `package-lock.json` kurang `@opentelemetry/api`, `@emnapi/runtime`, `@emnapi/core` — sudah begitu sebelum Bagian 8 (zip tidak diubah lockfile-nya); karena deploy lama berhasil, kemungkinan versi npm di Docker Anda lebih toleran, tapi layak dicek.
+
+**Belum diuji dengan Supabase/browser sungguhan — uji ini sebelum dianggap beres:**
+1. Jalankan `006` di SQL Editor (harus "Success"). Bila Tab Tim masih bilang tabel belum terbaca, restart PostgREST (cache skema).
+2. Pengaturan → Tim → **+ Tim Baru**: isi nama, centang beberapa user (termasuk yang punya foto & yang tidak), simpan → kartu muncul dengan avatar. Coba nama kembar (harus ditolak), ubah anggota, nonaktifkan, aktifkan.
+3. **Pesanan baru** (utama dan non-utama) memilih tim → pratinjau avatar muncul → simpan → Detail Pesanan menampilkan tim. Coba tanpa tim (harus tetap bisa).
+4. **Edit Pesanan:** ganti tim → Log Aktivitas mencatat "Tim: A → B". Nonaktifkan tim itu → buka Edit lagi: tim tetap terpilih, tidak hilang.
+5. Sebagai **user produksi** (tanpa `orders.edit`): buka Detail Pesanan → tim terbaca; tombol Edit tidak ada. Sebagai user tanpa izin Pengaturan: menu Tim tidak terlihat.
+6. **Hapus tim yang dipakai pesanan** → pesanan tetap ada, baris Tim jadi "Belum ditentukan". **Hapus user** yang jadi anggota → kartu tim menghitung ulang (anggota berkurang).
+7. Tampilan HP & mode gelap: modal tim (daftar user bisa di-scroll), kartu tim, pratinjau di form pesanan.
+
+**Berikutnya:** Bagian 5 (gaji) — jawab dulu pertanyaan di §17 **dan** §11 no. 11 (riwayat anggota tim). Opsional kecil: chip/filter tim di Daftar Pesanan.

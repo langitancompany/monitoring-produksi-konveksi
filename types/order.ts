@@ -98,6 +98,8 @@ export interface Order {
   steps: ProductionStep[];
   kendala: KendalaNote[];
   assigned_to?: string | null;
+  /** tim yang mengerjakan (tabel teams, Pengaturan → Tim); kosong = belum ditentukan */
+  team_id?: string | null;
   created_by?: string | null;
   deleted_at?: string | null;
 }
@@ -114,6 +116,8 @@ export interface NewOrderInput {
   catatan_pesanan: string;
   /** hanya non_utama */
   jenis_produksi?: string;
+  /** tim pengerjaan (opsional) */
+  team_id?: string | null;
 }
 
 /** Data dari form "Edit pesanan" (hanya field informasi, bukan tahap/status). */
@@ -129,6 +133,8 @@ export interface EditOrderInput {
   jenis_produksi?: string | null;
   /** hanya dipakai pesanan utama yang Approval-nya sudah selesai */
   items?: OrderItem[];
+  /** tim pengerjaan; undefined = jangan ubah, null = kosongkan */
+  team_id?: string | null;
 }
 
 /** Data dari form Approval pesanan utama. */
