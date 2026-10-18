@@ -80,6 +80,7 @@ hak akses (RLS, fungsi, trigger) berperilaku sama.
    - `supabase/migrations/004_production_notes.sql` — catatan produksi per pesanan untuk menu Catatan Rapat (tabel `production_notes`).
    - `supabase/migrations/005_rls_hardening.sql` — pengetatan hak akses tabel `orders` (penjaga per kolom) dan hapus log; tidak mengubah data.
    - `supabase/migrations/006_teams.sql` — tim produksi (tabel `teams`, kolom `orders.team_id`) untuk Pengaturan → Tim dan pilihan tim di form pesanan. Tidak mengubah data lama.
+   - `supabase/migrations/007_pricing_salary.sql` — Config Harga & Gaji (tabel `pricing_configs`, `salary_payments`, `salary_audit_log`, kolom `orders.crew_snapshot`, fungsi tandai lunas). Mengisi salinan PJ/tim untuk pesanan yang produksinya sudah selesai. Jalankan di luar jam kerja.
 2. **Expose schema** `monitoring_konveksi` di pengaturan API Supabase
    (`PGRST_DB_SCHEMAS` / Exposed schemas; di self-hosted: variabel PostgREST di Coolify)
    lalu restart PostgREST. Tanpa ini aplikasi tidak bisa membaca tabel.

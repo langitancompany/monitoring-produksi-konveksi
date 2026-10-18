@@ -40,3 +40,12 @@ export function authCookieOptions() {
     secure: true,
   };
 }
+
+/**
+ * Identitas perusahaan untuk dokumen cetak (slip gaji). Alamat disalin dari slip Sablon —
+ * ubah di sini bila alamat Konveksi berbeda.
+ */
+export const COMPANY = {
+  name: "Langitan.co",
+  address: "Mandungan, Widang, Tuban, Jawa Timur",
+} as const;

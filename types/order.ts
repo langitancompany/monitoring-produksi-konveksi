@@ -2,6 +2,8 @@
 //
 // Model data pesanan konveksi. Lihat docs/PRD.md bagian "Model Data".
 
+import type { CrewSnapshot } from "@/types/salary";
+
 /** utama = jahitan reguler (seragam, celana, kaos, ...); non_utama = selempang wisuda, permak, dst. */
 export type OrderKategori = "utama" | "non_utama";
 
@@ -100,6 +102,11 @@ export interface Order {
   assigned_to?: string | null;
   /** tim yang mengerjakan (tabel teams, Pengaturan → Tim); kosong = belum ditentukan */
   team_id?: string | null;
+  /**
+   * Salinan PJ + anggota tim saat tahap produksi selesai (diisi database, migration 007).
+   * Dasar pembagian gaji produksi; kosong selama produksi belum selesai.
+   */
+  crew_snapshot?: CrewSnapshot | null;
   created_by?: string | null;
   deleted_at?: string | null;
 }
@@ -118,6 +125,8 @@ export interface NewOrderInput {
   jenis_produksi?: string;
   /** tim pengerjaan (opsional) */
   team_id?: string | null;
+  /** penanggung jawab / PJ (users.id, opsional — dasar gaji produksi, Bagian 5) */
+  assigned_to?: string | null;
 }
 
 /** Data dari form "Edit pesanan" (hanya field informasi, bukan tahap/status). */
@@ -135,6 +144,8 @@ export interface EditOrderInput {
   items?: OrderItem[];
   /** tim pengerjaan; undefined = jangan ubah, null = kosongkan */
   team_id?: string | null;
+  /** PJ; undefined = jangan ubah, null = kosongkan */
+  assigned_to?: string | null;
 }
 
 /** Data dari form Approval pesanan utama. */

@@ -19,7 +19,7 @@ import { can, canAny } from "@/lib/access";
 import { teamLabel, teamMembers } from "@/lib/teams";
 import TeamAvatars from "@/app/components/ui/TeamAvatars";
 import { canUndoStep, stepPosition, stepUndoPerms, stepWorkPerms } from "@/lib/steps";
-import { formatDate, getDeadlineStatus, getStatusColor, openWA, typeLabel } from "@/lib/utils";
+import { formatDate, getDeadlineStatus, getStatusColor, openWA, typeLabel, userLabel } from "@/lib/utils";
 import type { StepCtx } from "./detail/stepUi";
 import StepApproval from "./detail/StepApproval";
 import StepProduksi from "./detail/StepProduksi";
@@ -185,6 +185,14 @@ export default function OrderDetail(props: Props) {
           </Row>
           <Row label="Alamat">{order.alamat_pemesan || "-"}</Row>
         </div>
+
+        <Row label="Penanggung jawab (PJ)">
+          {order.assigned_to ? (
+            <span className="font-semibold">{userLabel(users, order.assigned_to)}</span>
+          ) : (
+            <span className="text-zinc-400 dark:text-zinc-500">Belum ditentukan</span>
+          )}
+        </Row>
 
         <Row label="Tim pengerjaan">
           {order.team_id ? (

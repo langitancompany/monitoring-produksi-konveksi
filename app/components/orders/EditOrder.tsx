@@ -12,6 +12,7 @@ import { sumItems, validateItems } from "@/lib/orderItems";
 import { inputCls, labelCls } from "@/app/components/settings/settingsShared";
 import ItemsEditor from "./detail/ItemsEditor";
 import TeamPicker from "./TeamPicker";
+import PJPicker from "./PJPicker";
 
 interface Props {
   order: Order;
@@ -42,6 +43,7 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
   });
   const [items, setItems] = useState<OrderItem[]>(order.items);
   const [teamId, setTeamId] = useState<string | null>(order.team_id ?? null);
+  const [pjId, setPjId] = useState<string | null>(order.assigned_to ?? null);
   const [error, setError] = useState<string | null>(null);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -80,6 +82,7 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
       ...form,
       jenis_produksi: isNon ? form.jenis_produksi : order.jenis_produksi,
       team_id: teamId,
+      assigned_to: pjId,
       ...(editItems ? { items } : {}),
     });
   };
@@ -125,6 +128,8 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
             </select>
           </div>
         )}
+
+        <PJPicker value={pjId} onChange={setPjId} users={users} disabled={isSubmitting} />
 
         <TeamPicker value={teamId} onChange={setTeamId} teams={teamOptions} users={users} disabled={isSubmitting} />
 

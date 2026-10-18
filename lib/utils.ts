@@ -163,3 +163,9 @@ export function generateStorageFilename(
   const kode = kodeProduksi.replace(/[#/\\]/g, "").replace(/\s+/g, "-").trim();
   return `${toLocalISODate(tanggal)}_${kode}_${jenisDokumen}`;
 }
+
+/** Nama user dari ID. Tanpa ID → "-"; user yang tidak terbaca/sudah dihapus → "Pengguna tidak ditemukan". */
+export function userLabel(users: { id: string; name: string }[], id: string | null | undefined): string {
+  if (!id) return "-";
+  return users.find((u) => u.id === id)?.name ?? "Pengguna tidak ditemukan";
+}

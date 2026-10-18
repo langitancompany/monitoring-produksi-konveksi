@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.7",
+  version: "V.1.8",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Tim produksi: buat tim dari user, pilih tim saat membuat pesanan",
+  notes: "Config Harga & Gaji: rate per jenis produksi, gaji PJ/tim/QC/admin, slip gaji",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.8",
+    date: "2026-10-19",
+    changes: [
+      "Menu baru Config Harga: atur rate gaji per pcs untuk tiap jenis produksi dan tahap (Potong Kain, Jahit, QC, Packing), plus aturan bagian PJ dan bonus admin. Setiap perubahan disimpan sebagai riwayat dengan tanggal berlaku, jadi gaji bulan lalu tidak ikut berubah.",
+      "Menu baru Gaji & Upah: gaji per bulan untuk Produksi (PJ + anggota tim), Tim QC (dibagi rata), dan bonus Admin. Ada rincian per pesanan, tandai lunas, dan cetak slip gaji (satu atau banyak sekaligus, bisa disimpan sebagai PDF). Pesanan yang belum punya PJ/tim atau rate-nya belum diatur ditandai di bagian peringatan.",
+      "Form Pesanan Baru dan Edit Pesanan kini punya pilihan Penanggung Jawab (PJ). PJ tampil di Detail Pesanan dan perubahannya tercatat di Log Aktivitas.",
+      "Susunan PJ dan tim disalin ke pesanan saat produksi selesai, sehingga mengubah anggota tim di Pengaturan tidak mengubah gaji pesanan lama. Butuh menjalankan migration 007.",
+    ],
+  },
   {
     version: "1.7",
     date: "2026-10-18",

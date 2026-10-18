@@ -24,6 +24,7 @@ import { buildInitialSteps, deriveStatus } from "@/lib/steps";
 import { triggerOrderNotifications } from "@/lib/orderLogic";
 import { cleanItems, sumItems } from "@/lib/orderItems";
 import { teamLabel } from "@/lib/teams";
+import { userLabel } from "@/lib/utils";
 import { collectStoragePaths, KONVEKSI_STORAGE_PREFIX } from "@/lib/orderArchive";
 import { formatDate } from "@/lib/utils";
 import { STORAGE_BUCKET } from "@/hooks/useUpload";
@@ -35,6 +36,8 @@ interface Props {
   showAlert: (title: string, message: string, type?: "success" | "error") => void;
   /** semua tim — hanya untuk menuliskan NAMA tim di log aktivitas */
   teams?: TeamData[];
+  /** semua user — hanya untuk menuliskan NAMA PJ di log aktivitas */
+  users?: UserData[];
 }
 
 /** Proses di menu Sampah yang sedang berjalan (tombol terkait menampilkan loading). */
@@ -64,6 +67,7 @@ export type OrderFields = Partial<
     | "jenis_produksi"
     | "items"
     | "team_id"
+    | "assigned_to"
   >
 >;
 
@@ -75,7 +79,7 @@ const normalizeOrder = (o: any): Order => ({
   kendala: Array.isArray(o.kendala) ? o.kendala : [],
 });
 
-export function useOrders({ supabase, currentUser, fetchNotifications, showAlert, teams = [] }: Props) {
+export function useOrders({ supabase, currentUser, fetchNotifications, showAlert, teams = [], users = [] }: Props) {
   const [orders, setOrders] = useState<Order[]>([]);
   // true sampai pemuatan pertama selesai (berhasil ATAU gagal)
   const [ordersLoading, setOrdersLoading] = useState(true);
@@ -218,6 +222,7 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
           // Hanya dikirim bila tim dipilih — pesanan tanpa tim tetap bisa dibuat
           // walau migration 006 (kolom team_id) belum dijalankan.
           ...(input.team_id ? { team_id: input.team_id } : {}),
+          ...(input.assigned_to ? { assigned_to: input.assigned_to } : {}),
         };
         const status = deriveStatus({ kategori: input.kategori, steps, kendala: [] });
 
@@ -248,7 +253,7 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
           event: "Pesanan Dibuat",
           ket: `Pesanan ${order.kode_produksi} (${input.kategori === "utama" ? "utama" : "non-utama"}) dibuat${
             input.team_id ? `, tim ${teamLabel(teams, input.team_id)}` : ""
-          }`,
+          }${input.assigned_to ? `, PJ ${userLabel(users, input.assigned_to)}` : ""}`,
         });
         await triggerOrderNotifications(order);
         await Promise.all([fetchOrders(), fetchNotifications()]);
@@ -258,7 +263,7 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
         setIsCreating(false);
       }
     },
-    [currentUser, supabase, generateProductionCode, writeLog, fetchOrders, fetchNotifications, showAlert, teams],
+    [currentUser, supabase, generateProductionCode, writeLog, fetchOrders, fetchNotifications, showAlert, teams, users],
   );
 
   // ─── Pintu tunggal perubahan pesanan ───────────────────────────────────────
@@ -392,6 +397,12 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
         if (next !== (order.team_id ?? null)) fields.team_id = next;
       }
 
+      // PJ: hanya disimpan bila berubah (undefined = tidak diubah, null = dikosongkan)
+      if (input.assigned_to !== undefined) {
+        const next = input.assigned_to || null;
+        if (next !== (order.assigned_to ?? null)) fields.assigned_to = next;
+      }
+
       // Catat apa saja yang berubah (lama → baru)
       const labels: Array<[keyof OrderFields, string, (v: any) => string]> = [
         ["nama_pemesan", "Nama pemesan", (v) => v || "-"],
@@ -403,6 +414,7 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
         ["jumlah", "Jumlah", (v) => `${v ?? 0} pcs`],
         ["jenis_produksi", "Jenis produksi", (v) => v || "-"],
         ["team_id", "Tim", (v) => teamLabel(teams, v)],
+        ["assigned_to", "PJ", (v) => userLabel(users, v)],
       ];
       const changes: string[] = [];
       for (const [key, label, fmt] of labels) {
@@ -435,7 +447,7 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
       if (ok) showAlert("Sukses", "Perubahan pesanan disimpan");
       return ok;
     },
-    [commitOrder, showAlert, teams],
+    [commitOrder, showAlert, teams, users],
   );
 
   // ─── Hapus = pindah ke Sampah (soft delete; dipulihkan lewat menu Sampah) ───
@@ -654,5 +666,6 @@ function pickFields(o: Order): OrderFields {
     jenis_produksi: o.jenis_produksi,
     items: o.items,
     team_id: o.team_id ?? null,
+    assigned_to: o.assigned_to ?? null,
   };
 }

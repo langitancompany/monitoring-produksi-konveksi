@@ -4,7 +4,7 @@
 > **baca dokumen ini dulu**, lalu kerjakan bagian berikutnya di tabel *Status*.
 > Perbarui tabel Status dan changelog setiap selesai satu bagian.
 
-Terakhir diperbarui: 18 Oktober 2026 · Versi aplikasi: V.1.7 (Bagian 8 — Tim Produksi — selesai di kode; migration `006` sudah diuji di PostgreSQL 16 lokal tetapi **belum dijalankan di Supabase pemilik** dan tampilannya belum dilihat pemilik di browser. Bagian 7 juga masih **belum diuji pemilik** — migration `005` belum dijalankan di Supabase pemilik, Dashboard baru belum dilihat. Bagian 0–4 sudah diuji pemilik di database sungguhan)
+Terakhir diperbarui: 19 Oktober 2026 · Versi aplikasi: V.1.8 (Bagian 5 — Config Harga & Gaji — selesai di kode: logika murni teruji 65 uji, tetapi **migration `007` BELUM pernah dijalankan di database mana pun** (tidak ada Postgres di lingkungan pengerjaan) dan layar baru belum dilihat di browser; rincian & daftar uji di §20. Sebelumnya V.1.7 (Bagian 8 — Tim Produksi — selesai di kode; migration `006` sudah diuji di PostgreSQL 16 lokal tetapi **belum dijalankan di Supabase pemilik** dan tampilannya belum dilihat pemilik di browser. Bagian 7 juga masih **belum diuji pemilik** — migration `005` belum dijalankan di Supabase pemilik, Dashboard baru belum dilihat. Bagian 0–4 sudah diuji pemilik di database sungguhan)
 
 ---
 
@@ -39,12 +39,12 @@ dan **Pesanan Non-Utama**.
 | 2 | Alur produksi | Aksi tiap tahap di Detail (Approval, Potong, Jahit, QC, Packing, Kirim, Terima — 4 kartu gaya Sablon), upload file, kendala, edit & hapus (ke Sampah), log, notifikasi (penerima dihitung di server — lihat §13.4) | ✅ selesai, sudah diuji pemilik di Supabase/storage sungguhan (18 Okt 2026) |
 | 3 | Arsip & pemantauan | Pesanan Selesai, Sampah (pulihkan / hapus permanen + file), Log Aktivitas, Kalender + migration `003` | ✅ selesai, sudah diuji pemilik di database sungguhan (18 Okt 2026) |
 | 4 | Catatan Rapat | Catatan per pesanan di kartu 02/03/04 + menu rekap mingguan (ikuti Sablon) + migration `004` | ✅ selesai, sudah diuji pemilik di database & browser (18 Okt 2026) |
-| 5 | Config Harga & Gaji | Rate gaji per item/tahap, Gaji & Upah, slip gaji. **Konsep sudah dijawab pemilik (§17); kodenya (termasuk PJ di form pesanan) dibuat di akhir.** Tim produksi-nya sudah ada sejak Bagian 8 | ⏸ menunggu urutan dari pemilik |
+| 5 | Config Harga & Gaji | Menu Config Harga (rate per jenis × tahap, parameter PJ/bonus admin, riwayat), menu Gaji & Upah (produksi PJ+tim, pool QC, bonus admin, tandai lunas, slip cetak), PJ di form pesanan, salinan PJ/tim di pesanan, migration `007` | ✅ selesai di kode, logika teruji; **migration `007` & semua layar belum diuji** di Supabase/browser pemilik. Jawaban §17 diganti **asumsi bawaan yang bisa diubah di Config Harga** — rincian di §20 |
 | 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon) | ⬜ |
 | 7 | Dashboard & finishing | Dashboard ringkasan, tampilan Kanban, pengetatan RLS, rapikan lint | ✅ selesai di kode, **belum diuji** (migration `005`, Dashboard di browser) — rincian & sisa pekerjaan di §18 |
 | 8 | Tim Produksi | Pengaturan → Tim (kartu + avatar anggota), pilihan Tim di Pesanan Baru/Edit, tampil di Detail Pesanan, migration `006` | ✅ selesai di kode, migration diuji di Postgres lokal, **belum diuji** di Supabase & browser pemilik — rincian di §19 |
 
-Pekerjaan dibagi per bagian **sengaja** (batas token). Selesaikan satu bagian
+Urutan berikutnya: **Bagian 6 (Keuangan)** — masih terblokir bahan dari Sablon (lihat §18 "Berikutnya"). Pekerjaan dibagi per bagian **sengaja** (batas token). Selesaikan satu bagian
 penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 
 ---
@@ -83,18 +83,18 @@ penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 - **Supabase:** satu instance, **schema per unit** (`monitoring_konveksi`). Sesi login dibagi lintas subdomain lewat cookie domain `.langitan.co` (`authCookieOptions()` di `lib/config.ts`; dimatikan saat localhost).
 - **Server-only:** route API di `app/api/*` memakai `getSupabaseAdmin()` (service role) + `requireUser()` (cek sesi & role). Operasi sensitif (uang, hapus user) harus lewat API, bukan langsung dari browser.
 - **Deploy:** Coolify di VPS sendiri, `Dockerfile` standalone, health check `/api/health`. Variabel `NEXT_PUBLIC_*` = Build Variable.
-- **Env:** lihat `.env.example`. **Setup database:** README → "Menyiapkan Supabase" (`supabase/migrations/001_base_umum.sql` lalu `002_konveksi_core.sql`, `003_calendar.sql`, `004_production_notes.sql`, `005_rls_hardening.sql`, lalu `006_teams.sql`).
+- **Env:** lihat `.env.example`. **Setup database:** README → "Menyiapkan Supabase" (`supabase/migrations/001_base_umum.sql` lalu `002_konveksi_core.sql`, `003_calendar.sql`, `004_production_notes.sql`, `005_rls_hardening.sql`, `006_teams.sql`, lalu `007_pricing_salary.sql`).
 
 ### Struktur folder (inti)
 ```
 app/page.tsx                      kerangka & routing tab
 app/components/{auth,layout,ui,misc,dashboard,orders,settings}
 app/api/                          users (kelola user) · notify (broadcast per role/semua) · send-notification (1 user) · backup · health · version
-hooks/   useAuth useUsers useNotifications useOrders useOrderDetail useOrderNotes useUpload useProductionTypes useTeams useUnitAccess useUpdateCheck
-lib/     config steps access orderItems utils orderLogic orderArchive meetingNotes dashboardStats teams notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
-types/   index.ts (user & hak akses)  order.ts (pesanan)  team.ts (tim)
-supabase/migrations/              001 base_umum · 002 konveksi_core · 003 calendar · 004 production_notes · 005 rls_hardening · 006 teams
-tests/                            uji logika murni (jalankan: npx tsx tests/teams.test.ts). Catatan: `tests/dashboardStats.test.ts` yang disebut §18 TIDAK ada di zip yang diserahkan ke pengerjaan Bagian 8 (folder `tests/` dibuat baru di V.1.7) — cek apakah file itu masih ada di repo asli
+hooks/   useAuth useUsers useNotifications useOrders useOrderDetail useOrderNotes useUpload useProductionTypes useTeams usePricing useSalaryPayments useUnitAccess useUpdateCheck
+lib/     config steps access orderItems utils orderLogic orderArchive meetingNotes dashboardStats teams salary salaryPrint notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
+types/   index.ts (user & hak akses)  order.ts (pesanan)  team.ts (tim)  salary.ts (harga & gaji)
+supabase/migrations/              001 base_umum · 002 konveksi_core · 003 calendar · 004 production_notes · 005 rls_hardening · 006 teams · 007 pricing_salary
+tests/                            uji logika murni (jalankan: npx tsx tests/teams.test.ts, npx tsx tests/salary.test.ts). Catatan: `tests/dashboardStats.test.ts` yang disebut §18 TIDAK ada di zip yang diserahkan ke pengerjaan Bagian 8 (folder `tests/` dibuat baru di V.1.7) — cek apakah file itu masih ada di repo asli
 supabase/optional/                salin user dari Sablon (hanya untuk supervisor pertama)
 supabase/patches/                 perbaikan untuk database SABLON (bukan Konveksi)
 docs/PRD.md                       dokumen ini
@@ -125,6 +125,8 @@ lihat README.
 | `kendala` (jsonb) | `KendalaNote[]` |
 | `status` | hasil `deriveStatus()`; "Telat" tidak disimpan (dari deadline) |
 | `assigned_to, created_by, deleted_at` | `deleted_at` = di Sampah (soft delete) |
+| `assigned_to` | PJ (→ `users.id`, opsional). Dipilih di Pesanan Baru/Edit sejak V.1.8; dijaga trigger (butuh `orders.edit`) |
+| `crew_snapshot` | jsonb `{pj, team_id, member_ids[], at}` — salinan PJ + anggota tim yang dibuat **trigger database** saat Potong & Jahit/Produksi sama-sama selesai (migration `007`). Dasar pembagian gaji produksi. Tidak boleh ditulis dari aplikasi |
 | `team_id` | tim pengerjaan (→ `teams.id`, opsional). Migration `006`. `on delete set null`: menghapus tim tidak menghapus pesanan |
 
 ### `teams` — tim produksi (migration `006`)
@@ -132,6 +134,13 @@ lihat README.
 Nama unik tanpa membedakan huruf besar/kecil (`lower(btrim(name))`). `member_ids` berisi `users.id`;
 satu user boleh ada di banyak tim. Array tidak punya foreign key, jadi trigger `trg_users_remove_from_teams`
 mengeluarkan user dari semua tim saat user dihapus. Pesanan **tidak** menyimpan salinan anggota tim (lihat §19 no. 7).
+
+### `pricing_configs` — riwayat harga (migration `007`)
+`id, category ('PRODUKSI'|'PARAMETER'), key_name, display_name, unit, value_amount (Rupiah utuh), effective_date, created_by, created_at`.
+PRODUKSI: `key_name = "{jenis.value}:{step_key}"`, `step_key` ∈ `potong_kain · produksi_massal · qc · packing`. PARAMETER: `pj_share_percent · bonus_admin_closing · batas_pcs_bonus_admin · bonus_admin_per_pcs`. **Hanya INSERT** (tak ada policy/grant update-delete); rate dipilih menurut `effective_date ≤ tanggal tahap selesai`, seri → `id` terbesar.
+
+### `salary_payments` & `salary_audit_log` (migration `007`)
+Penanda lunas per `(user_id, period_month 1–12, period_year, kategori produksi|qc|admin)` unik + nominal; jejak audit tiap tandai/batal. **Tak bisa ditulis langsung dari browser** — hanya lewat fungsi `mark_salary_paid` / `unmark_salary_paid` (izin `salary.edit` dicek di dalam fungsi).
 
 ### `order_logs` — log aktivitas
 `order_id, kode_produksi, category (STATUS|FILE|KENDALA|QC|REVISI|SISTEM), event_name, description, old_value, new_value, oleh, metadata`.
@@ -219,6 +228,8 @@ Acuan Sablon ada di kolom kanan — **baca file itu dulu**.
 Tipe: `UserPermissions` (`types/index.ts`). Saat ini: `dashboard, orders, produksi, finishing, salary, keuangan, settings`. `supervisor` selalu boleh semuanya.
 Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`; satu user boleh banyak role). Tambah role baru bila perlu (mis. penjahit) — **tanyakan pemilik**.
 
+**Gaji & harga (V.1.8):** menu Gaji & Upah = `salary.view`; cetak slip = `salary.create` (kebiasaan Sablon: kolom "Buat" dipakai untuk cetak); tandai/batalkan lunas = `salary.edit`; buka Edit Pesanan dari peringatan gaji = `orders.edit`. Menu Config Harga = `config_harga.view`; simpan harga = `config_harga.edit`. User selain supervisor **tidak otomatis** punya izin ini — atur di Pengaturan → Pengguna. Memilih PJ di pesanan = `orders.create` / `orders.edit`. Peringatan: user non-admin hanya bisa membaca baris `users` miliknya sendiri (RLS 001), jadi di menu Gaji nama orang lain tampil "Pengguna tidak ditemukan" kecuali yang melihat ber-role admin/supervisor — beri izin Gaji hanya ke admin/supervisor.
+
 **Tim produksi tidak punya modul izin sendiri:** kelola tim (tambah/ubah/nonaktifkan/hapus) memakai izin `settings` (`create`/`edit`/`delete`, sama seperti Jenis Produksi); **melihat** daftar tim boleh semua staf (supaya form pesanan bisa menampilkan pilihan tim); memilih/mengganti tim di pesanan = `orders.create` / `orders.edit`.
 
 ---
@@ -257,6 +268,7 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
   insert langsung dari browser.
 - **Penjaga kolom `orders` (migration `005`):** trigger `guard_orders_update` membatasi tiap kelompok kolom ke izin yang sesuai (data pemesan/deadline/assigned_to = `orders.edit`; items/jumlah = `orders.edit` atau `produksi.create`; steps/kendala/status = izin produksi/finishing/orders.edit; kode, kategori, pembuat = tidak boleh berubah). Menambah kolom baru di `orders`? **Tambahkan ke trigger itu**, kalau tidak kolomnya hanya dijaga policy longgar.
 - **Tim (migration `006`):** tabel `teams` ber-RLS (baca = `is_staff()`, tulis = `settings.create/edit/delete`, tanpa grant `anon`). `team_id` ditambahkan ke penjaga `guard_orders_update` (grup data pemesan: butuh `orders.edit`). Pengecualian disengaja: `team_id` boleh menjadi NULL bila timnya baru dihapus (aksi otomatis `on delete set null`) — kalau tidak, user yang boleh menghapus tim tetapi tidak punya `orders.edit` akan gagal menghapus tim yang sedang dipakai pesanan. Fungsi `guard_orders_update` kini didefinisikan di `006` (salinan `005` + `team_id`); **mengubahnya lagi harus mulai dari versi `006`, bukan `005`**.
+- **Gaji (migration `007`):** `pricing_configs` insert-only (grant `update/delete` dicabut, tak ada policy); `salary_payments` & `salary_audit_log` tanpa grant tulis ke `authenticated` — hanya fungsi `security definer` yang menulis. `guard_orders_update` kini didefinisikan di `007` (salinan `006` + penjaga `crew_snapshot`); **mengubahnya lagi harus mulai dari versi `007`**. **Batasan:** nominal yang dicatat saat "tandai lunas" dikirim aplikasi (rumus gaji ada di TypeScript, bukan di database), jadi pemegang `salary.edit` bisa mencatat angka berbeda dari hitungan — sebabnya tersimpan di audit. Perhitungan ulang di server baru perlu bila gaji menyangkut kontrol keuangan ketat (bersama Bagian 6).
 - Jangan commit `.env*`. `SUPABASE_SERVICE_ROLE_KEY` dan `FIREBASE_PRIVATE_KEY` hanya di server.
 - Firebase web config & VAPID key masih memakai project yang sama dengan Sablon.
 - Policy storage bucket `production-proofs` berlaku untuk seluruh bucket (bukan per folder).
@@ -276,12 +288,14 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 8. **Role baru** (penjahit, tukang potong) atau cukup role yang ada? ✅ DIJAWAB: cukup role yang ada (`produksi`, `qc`, `admin`) — lihat §17.
 9. **Keuangan:** DP/lunas/invoice sama dengan Sablon?
 10. **Catatan Rapat:** bentuk integrasi persis dengan produksi (baca Sablon dulu, konfirmasi bila ragu).
+11a. **(V.1.8)** Pertanyaan §17 (5 butir) + §11 no. 11a–c **belum dijawab pemilik**; Bagian 5 dibangun dengan asumsi bawaan di §20 yang bisa diubah dari Config Harga tanpa kode. **Konfirmasikan** sebelum gaji dipakai sungguhan.
 11. **Tim produksi:** ✅ DIJAWAB (18 Okt 2026) — tim dibuat dari user di Pengaturan → Tim, tampil sebagai kartu avatar, dipilih saat input pesanan (§19). **Masih terbuka untuk Bagian 5:** (a) bila anggota tim berubah, apakah gaji pesanan lama ikut berubah? (b) apakah anggota tim dibatasi role `produksi`? (c) apakah tim juga perlu dipakai filter di daftar pesanan/Dashboard?
 
 ---
 
 ## 12. Riwayat
 
+- **V.1.8** — Bagian 5: Config Harga, Gaji & Upah (produksi PJ+tim, pool QC, bonus admin, tandai lunas, slip cetak), PJ di form pesanan, salinan PJ/tim di pesanan, migration `007`, tes `tests/salary.test.ts`.
 - **V.1.7** — Bagian 8: Tim Produksi (Pengaturan → Tim berupa kartu avatar anggota, pilihan Tim di Pesanan Baru & Edit, tampil di Detail Pesanan, log perubahan tim), migration `006`, tes `tests/teams.test.ts`.
 - **V.1.6** — Bagian 7: Dashboard ringkasan produksi, perbaikan hitungan Telat/Mepet (zona waktu), migration `005` (penjaga kolom `orders`, hapus log hanya supervisor), pembersihan import/variabel tak terpakai.
 - **V.1.5** — Bagian 4: catatan produksi di detail pesanan (kartu 02/03/04), menu Catatan Rapat (rekap mingguan + cetak/PDF), migration `004`; hapus `StepCard.tsx` sisa lama.
@@ -591,3 +605,61 @@ timnya (konveksi punya tim sendiri-sendiri: tim jahit kaos, tim jahit seragam, d
 7. Tampilan HP & mode gelap: modal tim (daftar user bisa di-scroll), kartu tim, pratinjau di form pesanan.
 
 **Berikutnya:** Bagian 5 (gaji) — jawab dulu pertanyaan di §17 **dan** §11 no. 11 (riwayat anggota tim). Opsional kecil: chip/filter tim di Daftar Pesanan.
+
+
+---
+
+## 20. Hasil Bagian 5 (V.1.8) — baca sebelum lanjut
+
+**Urutan pengerjaan:** pemilik meminta "lanjutkan sesuai urutan PRD". Bagian 0–4, 7, 8 sudah selesai dan Bagian 6 terblokir (§18), jadi Bagian 5 dikerjakan. Lima pertanyaan §17 **belum dijawab**, maka tiap pilihan di bawah dibuat sebagai **asumsi bawaan yang bisa diubah dari menu Config Harga** (bukan konstanta di kode), kecuali yang ditandai "kode".
+
+**Yang ada:**
+- **Config Harga** (`apps/ConfigPriceView.tsx`, tab `config_harga`, ikon `Tags`): matriks jenis produksi × tahap (Potong Kain, Jahit/Produksi | QC, Packing; non-utama hanya Jahit & QC), 4 parameter aturan, tanggal "Berlaku mulai", riwayat 80 baris terakhir. Simpan = INSERT baris baru hanya untuk sel yang berubah; tanggal mundur meminta konfirmasi.
+- **Gaji & Upah** (`apps/SalaryView.tsx`, tab `salary`, ikon `Wallet`): pilih bulan/tahun; kartu ringkasan; panel peringatan; tiga tab (Produksi · Tim QC · Admin) berisi daftar penerima + rincian per pesanan; tandai/batalkan lunas; cetak slip satu atau banyak (`lib/salaryPrint.tsx` + `SalaryPrintSlip.tsx`, dialog cetak → Simpan sebagai PDF, nama file `SLIP-GAJI-OKTOBER-2026-NAMA`).
+- **PJ di form pesanan** (`orders/PJPicker.tsx`): Pesanan Baru, Edit Pesanan, Detail Pesanan, log "PJ: A → B".
+- **Logika murni** `lib/salary.ts` (rate berhistori, kelayakan, pembagian, laporan bulanan, pesan galat) + **65 uji** `tests/salary.test.ts` (lulus di Asia/Jakarta, UTC, America/New_York, Pacific/Auckland).
+- **Migration `007`:** lihat §5 dan §10.
+
+**Rumus (jawaban sementara atas §17):**
+1. **Produksi:** Σ item (`jumlah` × rate) untuk tahap Potong Kain + Jahit/Produksi (non-utama: Produksi). Layak bila **semua** tahap itu selesai; bulan gaji = bulan tahap produksi **terakhir** selesai; tiap tahap memakai rate pada tanggal **tahap itu** selesai. Bagian PJ = `pj_share_percent` (bawaan **70%**, asumsi dari sistem lama Sablon) dan sisanya dibagi rata ke anggota tim **selain PJ**. Tanpa tim → PJ 100%; tanpa PJ tapi ada tim → rata semua; tanpa keduanya → tidak dibagikan & muncul peringatan. (§17 no. 2)
+2. **Potong dan Jahit** punya rate terpisah tetapi dikerjakan **orang yang sama** (PJ + tim yang sama). Bila Potong dikerjakan orang lain, isi rate Potong = 0 dan beri tahu — belum ada pemisahan pekerja per tahap. (§17 no. 4)
+3. **Tim QC:** pool = Σ item (`jumlah` × (rate QC + rate Packing)) untuk pesanan yang produksinya tuntas + QC lolos + Packing selesai (non-utama: tanpa Packing), dibagi **rata** ke semua user ber-role `qc`. Sisa Rupiah diputar per pesanan agar adil. Pool tanpa anggota QC tidak dihitung sebagai pengeluaran dan diberi peringatan.
+4. **Admin:** bonus per pesanan **selesai** untuk **pembuat pesanan** yang ber-role `admin`: `bonus_admin_closing` (bawaan Rp10.000) + (pcs di atas `batas_pcs_bonus_admin` bawaan 50) × `bonus_admin_per_pcs` (bawaan Rp500). Angka = nilai Sablon (asumsi). Tanpa gaji tetap / bonus manual (§13.2). Bulan = bulan pesanan selesai. (§17 no. 3)
+5. **Non-utama** (Selempang, Permak) **ikut dihitung** dengan rate per jenisnya; rate kosong = Rp0 + peringatan, jadi tinggal tidak diisi bila tidak digaji. Harga permak yang bervariasi per jahitan **belum** dimodelkan (hanya rate per pcs). (§17 no. 5, §11 no. 7)
+6. Semua nominal bulat Rupiah, metode sisa terbesar → jumlah bagian **selalu** = total (diuji).
+
+**Keputusan yang saya ambil (ubah bila pemilik tidak setuju):**
+1. **Riwayat anggota tim (§11 no. 11a) → disalin.** Trigger database menyalin PJ + anggota tim ke `orders.crew_snapshot` saat produksi selesai; mengubah tim di Pengaturan tidak menyentuh pesanan lama. Disalin ulang bila PJ/tim pesanan **sengaja** diganti lewat Edit Pesanan (koreksi sah, tercatat di log), tetapi **tidak** bila kosong akibat user/tim dihapus. QC gagal (produksi dibuka lagi) membuang salinan; produksi selesai ulang menyalin lagi. Pesanan lama diisi saat migration dengan tim **saat itu** (`backfill: true`).
+2. **PJ opsional** di form (tim juga opsional), beda dengan Sablon (wajib). Pesanan tanpa PJ/tim muncul di peringatan Gaji dengan tombol "Edit pesanan". Mudah dijadikan wajib: tambah `required` di `PJPicker` untuk Pesanan Baru.
+3. **Siapa boleh jadi PJ / anggota tim:** semua user (role `produksi` ditampilkan lebih dulu). (§11 no. 11b belum dijawab.)
+4. **Anggota tim QC memakai role SEKARANG** (bukan salinan). Setelah ditandai lunas, jumlah yang dibayar **dibekukan** di `salary_payments`; bila hitungan berubah sesudahnya, layar menampilkan banner kuning "Angka berubah sejak ditandai lunas".
+5. **Rate = Rupiah utuh** (tak ada pecahan) dan `persen PJ` 0–100, dijaga database. Koreksi salah ketik = simpan lagi di tanggal sama (id terbesar menang); baris lama tidak bisa dihapus dari aplikasi.
+6. **Rate yang belum pernah diisi ≠ Rp0 yang disengaja**: yang pertama ditandai peringatan "Rate belum diatur", yang kedua tidak.
+7. Tandai lunas **tidak** mencatat ke Keuangan (Bagian 6 belum ada). Saat Bagian 6 dibangun, sambungkan `mark_salary_paid` ke pencatatan biaya seperti `postSalaryToFinance` Sablon.
+8. Slip memakai **nama pemesan** (bukan kode) sebagai judul baris, plus kode kecil di layar. Alamat slip disalin dari Sablon (`COMPANY` di `lib/config.ts`) — **periksa**.
+
+**Keterbatasan diketahui:**
+- Perhitungan gaji ada di browser dari data pesanan yang dimuat (semua pesanan, bukan hanya bulan itu); nyaman untuk skala sekarang. Ribuan pesanan → pindahkan ke fungsi database.
+- Rate matriks tampil untuk jenis produksi **aktif** (atau nonaktif yang sudah punya rate). Jenis baru yang ditambah di Pengaturan otomatis muncul barisnya, rate kosong.
+- `react-dom/server` dipakai di sisi browser untuk membuat HTML slip (pola Sablon); `next build` belum dijalankan.
+- Tanpa notifikasi gaji, tanpa filter gaji per tim, tanpa chip PJ di kartu daftar/Kanban.
+
+**Verifikasi (lingkungan pengerjaan tanpa internet & tanpa Postgres, 19 Okt 2026):**
+- `npx tsx tests/salary.test.ts`: **65 uji lulus** ×4 zona waktu; `tests/teams.test.ts`: 15 uji lulus.
+- Cek tipe dengan stub modul pihak ketiga: **tidak ada galat nyata** di `lib/`, `types/`, `hooks/`, `SalaryView`, `ConfigPriceView`, `PJPicker`, `useOrders`, `page.tsx` (galat tersisa hanya artefak stub). **`npm install && npx tsc --noEmit && npm run build && npm run lint` wajib dijalankan di komputer Anda.** Ikon baru `Wallet`, `Tags`, `Printer`, `CheckSquare`, `Square`, `Undo2`, `ChevronLeft` belum diperiksa terhadap paket asli.
+- **Migration `007` TIDAK dijalankan di mana pun** — hanya dibaca ulang manual (tidak ada parser SQL maupun Postgres). Risiko terbesar proyek ini ada di sini; jalankan dulu di database uji / di luar jam kerja (bagian 9 migration mengisi ulang `crew_snapshot` pesanan lama).
+
+**Belum diuji — uji ini sebelum dianggap beres:**
+1. Jalankan `007` di SQL Editor → "Success"; jalankan **dua kali** (harus tetap sukses, tidak menggandakan 4 parameter awal).
+2. Beri akun admin izin **Config Harga (lihat+edit)** dan **Gaji & Upah (lihat+buat+edit)** di Pengaturan → Pengguna. Menu "Config Harga" & "Gaji & Upah" muncul; user tanpa izin tidak melihatnya.
+3. Config Harga: isi rate untuk 1 jenis utama & 1 non-utama → Simpan → muncul di Riwayat. Ubah satu rate lagi → baris lama tetap ada. Coba tanggal mundur (harus minta konfirmasi). Coba persen PJ 150 (ditolak). Sebagai user tanpa edit: kolom terkunci.
+4. Buat pesanan utama baru dengan **PJ + Tim**; selesaikan Approval, Potong, Jahit. Di Supabase: `select crew_snapshot from orders` → terisi PJ + anggota. Lalu **ubah anggota tim** di Pengaturan → `crew_snapshot` pesanan itu **tidak** berubah; menu Gaji tetap membagi ke anggota lama.
+5. Gaji & Upah bulan ini: Produksi menampilkan PJ 70% / tim rata; hitung manual satu pesanan dan cocokkan. Selesaikan QC + Packing → Tim QC terisi, dibagi rata. Selesaikan sampai Selesai → bonus Admin muncul untuk pembuat pesanan.
+6. Pesanan tanpa PJ/tim & pesanan dengan rate kosong muncul di panel peringatan; "Edit pesanan" membuka form lalu Kembali pulang ke Gaji.
+7. QC gagal → pesanan hilang dari gaji produksi sampai Jahit diselesaikan lagi (`crew_snapshot` kosong lalu terisi lagi).
+8. **Tandai lunas** → status Lunas & baris di `salary_audit_log`; tandai lagi dari tab lain (harus pesan "sudah ditandai lunas"); **Batalkan lunas** → hilang + log `BATAL_LUNAS`. Sebagai user tanpa `salary.edit`: tombol tidak ada, dan memanggil fungsinya langsung ditolak.
+9. Ubah rate/PJ **setelah** lunas → banner "Angka berubah sejak ditandai lunas".
+10. Cetak 1 slip & cetak banyak (dialog cetak → PDF; nama file benar, logo muncul, tanda tangan tidak terpotong) di Chrome desktop dan Safari/HP. Mode gelap & tampilan HP kedua menu (matriks Config Harga bisa digeser horizontal).
+11. Sebagai user produksi (tanpa `orders.edit`): mengganti PJ pesanan lewat API langsung → ditolak; menyelesaikan tahap tetap bisa.
+
+**Berikutnya:** Bagian 6 (Keuangan) — bahan Sablon yang dibutuhkan ada di §18 "Berikutnya". Sebelum itu, **konfirmasikan ke pemilik asumsi di atas** (terutama 70:30 PJ:tim, siapa yang memotong kain, bonus admin, dan non-utama ikut digaji).

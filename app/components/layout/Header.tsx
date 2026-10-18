@@ -208,6 +208,8 @@ export default function Header({
     completed_orders: "Pesanan Selesai",
     calendar: "Kalender",
     meeting_notes: "Catatan Rapat",
+    salary: "Gaji & Upah",
+    config_harga: "Config Harga",
     logs: "Log Aktivitas",
     trash: "Sampah",
     settings: "Pengaturan",

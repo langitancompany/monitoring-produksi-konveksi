@@ -97,6 +97,14 @@ const MeetingNotesView = dynamic(
   { loading: Spinner },
 );
 
+const SalaryView = dynamic(() => import("@/app/components/apps/SalaryView"), {
+  loading: Spinner,
+});
+const ConfigPriceView = dynamic(
+  () => import("@/app/components/apps/ConfigPriceView"),
+  { loading: Spinner },
+);
+
 type OrderView = "list" | "detail" | "create" | "edit";
 const isOrderView = (v: string | null): v is OrderView =>
   v === "list" || v === "detail" || v === "create" || v === "edit";
@@ -210,7 +218,7 @@ export default function KonveksiApp() {
     handleDeleteOrder,
     handleRestoreOrder,
     handlePermanentDelete,
-  } = useOrders({ supabase, currentUser, fetchNotifications, showAlert, teams });
+  } = useOrders({ supabase, currentUser, fetchNotifications, showAlert, teams, users: usersList });
 
   const { isUploading, uploadProof } = useUpload({
     supabase,
@@ -314,6 +322,22 @@ export default function KonveksiApp() {
       setActiveTab(target.kategori === "non_utama" ? "orders_lain" : "orders_utama");
       setSelectedOrderId(orderId);
       setView("detail");
+    },
+    [orders, showAlert],
+  );
+
+  // Buka Edit Pesanan dari menu Gaji (mengisi PJ/tim yang kurang); Kembali pulang ke Gaji
+  const openOrderEdit = useCallback(
+    (orderId: string) => {
+      const target = orders.find((o: Order) => o.id === orderId);
+      if (!target) {
+        showAlert("Pesanan tidak ditemukan", "Pesanan ini mungkin sudah dihapus.", "error");
+        return;
+      }
+      setReturnTab("salary");
+      setActiveTab(target.kategori === "non_utama" ? "orders_lain" : "orders_utama");
+      setSelectedOrderId(orderId);
+      setView("edit");
     },
     [orders, showAlert],
   );
@@ -580,6 +604,31 @@ export default function KonveksiApp() {
                 orders={activeOrders}
                 ordersLoading={ordersLoading}
                 onSelectOrder={(id) => openOrder(id, "meeting_notes")}
+              />
+            )}
+
+            {activeTab === "salary" && p?.salary?.view && (
+              <SalaryView
+                supabase={supabase}
+                orders={activeOrders}
+                users={usersList}
+                teams={teams}
+                productionTypes={productionTypes}
+                currentUser={currentUser}
+                showAlert={showAlert}
+                showConfirm={showConfirm}
+                onEditOrder={openOrderEdit}
+              />
+            )}
+
+            {activeTab === "config_harga" && p?.config_harga?.view && (
+              <ConfigPriceView
+                supabase={supabase}
+                productionTypes={productionTypes}
+                users={usersList}
+                canEdit={can(currentUser, "config_harga", "edit")}
+                showAlert={showAlert}
+                showConfirm={showConfirm}
               />
             )}
 

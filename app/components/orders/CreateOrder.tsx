@@ -11,6 +11,7 @@ import type { TeamData } from "@/types/team";
 import { toLocalISODate } from "@/lib/utils";
 import { inputCls, labelCls } from "@/app/components/settings/settingsShared";
 import TeamPicker from "./TeamPicker";
+import PJPicker from "./PJPicker";
 
 interface Props {
   kategori: OrderKategori;
@@ -38,6 +39,7 @@ export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isS
     catatan_pesanan: "",
     jenis_produksi: isNon ? nonUtamaTypes[0]?.value ?? "" : undefined,
     team_id: null,
+    assigned_to: null,
   });
   const set = <K extends keyof NewOrderInput>(k: K, v: NewOrderInput[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -95,6 +97,8 @@ export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isS
             </select>
           </div>
         )}
+
+        <PJPicker value={form.assigned_to ?? null} onChange={(id) => set("assigned_to", id)} users={users} disabled={isSubmitting} />
 
         <TeamPicker value={form.team_id ?? null} onChange={(id) => set("team_id", id)} teams={teams} users={users} disabled={isSubmitting} />
 

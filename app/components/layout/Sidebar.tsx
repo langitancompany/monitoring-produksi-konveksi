@@ -15,6 +15,8 @@ import {
   ClipboardList,
   ScrollText,
   Trash2,
+  Wallet,
+  Tags,
 } from "lucide-react";
 import { UserData } from "@/types";
 import { APP_INFO } from "@/lib/changelog";
@@ -85,6 +87,23 @@ export default function Sidebar({
           label: "Catatan Rapat",
           icon: ClipboardList,
           visible: p?.orders?.view,
+        },
+      ],
+    },
+    {
+      title: "GAJI & HARGA",
+      items: [
+        {
+          id: "salary",
+          label: "Gaji & Upah",
+          icon: Wallet,
+          visible: p?.salary?.view,
+        },
+        {
+          id: "config_harga",
+          label: "Config Harga",
+          icon: Tags,
+          visible: p?.config_harga?.view,
         },
       ],
     },
