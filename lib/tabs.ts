@@ -10,6 +10,7 @@ export const VALID_TABS = [
   "orders_lain",
   "completed_orders",
   "calendar",
+  "meeting_notes",
   "logs",
   "trash",
   "settings",

@@ -12,6 +12,7 @@ import {
   Scissors,
   CheckCircle2,
   CalendarDays,
+  ClipboardList,
   ScrollText,
   Trash2,
 } from "lucide-react";
@@ -77,6 +78,12 @@ export default function Sidebar({
           id: "calendar",
           label: "Kalender",
           icon: CalendarDays,
+          visible: p?.orders?.view,
+        },
+        {
+          id: "meeting_notes",
+          label: "Catatan Rapat",
+          icon: ClipboardList,
           visible: p?.orders?.view,
         },
       ],

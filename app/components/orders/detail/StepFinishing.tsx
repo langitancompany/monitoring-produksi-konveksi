@@ -6,17 +6,21 @@
 import React, { useState } from "react";
 import { AlertTriangle, CheckCircle, Eye, Loader2, Package, Trash2 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import type { OrderNotesApi } from "@/hooks/useOrderNotes";
 import { ByLine, SectionCard, StepCtx, UploadButton, getStep } from "./stepUi";
+import ProductionNotes from "./ProductionNotes";
 
 interface Props {
   ctx: StepCtx;
   onQC: (passed: boolean, notes: string) => Promise<boolean>;
+  /** catatan produksi pesanan ini (Bagian 4) */
+  notes: OrderNotesApi;
 }
 
 const colBox = "flex flex-col border border-zinc-200 dark:border-zinc-800 rounded-md p-4";
 const colLabel = "text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400 mb-3";
 
-export default function StepFinishing({ ctx, onQC }: Props) {
+export default function StepFinishing({ ctx, onQC, notes }: Props) {
   const { order, disabled, busyKey } = ctx;
   const [qcNote, setQcNote] = useState("");
 
@@ -170,6 +174,8 @@ export default function StepFinishing({ ctx, onQC }: Props) {
             </div>
           )}
         </div>
+
+        <ProductionNotes section="finishing" api={notes} />
       </SectionCard>
 
       {/* ── 04 PENGIRIMAN ── */}
@@ -233,6 +239,8 @@ export default function StepFinishing({ ctx, onQC }: Props) {
             </div>
           )}
         </div>
+
+        <ProductionNotes section="pengiriman" api={notes} />
       </SectionCard>
     </>
   );

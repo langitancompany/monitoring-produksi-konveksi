@@ -11,7 +11,9 @@ import { ChevronRight, Loader2, Pencil, Phone, Trash2 } from "lucide-react";
 import type { KendalaNote, Order, ProductionStep, ProductionTypeData } from "@/types/order";
 import type { UserData } from "@/types";
 import type { ActionLog, OrderFields } from "@/hooks/useOrders";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { useOrderDetail } from "@/hooks/useOrderDetail";
+import { useOrderNotes } from "@/hooks/useOrderNotes";
 import { can, canAny } from "@/lib/access";
 import { canUndoStep, stepPosition, stepUndoPerms, stepWorkPerms } from "@/lib/steps";
 import { formatDate, getDeadlineStatus, getStatusColor, openWA, typeLabel } from "@/lib/utils";
@@ -21,6 +23,8 @@ import StepProduksi from "./detail/StepProduksi";
 import StepFinishing from "./detail/StepFinishing";
 
 interface Props {
+  /** client Supabase dari kerangka (dipakai untuk catatan produksi) */
+  supabase: SupabaseClient;
   order: Order;
   productionTypes: ProductionTypeData[];
   currentUser: UserData & { id: string };
@@ -57,7 +61,7 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
 
 export default function OrderDetail(props: Props) {
   const {
-    order, productionTypes, currentUser, isSaving, isUploading,
+    supabase, order, productionTypes, currentUser, isSaving, isUploading,
     applyStepUpdate, applyKendalaUpdate, uploadProof, showAlert, showConfirm,
     onBack, onEdit, onDelete,
   } = props;
@@ -65,6 +69,9 @@ export default function OrderDetail(props: Props) {
   const detail = useOrderDetail({
     order, currentUser, applyStepUpdate, applyKendalaUpdate, uploadProof, showAlert, showConfirm,
   });
+
+  // Catatan produksi (kartu 02, 03, 04) — dimuat sekali untuk satu pesanan
+  const notes = useOrderNotes({ supabase, order, currentUser, showAlert, showConfirm });
 
   const disabled = isSaving || isUploading || detail.busyKey !== null;
   const canEdit = can(currentUser, "orders", "edit");
@@ -206,10 +213,11 @@ export default function OrderDetail(props: Props) {
         onResolveKendala={detail.resolveKendala}
         onDeleteKendala={detail.deleteKendala}
         onAddKendalaBukti={detail.addKendalaBukti}
+        notes={notes}
       />
 
       {/* 03 QC & Packing, 04 Pengiriman */}
-      <StepFinishing ctx={ctx} onQC={detail.submitQC} />
+      <StepFinishing ctx={ctx} onQC={detail.submitQC} notes={notes} />
     </div>
   );
 }

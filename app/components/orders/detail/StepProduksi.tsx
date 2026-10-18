@@ -7,7 +7,9 @@ import React, { useState } from "react";
 import { AlertTriangle, Camera, Clock, Eye, Loader2, MessageSquare, Send, Trash2, User } from "lucide-react";
 import type { KendalaNote, ProductionTypeData } from "@/types/order";
 import { formatDateTime, typeLabel } from "@/lib/utils";
+import type { OrderNotesApi } from "@/hooks/useOrderNotes";
 import { ByLine, DoneBadge, SectionCard, StepCtx, UploadButton, getStep } from "./stepUi";
+import ProductionNotes from "./ProductionNotes";
 
 interface Props {
   ctx: StepCtx;
@@ -18,13 +20,15 @@ interface Props {
   onResolveKendala: (id: string) => void;
   onDeleteKendala: (id: string) => void;
   onAddKendalaBukti: (id: string, file: File) => void;
+  /** catatan produksi pesanan ini (Bagian 4) */
+  notes: OrderNotesApi;
 }
 
 const PRODUKSI_KEYS = ["potong_kain", "produksi_massal"];
 
 export default function StepProduksi({
   ctx, productionTypes, canKendala, canDeleteKendala,
-  onAddKendala, onResolveKendala, onDeleteKendala, onAddKendalaBukti,
+  onAddKendala, onResolveKendala, onDeleteKendala, onAddKendalaBukti, notes,
 }: Props) {
   const { order, disabled, busyKey } = ctx;
   const [showForm, setShowForm] = useState(false);
@@ -222,6 +226,8 @@ export default function StepProduksi({
           );
         })}
       </div>
+
+      <ProductionNotes section="produksi" api={notes} />
     </SectionCard>
   );
 }

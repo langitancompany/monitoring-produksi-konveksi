@@ -4,7 +4,7 @@
 > **baca dokumen ini dulu**, lalu kerjakan bagian berikutnya di tabel *Status*.
 > Perbarui tabel Status dan changelog setiap selesai satu bagian.
 
-Terakhir diperbarui: 18 Oktober 2026 · Versi aplikasi: V.1.4 (Bagian 3 selesai — Bagian 0–2 sudah diuji pemilik di database sungguhan; Bagian 3 belum diuji, migration `003` belum dijalankan)
+Terakhir diperbarui: 18 Oktober 2026 · Versi aplikasi: V.1.5 (Bagian 4 selesai, **belum diuji** di database sungguhan — migration `004` belum dijalankan. Bagian 0–3 sudah diuji pemilik di database sungguhan)
 
 ---
 
@@ -37,9 +37,9 @@ dan **Pesanan Non-Utama**.
 | 1 | Fondasi pesanan | Model data, template tahap, status otomatis, Pengaturan → Jenis Produksi, daftar pesanan, form pesanan baru, detail (hanya baca), migration `001` (umum) & `002` (inti) berdasar skema asli Sablon | ✅ selesai, sudah diuji pemilik di database sungguhan (18 Okt 2026) |
 | 1.5 | Pengelolaan user | `/api/users` (tambah/ubah/hapus: akun login + profil sekaligus), form Pengguna memakai Email Login, tanpa kolom password | ✅ selesai, sudah diuji pemilik di Supabase sungguhan (18 Okt 2026) |
 | 2 | Alur produksi | Aksi tiap tahap di Detail (Approval, Potong, Jahit, QC, Packing, Kirim, Terima — 4 kartu gaya Sablon), upload file, kendala, edit & hapus (ke Sampah), log, notifikasi (penerima dihitung di server — lihat §13.4) | ✅ selesai, sudah diuji pemilik di Supabase/storage sungguhan (18 Okt 2026) |
-| 3 | Arsip & pemantauan | Pesanan Selesai, Sampah (pulihkan / hapus permanen + file), Log Aktivitas, Kalender + migration `003` | ✅ selesai (belum diuji di database sungguhan — lihat §15) |
-| 4 | Catatan Rapat | Terintegrasi dengan menu produksi (ikuti Sablon) | ⬜ berikutnya |
-| 5 | Config Harga & Gaji | Rate gaji per item/tahap, Gaji & Upah, slip gaji | ⬜ |
+| 3 | Arsip & pemantauan | Pesanan Selesai, Sampah (pulihkan / hapus permanen + file), Log Aktivitas, Kalender + migration `003` | ✅ selesai, sudah diuji pemilik di database sungguhan (18 Okt 2026) |
+| 4 | Catatan Rapat | Catatan per pesanan di kartu 02/03/04 + menu rekap mingguan (ikuti Sablon) + migration `004` | ✅ selesai (belum diuji di database sungguhan — lihat §16) |
+| 5 | Config Harga & Gaji | Rate gaji per item/tahap, Gaji & Upah, slip gaji. **Konsep sudah dijawab pemilik (§17); kodenya (termasuk PJ/tim di form pesanan) dibuat di akhir** | ⏸ menunggu urutan dari pemilik |
 | 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon) | ⬜ |
 | 7 | Dashboard & finishing | Dashboard ringkasan, tampilan Kanban, pengetatan RLS, rapikan lint | ⬜ |
 
@@ -82,17 +82,17 @@ penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 - **Supabase:** satu instance, **schema per unit** (`monitoring_konveksi`). Sesi login dibagi lintas subdomain lewat cookie domain `.langitan.co` (`authCookieOptions()` di `lib/config.ts`; dimatikan saat localhost).
 - **Server-only:** route API di `app/api/*` memakai `getSupabaseAdmin()` (service role) + `requireUser()` (cek sesi & role). Operasi sensitif (uang, hapus user) harus lewat API, bukan langsung dari browser.
 - **Deploy:** Coolify di VPS sendiri, `Dockerfile` standalone, health check `/api/health`. Variabel `NEXT_PUBLIC_*` = Build Variable.
-- **Env:** lihat `.env.example`. **Setup database:** README → "Menyiapkan Supabase" (`supabase/migrations/001_base_umum.sql` lalu `002_konveksi_core.sql`, lalu `003_calendar.sql`).
+- **Env:** lihat `.env.example`. **Setup database:** README → "Menyiapkan Supabase" (`supabase/migrations/001_base_umum.sql` lalu `002_konveksi_core.sql`, `003_calendar.sql`, lalu `004_production_notes.sql`).
 
 ### Struktur folder (inti)
 ```
 app/page.tsx                      kerangka & routing tab
 app/components/{auth,layout,ui,misc,dashboard,orders,settings}
 app/api/                          users (kelola user) · notify (broadcast per role/semua) · send-notification (1 user) · backup · health · version
-hooks/   useAuth useUsers useNotifications useOrders useOrderDetail useUpload useProductionTypes useUnitAccess useUpdateCheck
-lib/     config steps access orderItems utils orderLogic notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
+hooks/   useAuth useUsers useNotifications useOrders useOrderDetail useOrderNotes useUpload useProductionTypes useUnitAccess useUpdateCheck
+lib/     config steps access orderItems utils orderLogic orderArchive meetingNotes notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
 types/   index.ts (user & hak akses)  order.ts (pesanan)
-supabase/migrations/              001 base_umum · 002 konveksi_core · 003 calendar
+supabase/migrations/              001 base_umum · 002 konveksi_core · 003 calendar · 004 production_notes
 supabase/optional/                salin user dari Sablon (hanya untuk supervisor pertama)
 supabase/patches/                 perbaikan untuk database SABLON (bukan Konveksi)
 docs/PRD.md                       dokumen ini
@@ -185,8 +185,8 @@ Acuan Sablon ada di kolom kanan — **baca file itu dulu**.
 - **Kalender** deadline & tanggal masuk. Acuan: `apps/CalendarView.tsx`.
 - Tab baru: `completed_orders`, `trash`, `logs`, `calendar`; hak akses `logs`, `trash` (tambahkan ke `UserPermissions`).
 
-### Bagian 4 — Catatan Rapat
-- Terintegrasi dengan menu produksi **seperti Sablon**: baca `apps/WeeklyNotesView.tsx` untuk melihat bentuk catatan dan cara terhubung ke produksi, lalu tiru. Tabel baru + migration `003`.
+### Bagian 4 — Catatan Rapat ✅ (ringkasan hasil di §16)
+- Terintegrasi dengan menu produksi **seperti Sablon**: catatan ditulis di kartu 02/03/04 detail pesanan (`ProductionNotes`), direkap per minggu di menu Catatan Rapat (`WeeklyNotesView` Sablon → `MeetingNotesView`). Tabel `production_notes` + migration `004` (nomor `003` sudah dipakai Kalender).
 
 ### Bagian 5 — Config Harga & Gaji
 - **Config Harga** = rate gaji produksi **per item** (jenis produksi) karena tiap item beda rate. Asumsi model: tabel `pricing_configs` riwayat harga (`effective_date`, INSERT baru tiap perubahan — jangan UPDATE, supaya gaji lampau tidak berubah), kunci `(jenis_produksi, tahap)` → rate per pcs.
@@ -255,12 +255,12 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 
 1. **Item per pesanan:** apakah satu pesanan utama bisa memuat beberapa jenis sekaligus (mis. seragam + celana untuk satu sekolah)? *Asumsi: ya (`items`).*
 2. **Rincian ukuran:** perlu tabel ukuran per item (S–XXL / ukuran anak)? Sablon punya `detail_ukuran`. *Belum dibuat.*
-3. **Pekerja per tahap:** siapa mengerjakan Potong Kain & Jahit (borongan per orang/tim)? Rate gaji per jenis dibedakan per tahap (potong vs jahit vs QC/packing)? *Asumsi: ya, dicatat di `step.doneBy`.*
+3. **Pekerja per tahap:** ✅ DIJAWAB pemilik (18 Okt 2026) → lihat §17: konsep sama dengan Sablon (PJ + tim produksi dipilih saat pesanan dibuat; tim QC; admin). `step.doneBy` bukan lagi dasar gaji.
 4. **Isi Approval utama:** file/link desain saja, atau juga spesifikasi bahan/warna/ukuran?
 5. **Non-utama tanpa Packing** (sesuai alur yang diminta): benar tidak ada packing?
 6. **Mockup non-utama:** perlu persetujuan pelanggan (Approve/Revisi) sebelum produksi?
 7. **Permak/jahit:** harga bervariasi per jahitan — pencatatan keuangan per pesanan saja atau per item?
-8. **Role baru** (penjahit, tukang potong) atau cukup role yang ada?
+8. **Role baru** (penjahit, tukang potong) atau cukup role yang ada? ✅ DIJAWAB: cukup role yang ada (`produksi`, `qc`, `admin`) — lihat §17.
 9. **Keuangan:** DP/lunas/invoice sama dengan Sablon?
 10. **Catatan Rapat:** bentuk integrasi persis dengan produksi (baca Sablon dulu, konfirmasi bila ragu).
 
@@ -268,6 +268,7 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 
 ## 12. Riwayat
 
+- **V.1.5** — Bagian 4: catatan produksi di detail pesanan (kartu 02/03/04), menu Catatan Rapat (rekap mingguan + cetak/PDF), migration `004`; hapus `StepCard.tsx` sisa lama.
 - **V.1.4** — Bagian 3: Pesanan Selesai, Kalender (+ agenda), Log Aktivitas, Sampah (pulihkan / hapus permanen), migration `003`.
 - **V.1.0** — Kerangka (zip `monitoring-produksi-konveksi`): login, profil, pengguna, pengumuman, notifikasi, backup, Tentang App, pindah unit.
 - **V.1.3** — Bagian 2: aksi tiap tahap, upload bukti, Approval (items), QC & revisi, kendala, edit & hapus ke Sampah, `/api/notify`.
@@ -287,7 +288,7 @@ fungsi `is_staff, is_supervisor, is_admin_or_supervisor, has_perm, get_user_unit
 
 ### 13.2 Untuk Bagian 3–5 (belum dibuat; buat migration `003+`)
 - **Kalender:** ✅ dibuat di `003_calendar.sql` (Bagian 3): `calendar_events(id, title, date, color, event_time text, location, created_at)`; policy: staf kelola semua.
-- **Catatan Rapat:** `production_notes(id, order_id, kode_produksi, nama_pemesan, content, section, created_by_id text, created_by_name, created_at)`; policy: staf baca & tulis (`created_by_id = auth.uid()`), hanya pembuat yang boleh hapus.
+- **Catatan Rapat:** ✅ dibuat di `004_production_notes.sql` (Bagian 4), dengan penyesuaian — lihat §16.
 - **Config Harga:** `pricing_configs(id int, category, key_name, display_name, value_amount numeric, unit, effective_date date)` — riwayat per tanggal efektif; SELECT semua user login, INSERT/UPDATE `has_perm('config_harga','edit')`.
   Rencana pemakaian di Konveksi: `category='PRODUKSI'`, `key_name='{jenis_produksi.value}:{step_key}'` (mis. `kaos_polo:produksi_massal`), `unit='per_pcs'`, **tambah baris baru** tiap perubahan (jangan UPDATE).
 - **Gaji:** `salary_payments(user_id uuid, period_month, period_year, kategori, total_amount, paid_at)` (policy: admin/manager/supervisor), `salary_closings(user_id text, order_id text, period_month, period_year)` (penanda order sudah dihitung gajinya), `salary_fixed`, `salary_bonus_manual`, `salary_fixed_payments` (gaji tetap & bonus — **tidak dibawa**, Konveksi hanya gaji produksi per item).
@@ -326,7 +327,7 @@ perubahan ditolak & data dimuat ulang. Sudah diuji pemilik di database sungguhan
 
 **Keterbatasan diketahui:**
 - Gaji borongan memakai pengunggah foto sebagai pekerja. Kalau penjahit/tukang potong tidak punya akun sendiri dan yang upload orang lain (mis. admin), gaji tercatat ke pengunggah — butuh keputusan pemilik (§11 no. 3 & 8).
-- Catatan per kartu ("Catatan" di bawah kartu 02/03/04 pada Sablon) belum ada: itu bagian dari Catatan Rapat (Bagian 4, tabel `production_notes`).
+- ✅ Catatan per kartu ("Catatan" di bawah kartu 02/03/04 pada Sablon) sudah ada sejak Bagian 4 (tabel `production_notes`, lihat §16).
 - Approval pesanan utama tetap berupa form (jenis produksi + jumlah per item + file/link), bukan hanya upload mockup seperti Sablon, karena item dipakai untuk gaji & tagihan.
 - Hapus file dari storage saat tahap dibatalkan **belum** dilakukan (hanya dilepas dari pesanan); pembersihan sudah dikerjakan di Bagian 3 lewat Hapus Permanen (§15).
 - Pesanan baru: pesan "Pesanan Baru" memberi notifikasi ke semua user termasuk pembuatnya (perilaku Sablon).
@@ -362,11 +363,87 @@ migration `003_calendar.sql`.
 7. Log Aktivitas memuat 1000 log terbaru (seperti Sablon); filter & cari bekerja di data itu.
 
 **Verifikasi:** `npm install` + `tsc` + `next build` kini bisa dijalankan. 13 uji logika `lib/orderArchive.ts` lulus
-(termasuk pengaman path storage). **Belum diuji dengan database/storage sungguhan:** `003_calendar.sql`, pulihkan,
-hapus permanen (terutama `storage.list/remove` dan RLS), agenda kalender.
+(termasuk pengaman path storage). Pemilik sudah menguji semuanya di database/storage sungguhan (18 Okt 2026): `003_calendar.sql`,
+pulihkan, hapus permanen (`storage.list/remove`, RLS), dan agenda kalender.
 
 **Temuan lama (bukan dari Bagian 3):** `app/components/orders/detail/StepCard.tsx` adalah sisa desain lama (pemilih pekerja),
 tidak diimpor di mana pun, dan mengimpor `STEPS_WITH_WORKER_PICKER` yang sudah tidak ada → `tsc` dan `next build` GAGAL.
-Hapus file itu. (`next build` lolos bila file itu dikeluarkan.)
+✅ Sudah dihapus di Bagian 4 (V.1.5).
 
 **Catatan:** notifikasi lama yang menunjuk pesanan yang sudah dihapus permanen tidak punya tujuan (klik tidak berefek).
+
+
+---
+
+## 16. Hasil Bagian 4 (V.1.5) — baca sebelum lanjut
+
+**Yang ada:**
+- **Catatan di Detail Pesanan:** kotak "Catatan" di bawah kartu 02 Produksi (`section = produksi`), 03 QC & Packing
+  (`finishing`), dan 04 Pengiriman (`pengiriman`) — pemetaan sama dengan Sablon. Komponen `orders/detail/ProductionNotes.tsx`;
+  data dimuat **sekali** per pesanan oleh `hooks/useOrderNotes.ts` (Sablon memuat tiga kali), diteruskan lewat prop `notes`
+  ke `StepProduksi` & `StepFinishing`. `OrderDetail` kini menerima prop `supabase`.
+- **Menu Catatan Rapat** (tab `meeting_notes`, ikon `ClipboardList`, di grup UTAMA setelah Kalender): `apps/MeetingNotesView.tsx`.
+  Filter Minggu ini / Minggu lalu / Semua, dikelompokkan per pesanan (Produksi · QC & Packing · Pengiriman), kode pesanan bisa
+  diklik ke detail (`openOrder(id, "meeting_notes")`, tombol Kembali pulang ke menu ini).
+- **Logika murni** di `lib/meetingNotes.ts` (rentang minggu, pengelompokan, validasi teks, pesan galat, HTML laporan cetak).
+- **Migration `004_production_notes.sql`** (nomor `003` sudah dipakai Kalender).
+
+**Izin:** tanpa modul izin baru. Menu & tulis catatan = staf yang boleh melihat pesanan (`orders.view`; RLS `is_staff()`).
+Hapus catatan = penulisnya atau supervisor (RLS `created_by_id = auth.uid()` atau `is_supervisor()`). Catatan **tidak bisa diubah**
+(tidak ada grant/policy `update`) — hanya tambah & hapus.
+
+**Keputusan yang saya ambil (ubah bila pemilik tidak setuju):**
+1. **PDF lewat dialog cetak browser** ("Cetak / Simpan PDF"), bukan `jsPDF` seperti Sablon: satu tombol menggantikan "Print" + "Download PDF",
+   tanpa menambah library (jsPDF belum ada di `package.json`), dan teks Indonesia/Unicode aman. Isi catatan di-escape sebelum masuk HTML laporan (diuji).
+2. **`order_id` = uuid dengan foreign key `on delete cascade`** (Sablon: teks tanpa FK). Catatan ikut terhapus saat pesanan dihapus permanen;
+   jejaknya tetap ada di `order_logs` (Bagian 3 sengaja mempertahankan log). Ubah ke `set null` bila catatan rapat ingin diarsipkan terus.
+3. `created_by_id` = uuid (sama dengan `users.id`), default `auth.uid()`, dan policy insert mewajibkan `created_by_id = auth.uid()` (pembuat tidak bisa dipalsukan).
+4. **Nama & kode pesanan di rekap memakai data pesanan terbaru**, bukan salinan saat catatan ditulis (tetap disimpan sebagai cadangan). Catatan dari pesanan di **Sampah tidak tampil**
+   di rekap (muncul lagi bila dipulihkan).
+5. Hapus catatan memakai konfirmasi (Sablon langsung menghapus); gagal simpan/hapus/muat menampilkan pesan (Sablon diam). Bila migration `004` belum dijalankan, pesan galat menunjuk file-nya.
+6. Panjang catatan maks 500 karakter (database 1000). Minggu dimulai **Senin**, mengikuti waktu lokal browser.
+7. Menulis catatan **tidak** menulis log aktivitas dan **tidak** mengirim notifikasi (sama dengan Sablon) — catatan ini untuk rapat, bukan alur kerja.
+8. Rekap memuat maksimal 1000 catatan terbaru (batas PostgREST); bila tercapai ada pemberitahuan. Pesanan dengan banyak catatan dalam "Semua" bisa terpotong — pakai filter minggu.
+
+**Verifikasi:** `npm install` tidak bisa dijalankan penuh di lingkungan pengerjaan (tanpa internet), jadi cek tipe memakai stub; tidak ada galat di file yang diubah.
+19 uji logika `lib/meetingNotes.ts` lulus (rentang minggu lintas bulan/tahun, pengelompokan, escape HTML, aturan hapus, pesan galat).
+**Jalankan `npm install && npx tsc --noEmit && npm run build` di komputer Anda sebelum deploy.**
+
+**Belum diuji dengan database sungguhan:** migration `004` (grant & 3 policy), simpan/hapus catatan dari browser (RLS), rekap mingguan, dialog cetak
+(terutama di Safari/HP), perilaku cascade saat Hapus Permanen pesanan yang punya catatan.
+
+**Berikutnya:** Bagian 5 (Config Harga & Gaji) konsepnya sudah dijawab pemilik — lihat §17. Pemilik meminta kodenya dibuat **di akhir**; tanyakan urutan pengerjaan sebelum melanjutkan.
+
+
+---
+
+## 17. Keputusan pemilik: model gaji & penanggung jawab (18 Okt 2026) — dasar Bagian 5
+
+**Jawaban pemilik:** alur gaji **sama seperti Sablon**. Penerima gaji ditentukan oleh **role user**: tim produksi (`produksi`),
+tim QC (`qc`), dan admin (`admin`). Saat **pesanan dibuat**, diisi **PJ (penanggung jawab)** dan **tim produksinya**.
+**Kodenya dibuat di akhir** (bukan sekarang) — jangan membangun field PJ/tim atau perhitungan gaji sebelum diminta.
+
+**Cara kerja di Sablon (dibaca dari `SalaryView.tsx`, `FixedSalaryView.tsx`, `CreateOrder.tsx`, 18 Okt 2026):**
+1. **Produksi (per pesanan):** kolom `orders.assigned_to` (PJ, wajib) dan `orders.helper_id` (Helper, opsional) diisi di form Pesanan Baru & Edit.
+   Gaji muncul bila semua tahap produksi pesanan selesai. Tanpa Helper, PJ menerima seluruh nominal; dengan Helper, nominal dibagi
+   (sistem lama 70% PJ : 30% Helper; sistem baru: upah dasar per profesi + bonus).
+2. **Tim QC (tetap, bukan per pesanan):** semua user ber-role `qc` = anggota tim. Pool = total qty semua pesanan yang QC lolos + packing selesai
+   × (tarif finishing + packing), **dibagi rata** ke seluruh anggota tim.
+3. **Admin:** bonus per pesanan (Sablon: Rp X per closing + Rp Y per pcs di atas batas pcs; parameter di Config Harga). Memakai pembuat pesanan.
+4. **Bulan gaji** = bulan tahap terakhir selesai (`completedAt`), bukan bulan pesanan dibuat. **Rate berhistori** (`pricing_configs`, INSERT baru tiap perubahan,
+   dipilih menurut `effective_date` ≤ tanggal tahap selesai). Status **lunas** per orang per kategori per bulan (`salary_payments`), slip gaji bisa dicetak.
+
+**Pemetaan ke Konveksi (asumsi saya — konfirmasi saat membangun):**
+- Role: tidak perlu role baru (menjawab §11 no. 8). `lib/roles.ts` sudah punya `produksi`, `qc`, `admin`.
+- Kolom baru di `orders`: `assigned_to` (PJ) dan `helper_id` (tim produksi) + isian di `CreateOrder`/`EditOrder` (pilihan = user ber-role `produksi`, seperti Sablon).
+  Perlu migration baru (nomor berikutnya), mengganti pemakaian `step.doneBy` sebagai dasar gaji (keterbatasan di §14 terselesaikan lewat cara ini).
+- Dasar nominal produksi: **rate per item (jenis produksi)** dari `items` (§7 Bagian 5), bukan komposisi gesut Sablon. Cara membagi antara PJ dan tim → pertanyaan di bawah.
+- Tim QC & admin: ikuti Sablon (poin 2–3), dengan basis qty = `jumlah` / total `items`.
+
+**Pertanyaan yang harus dikonfirmasi sebelum membangun (jangan menebak):**
+1. **Tim produksi** satu orang (seperti `helper_id` Sablon) atau **beberapa orang** per pesanan?
+2. **Pembagian PJ : tim** — memakai 70% : 30% seperti sistem lama Sablon, atau persentase lain / upah dasar tetap per profesi?
+3. **Admin** — bonus per closing + per pcs seperti Sablon? (PRD §13.2 awalnya menyebut gaji tetap & bonus "tidak dibawa"; keputusan ini perlu dipastikan.)
+4. **Tahap yang dihargai** — apakah Potong Kain dan Jahit punya rate berbeda, dan siapa yang mengerjakan Potong (PJ/tim yang sama)?
+5. Pesanan **non-utama** (Selempang, Permak) — apakah ikut dihitung gajinya, dan dengan rate apa (harga bervariasi per jahitan, §11 no. 7)?
+

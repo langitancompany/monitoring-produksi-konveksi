@@ -91,6 +91,10 @@ const CalendarView = dynamic(
   () => import("@/app/components/apps/CalendarView"),
   { loading: Spinner },
 );
+const MeetingNotesView = dynamic(
+  () => import("@/app/components/apps/MeetingNotesView"),
+  { loading: Spinner },
+);
 
 type OrderView = "list" | "detail" | "create" | "edit";
 const isOrderView = (v: string | null): v is OrderView =>
@@ -400,6 +404,7 @@ export default function KonveksiApp() {
 
       return (
         <OrderDetail
+          supabase={supabase}
           order={selectedOrder}
           productionTypes={productionTypes}
           currentUser={currentUser}
@@ -542,6 +547,15 @@ export default function KonveksiApp() {
                 showAlert={showAlert}
                 showConfirm={showConfirm}
                 onSelectOrder={(id) => openOrder(id, "calendar")}
+              />
+            )}
+
+            {activeTab === "meeting_notes" && p?.orders?.view && (
+              <MeetingNotesView
+                supabase={supabase}
+                orders={activeOrders}
+                ordersLoading={ordersLoading}
+                onSelectOrder={(id) => openOrder(id, "meeting_notes")}
               />
             )}
 

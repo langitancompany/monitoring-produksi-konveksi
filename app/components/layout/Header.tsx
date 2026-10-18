@@ -207,6 +207,7 @@ export default function Header({
     orders_lain: "Pesanan Non-Utama",
     completed_orders: "Pesanan Selesai",
     calendar: "Kalender",
+    meeting_notes: "Catatan Rapat",
     logs: "Log Aktivitas",
     trash: "Sampah",
     settings: "Pengaturan",
