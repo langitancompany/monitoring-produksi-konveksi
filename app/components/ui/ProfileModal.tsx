@@ -12,7 +12,6 @@ import {
   Check,
   ZoomIn,
   Image as ImageIcon,
-  ChevronRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import imageCompression from "browser-image-compression";
@@ -127,7 +126,7 @@ export default function ProfileModal({ user, isOpen, onClose, onSave }: Props) {
   };
 
   const onCropComplete = useCallback(
-    (croppedArea: Area, croppedAreaPixels: Area) => {
+    (_croppedArea: Area, croppedAreaPixels: Area) => {
       setCroppedAreaPixels(croppedAreaPixels);
     },
     [],

@@ -6,6 +6,7 @@
 
 import type { Order } from "@/types/order";
 import { sendToRoles, sendToAllUsers } from "./notificationHelper";
+import { daysUntil } from "./utils";
 
 export const triggerOrderNotifications = async (
   orderData: Order,
@@ -55,13 +56,12 @@ export const triggerOrderNotifications = async (
   // 3. Mepet / telat — hanya saat status berpindah (atau deadline diubah),
   // supaya tiap klik tombol tahap tidak membanjiri notifikasi yang sama.
   if ((oldStatus !== finalStatus || opts.forceDeadlineCheck) && orderData.deadline && finalStatus !== "Selesai" && finalStatus !== "Kirim") {
-    const diffDays = Math.ceil(
-      (new Date(orderData.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-    );
+    // Selisih hari kalender (0 = deadline hari ini); lihat daysUntil di lib/utils.ts
+    const diffDays = daysUntil(orderData.deadline);
     if (diffDays < 0) {
       await sendToRoles(["produksi", "admin", "supervisor"], "⛔ PESANAN TELAT", `Order ${orderData.kode_produksi} sudah melewati deadline!`, orderId);
     } else if (diffDays <= 2) {
-      await sendToRoles(["produksi", "admin", "supervisor"], "🔥 URGENT / MEPET", `Order ${orderData.kode_produksi} deadline tinggal ${diffDays} hari!`, orderId);
+      await sendToRoles(["produksi", "admin", "supervisor"], "🔥 URGENT / MEPET", diffDays === 0 ? `Order ${orderData.kode_produksi} deadline HARI INI!` : `Order ${orderData.kode_produksi} deadline tinggal ${diffDays} hari!`, orderId);
     }
   }
 };

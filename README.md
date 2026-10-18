@@ -78,6 +78,7 @@ hak akses (RLS, fungsi, trigger) berperilaku sama.
    - `supabase/migrations/002_konveksi_core.sql` — jenis produksi (terisi 6 jenis utama + 2 non-utama), pesanan, log.
    - `supabase/migrations/003_calendar.sql` — agenda manual untuk menu Kalender (tabel `calendar_events`).
    - `supabase/migrations/004_production_notes.sql` — catatan produksi per pesanan untuk menu Catatan Rapat (tabel `production_notes`).
+   - `supabase/migrations/005_rls_hardening.sql` — pengetatan hak akses tabel `orders` (penjaga per kolom) dan hapus log; tidak mengubah data.
 2. **Expose schema** `monitoring_konveksi` di pengaturan API Supabase
    (`PGRST_DB_SCHEMAS` / Exposed schemas; di self-hosted: variabel PostgREST di Coolify)
    lalu restart PostgREST. Tanpa ini aplikasi tidak bisa membaca tabel.

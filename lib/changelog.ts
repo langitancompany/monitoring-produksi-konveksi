@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.5",
+  version: "V.1.6",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Catatan Rapat: catatan produksi per pesanan + rekap mingguan",
+  notes: "Dashboard ringkasan produksi, perbaikan hitungan telat, pengetatan hak akses",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.6",
+    date: "2026-10-18",
+    changes: [
+      "Dashboard kini berisi ringkasan produksi: jumlah pesanan berjalan, telat, mepet deadline, kendala/revisi, siap kirim, dan selesai bulan ini; posisi pesanan per tahap; daftar pesanan yang perlu perhatian (klik untuk membuka detail); jumlah pcs per jenis produksi; dan grafik 6 bulan terakhir.",
+      "Perbaikan: hitungan \"Telat\" dan \"Mepet\" sebelumnya meleset sehari (pesanan yang deadline-nya kemarin belum dianggap telat). Kini memakai tanggal kalender: lewat kemarin = Telat, deadline hari ini sampai 2 hari lagi = Mepet. Notifikasi telat/mepet ikut diperbaiki, termasuk pesan \"deadline hari ini\".",
+      "Hak akses diperketat di database: kode pesanan dan pembuat tidak bisa diubah; data pemesan, deadline, dan jumlah hanya bisa diubah oleh yang berhak mengedit pesanan; log aktivitas hanya bisa dihapus supervisor. Butuh menjalankan migration 005.",
+      "Pembersihan kode kecil (import dan variabel yang tidak terpakai).",
+    ],
+  },
   {
     version: "1.5",
     date: "2026-10-18",

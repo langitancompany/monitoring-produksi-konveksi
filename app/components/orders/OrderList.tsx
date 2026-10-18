@@ -21,7 +21,9 @@ import { activeStepName, currentPhase, stepProgress } from "@/lib/steps";
 import {
   MONTHS,
   formatDate,
+  daysUntil,
   getDeadlineStatus,
+  parseLocalDate,
   typeLabel as typeName,
 } from "@/lib/utils";
 
@@ -383,15 +385,9 @@ function KanbanCard({
 
 /** Telat dulu, lalu yang deadline-nya ≤ 3 hari, sisanya menurut tanggal masuk. */
 function sortByUrgency(orders: Order[]): Order[] {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const H3 = 3 * 24 * 60 * 60 * 1000;
-
   const tier = (o: Order): number => {
     if (isOverdueOrder(o)) return 0;
-    const d = new Date(o.deadline);
-    d.setHours(0, 0, 0, 0);
-    return d.getTime() - now.getTime() <= H3 ? 1 : 2;
+    return daysUntil(o.deadline) <= 3 ? 1 : 2;
   };
 
   return [...orders].sort((a, b) => {
@@ -506,7 +502,7 @@ export default function OrderList({
       if (statusFilter === "ready" && o.status !== "Kirim") return false;
       if (
         monthFilter !== "all" &&
-        new Date(o.tanggal_masuk).getMonth().toString() !== monthFilter
+        parseLocalDate(o.tanggal_masuk).getMonth().toString() !== monthFilter
       )
         return false;
       if (typeFilter !== "all") {

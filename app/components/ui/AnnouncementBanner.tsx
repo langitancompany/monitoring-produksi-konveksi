@@ -45,7 +45,6 @@ export default function AnnouncementBanner() {
     setDismissed(stored);
 
     const fetchAnnouncements = async () => {
-      const now = new Date().toISOString();
       const { data } = await supabase
         .from("announcements")
         .select("*")

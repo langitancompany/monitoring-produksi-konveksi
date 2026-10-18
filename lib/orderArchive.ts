@@ -4,7 +4,7 @@
 // Kalender. Murni fungsi (tanpa akses database) supaya mudah diuji.
 
 import type { Order, ProductionTypeData } from "@/types/order";
-import { toLocalISODate, typeLabel } from "@/lib/utils";
+import { parseLocalDate, toLocalISODate, typeLabel } from "@/lib/utils";
 
 /**
  * Kapan pesanan selesai? = waktu tahap TERAKHIR yang selesai (ISO).
@@ -35,7 +35,7 @@ export function finishedOnTime(order: Pick<Order, "steps" | "updated_at" | "dead
 
 /** Kunci bulan "YYYY-MM" (waktu lokal) dari tanggal/ISO, untuk filter & pengelompokan. */
 export function monthKey(dateLike: string): string {
-  const d = new Date(dateLike);
+  const d = parseLocalDate(dateLike);
   if (Number.isNaN(d.getTime())) return "";
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }

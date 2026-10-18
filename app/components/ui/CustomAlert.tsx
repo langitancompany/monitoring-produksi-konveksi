@@ -5,7 +5,6 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle,
-  Trash2,
   X,
 } from "lucide-react";
 

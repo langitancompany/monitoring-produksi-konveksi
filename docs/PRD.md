@@ -4,7 +4,7 @@
 > **baca dokumen ini dulu**, lalu kerjakan bagian berikutnya di tabel *Status*.
 > Perbarui tabel Status dan changelog setiap selesai satu bagian.
 
-Terakhir diperbarui: 18 Oktober 2026 · Versi aplikasi: V.1.5 (Bagian 4 selesai, **belum diuji** di database sungguhan — migration `004` belum dijalankan. Bagian 0–3 sudah diuji pemilik di database sungguhan)
+Terakhir diperbarui: 18 Oktober 2026 · Versi aplikasi: V.1.6 (Bagian 7 selesai di kode, **belum diuji** di database/browser sungguhan — migration `005` belum dijalankan dan Dashboard baru belum dilihat pemilik. Bagian 0–4 sudah diuji pemilik di database sungguhan)
 
 ---
 
@@ -38,10 +38,10 @@ dan **Pesanan Non-Utama**.
 | 1.5 | Pengelolaan user | `/api/users` (tambah/ubah/hapus: akun login + profil sekaligus), form Pengguna memakai Email Login, tanpa kolom password | ✅ selesai, sudah diuji pemilik di Supabase sungguhan (18 Okt 2026) |
 | 2 | Alur produksi | Aksi tiap tahap di Detail (Approval, Potong, Jahit, QC, Packing, Kirim, Terima — 4 kartu gaya Sablon), upload file, kendala, edit & hapus (ke Sampah), log, notifikasi (penerima dihitung di server — lihat §13.4) | ✅ selesai, sudah diuji pemilik di Supabase/storage sungguhan (18 Okt 2026) |
 | 3 | Arsip & pemantauan | Pesanan Selesai, Sampah (pulihkan / hapus permanen + file), Log Aktivitas, Kalender + migration `003` | ✅ selesai, sudah diuji pemilik di database sungguhan (18 Okt 2026) |
-| 4 | Catatan Rapat | Catatan per pesanan di kartu 02/03/04 + menu rekap mingguan (ikuti Sablon) + migration `004` | ✅ selesai (belum diuji di database sungguhan — lihat §16) |
+| 4 | Catatan Rapat | Catatan per pesanan di kartu 02/03/04 + menu rekap mingguan (ikuti Sablon) + migration `004` | ✅ selesai, sudah diuji pemilik di database & browser (18 Okt 2026) |
 | 5 | Config Harga & Gaji | Rate gaji per item/tahap, Gaji & Upah, slip gaji. **Konsep sudah dijawab pemilik (§17); kodenya (termasuk PJ/tim di form pesanan) dibuat di akhir** | ⏸ menunggu urutan dari pemilik |
 | 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon) | ⬜ |
-| 7 | Dashboard & finishing | Dashboard ringkasan, tampilan Kanban, pengetatan RLS, rapikan lint | ⬜ |
+| 7 | Dashboard & finishing | Dashboard ringkasan, tampilan Kanban, pengetatan RLS, rapikan lint | ✅ selesai di kode, **belum diuji** (migration `005`, Dashboard di browser) — rincian & sisa pekerjaan di §18 |
 
 Pekerjaan dibagi per bagian **sengaja** (batas token). Selesaikan satu bagian
 penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
@@ -82,7 +82,7 @@ penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 - **Supabase:** satu instance, **schema per unit** (`monitoring_konveksi`). Sesi login dibagi lintas subdomain lewat cookie domain `.langitan.co` (`authCookieOptions()` di `lib/config.ts`; dimatikan saat localhost).
 - **Server-only:** route API di `app/api/*` memakai `getSupabaseAdmin()` (service role) + `requireUser()` (cek sesi & role). Operasi sensitif (uang, hapus user) harus lewat API, bukan langsung dari browser.
 - **Deploy:** Coolify di VPS sendiri, `Dockerfile` standalone, health check `/api/health`. Variabel `NEXT_PUBLIC_*` = Build Variable.
-- **Env:** lihat `.env.example`. **Setup database:** README → "Menyiapkan Supabase" (`supabase/migrations/001_base_umum.sql` lalu `002_konveksi_core.sql`, `003_calendar.sql`, lalu `004_production_notes.sql`).
+- **Env:** lihat `.env.example`. **Setup database:** README → "Menyiapkan Supabase" (`supabase/migrations/001_base_umum.sql` lalu `002_konveksi_core.sql`, `003_calendar.sql`, `004_production_notes.sql`, lalu `005_rls_hardening.sql`).
 
 ### Struktur folder (inti)
 ```
@@ -90,9 +90,10 @@ app/page.tsx                      kerangka & routing tab
 app/components/{auth,layout,ui,misc,dashboard,orders,settings}
 app/api/                          users (kelola user) · notify (broadcast per role/semua) · send-notification (1 user) · backup · health · version
 hooks/   useAuth useUsers useNotifications useOrders useOrderDetail useOrderNotes useUpload useProductionTypes useUnitAccess useUpdateCheck
-lib/     config steps access orderItems utils orderLogic orderArchive meetingNotes notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
+lib/     config steps access orderItems utils orderLogic orderArchive meetingNotes dashboardStats notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
 types/   index.ts (user & hak akses)  order.ts (pesanan)
-supabase/migrations/              001 base_umum · 002 konveksi_core · 003 calendar · 004 production_notes
+supabase/migrations/              001 base_umum · 002 konveksi_core · 003 calendar · 004 production_notes · 005 rls_hardening
+tests/                            uji logika murni (jalankan: npx tsx tests/dashboardStats.test.ts)
 supabase/optional/                salin user dari Sablon (hanya untuk supervisor pertama)
 supabase/patches/                 perbaikan untuk database SABLON (bukan Konveksi)
 docs/PRD.md                       dokumen ini
@@ -198,9 +199,9 @@ Acuan Sablon ada di kolom kanan — **baca file itu dulu**.
 - Ikuti Keuangan v2 Sablon (Tagihan → Pembayaran → Verifikasi → Void, status pembayaran dihitung database, invoice PDF, log audit, semua operasi uang lewat API server). Acuan: `app/components/finance/*`, `lib/finance/*`, `hooks/useFinanceApi.ts`, `supabase/migrations/010_finance_*.sql`.
 - Pangkas yang terkait harga kaos/ukuran besar/lengan panjang; ganti dengan baris item konveksi (`items`).
 
-### Bagian 7 — Dashboard & finishing
+### Bagian 7 — Dashboard & finishing ✅ (ringkasan hasil di §18)
 - Dashboard ringkasan (jumlah per status, telat, pesanan menurut jenis, grafik bulanan). Acuan: `dashboard/Dashboard.tsx`, `useDashboard.ts`, `ChartBar/ChartPie/ActionList/HeroSection`. Pakai `recharts` (tambahkan lagi ke `package.json`).
-- Tampilan Kanban di daftar pesanan (Sablon: `KanbanBoard` di `OrderList.tsx`).
+- Tampilan Kanban di daftar pesanan (Sablon: `KanbanBoard` di `OrderList.tsx`) — sudah ada sejak Bagian 2 (§14).
 - **Kencangkan RLS** (lihat bagian 10) dan rapikan lint.
 
 ---
@@ -244,6 +245,7 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
   dan hentikan penyimpanannya bila password asli.
 - Operasi uang/gaji harus lewat API server + fungsi database (pola `fin_*` Sablon), bukan
   insert langsung dari browser.
+- **Penjaga kolom `orders` (migration `005`):** trigger `guard_orders_update` membatasi tiap kelompok kolom ke izin yang sesuai (data pemesan/deadline/assigned_to = `orders.edit`; items/jumlah = `orders.edit` atau `produksi.create`; steps/kendala/status = izin produksi/finishing/orders.edit; kode, kategori, pembuat = tidak boleh berubah). Menambah kolom baru di `orders`? **Tambahkan ke trigger itu**, kalau tidak kolomnya hanya dijaga policy longgar.
 - Jangan commit `.env*`. `SUPABASE_SERVICE_ROLE_KEY` dan `FIREBASE_PRIVATE_KEY` hanya di server.
 - Firebase web config & VAPID key masih memakai project yang sama dengan Sablon.
 - Policy storage bucket `production-proofs` berlaku untuk seluruh bucket (bukan per folder).
@@ -268,6 +270,7 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 
 ## 12. Riwayat
 
+- **V.1.6** — Bagian 7: Dashboard ringkasan produksi, perbaikan hitungan Telat/Mepet (zona waktu), migration `005` (penjaga kolom `orders`, hapus log hanya supervisor), pembersihan import/variabel tak terpakai.
 - **V.1.5** — Bagian 4: catatan produksi di detail pesanan (kartu 02/03/04), menu Catatan Rapat (rekap mingguan + cetak/PDF), migration `004`; hapus `StepCard.tsx` sisa lama.
 - **V.1.4** — Bagian 3: Pesanan Selesai, Kalender (+ agenda), Log Aktivitas, Sampah (pulihkan / hapus permanen), migration `003`.
 - **V.1.0** — Kerangka (zip `monitoring-produksi-konveksi`): login, profil, pengguna, pengumuman, notifikasi, backup, Tentang App, pindah unit.
@@ -409,7 +412,7 @@ Hapus catatan = penulisnya atau supervisor (RLS `created_by_id = auth.uid()` ata
 19 uji logika `lib/meetingNotes.ts` lulus (rentang minggu lintas bulan/tahun, pengelompokan, escape HTML, aturan hapus, pesan galat).
 **Jalankan `npm install && npx tsc --noEmit && npm run build` di komputer Anda sebelum deploy.**
 
-**Belum diuji dengan database sungguhan:** migration `004` (grant & 3 policy), simpan/hapus catatan dari browser (RLS), rekap mingguan, dialog cetak
+**(Sudah diuji pemilik 18 Okt 2026 — daftar ini dipertahankan sebagai riwayat.)** Sebelumnya belum diuji dengan database sungguhan: migration `004` (grant & 3 policy), simpan/hapus catatan dari browser (RLS), rekap mingguan, dialog cetak
 (terutama di Safari/HP), perilaku cascade saat Hapus Permanen pesanan yang punya catatan.
 
 **Berikutnya:** Bagian 5 (Config Harga & Gaji) konsepnya sudah dijawab pemilik — lihat §17. Pemilik meminta kodenya dibuat **di akhir**; tanyakan urutan pengerjaan sebelum melanjutkan.
@@ -447,3 +450,75 @@ tim QC (`qc`), dan admin (`admin`). Saat **pesanan dibuat**, diisi **PJ (penangg
 4. **Tahap yang dihargai** — apakah Potong Kain dan Jahit punya rate berbeda, dan siapa yang mengerjakan Potong (PJ/tim yang sama)?
 5. Pesanan **non-utama** (Selempang, Permak) — apakah ikut dihitung gajinya, dan dengan rate apa (harga bervariasi per jahitan, §11 no. 7)?
 
+
+---
+
+## 18. Hasil Bagian 7 (V.1.6) — baca sebelum lanjut
+
+**Urutan pengerjaan:** pemilik meminta bagian yang paling kecil dikerjakan dulu, dan Bagian 5 (gaji) diminta di akhir
+(§17). Bagian 6 (Keuangan) tidak bisa dimulai karena bahan dari Sablon belum ada (lihat "Berikutnya"). Maka Bagian 7 dikerjakan lebih dulu.
+
+**Yang ada:**
+- **Dashboard** (`app/components/dashboard/Dashboard.tsx`) menggantikan kerangka kosong. Semua angka dihitung di browser dari
+  `activeOrders` yang sudah dimuat `app/page.tsx` (tanpa query baru). Isi: 6 kartu angka (Berjalan · Telat · Mepet ·
+  Kendala/Revisi · Siap Kirim · Selesai bulan ini), posisi pesanan per fase, daftar "Perlu perhatian" (klik → detail pesanan,
+  tombol Kembali pulang ke Dashboard), pcs per jenis produksi, grafik 6 bulan (masuk vs selesai). Bila user tidak punya
+  `orders.view`, Dashboard hanya menampilkan sapaan.
+- **Logika murni** di `lib/dashboardStats.ts` (`computeSummary`, `phaseCounts`, `pcsByType`, `monthlySeries`, `attentionList`).
+  Aturan "Telat" memakai `getDeadlineStatus` yang sama dengan Daftar Pesanan, jadi angkanya selalu cocok dengan filter "Telat" di sana.
+- **Migration `005_rls_hardening.sql`** — lihat §10 dan komentar di file itu.
+- **Pembersihan lint:** 4 import/variabel tak terpakai dihapus (`AnnouncementBanner`, `CustomAlert`, `ProfileModal`).
+
+**Keputusan yang saya ambil (ubah bila pemilik tidak setuju):**
+1. **Grafik pakai CSS biasa, bukan `recharts`** (PRD awal menyarankan recharts). Alasan: paket tidak bisa dipasang & diverifikasi di lingkungan
+   pengerjaan, dan 2 grafik sederhana tidak sepadan dengan ±100 KB dependensi. Mudah diganti nanti bila ingin grafik yang lebih kaya.
+2. **"Mepet" = deadline hari ini sampai 2 hari lagi** (aturan lama `getDeadlineStatus`), "Telat" = deadline sudah lewat dan status belum Kirim/Selesai.
+3. **Pcs per jenis** dihitung dari `items`; pesanan utama yang belum Approval masuk baris "Belum Approval" memakai `jumlah` dari close order.
+4. **"Selesai bulan ini"** = pesanan Selesai yang tahap terakhirnya selesai di bulan berjalan (`completionDate`, sama dengan Pesanan Selesai & dasar gaji).
+5. Dashboard tidak punya filter/tanggal sendiri; "hari ini" mengikuti jam perangkat dan diperbarui tiap menit bila aplikasi dibiarkan terbuka.
+
+**Bug yang ditemukan dan diperbaiki (penting, ada di kode lama sejak Bagian 1):**
+`getDeadlineStatus` (dan perhitungan notifikasi di `orderLogic.ts`) membaca `"2026-10-17"` lewat `new Date(...)` — itu dibaca sebagai **UTC**,
+lalu dibandingkan dengan tengah malam **lokal**. Di WIB akibatnya pesanan dengan deadline kemarin masih berstatus "Mepet" (baru "Telat" sehari kemudian)
+dan jendela "Mepet" bergeser sehari. Perbaikan: `parseLocalDate()` & `daysUntil()` di `lib/utils.ts` (selisih hari kalender), dipakai
+`getDeadlineStatus`, `orderLogic.ts`, `sortByUrgency` & filter bulan di `OrderList.tsx`, dan `monthKey` di `orderArchive.ts`.
+**Efek yang akan terlihat pemilik:** jumlah pesanan "Telat" di Daftar Pesanan bisa bertambah (yang deadline-nya kemarin kini benar disebut Telat).
+Aturan menulis tanggal baru: **jangan** bandingkan tanggal dengan `new Date("YYYY-MM-DD")`; pakai `parseLocalDate`/`daysUntil`.
+(`formatDate` masih memakai `new Date(...)` untuk tampilan saja — aman di WIB, bisa bergeser di zona waktu barat; belum diubah.)
+
+**Verifikasi:**
+- `tests/dashboardStats.test.ts` — **12 uji lulus** di zona waktu Asia/Jakarta, UTC, America/New_York, dan Pacific/Auckland
+  (hitungan telat/mepet, fase, pcs per jenis, grafik lintas tahun, urutan "perlu perhatian", `monthKey`).
+  Jalankan: `npx tsx tests/dashboardStats.test.ts`.
+- Cek tipe file yang diubah dengan stub (lingkungan pengerjaan tanpa internet, jadi `npm install`/`next build`/`eslint` **tidak** bisa dijalankan):
+  tidak ada galat nyata. **Jalankan `npm install && npx tsc --noEmit && npm run build && npm run lint` di komputer Anda sebelum deploy.**
+  Ikon `lucide-react` yang dipakai Dashboard (`AlertCircle, AlertTriangle, CheckCircle2, ChevronRight, Clock, Package, Truck`) dan tipe `LucideIcon`
+  belum diperiksa terhadap paket aslinya.
+- **Migration `005` TIDAK bisa dijalankan di lingkungan pengerjaan (tidak ada Postgres)** — hanya dibaca ulang manual. Jalankan dulu di
+  database uji / di luar jam kerja.
+
+**Belum diuji dengan database/browser sungguhan — uji ini sebelum dianggap beres:**
+1. Jalankan `005` di SQL Editor (harus "Success", tanpa galat sintaks).
+2. Sebagai **supervisor**: semua alur Bagian 2 masih jalan (buat pesanan, Approval, Potong, Jahit, QC lolos & gagal → revisi, Kirim, Terima, kendala, edit, hapus ke Sampah, pulihkan, hapus permanen).
+3. Sebagai user **produksi** (punya `produksi.create/edit`, tanpa `orders.edit`): selesaikan Potong/Jahit, buat Approval, lapor kendala — harus BERHASIL.
+   Mencoba mengubah deadline/nama pemesan (Edit Pesanan) — harus DITOLAK ("Tidak punya izin…").
+4. Sebagai user **qc** (hanya `finishing.edit`): QC, Packing, Kirim, Terima — BERHASIL; membuat Approval — ditolak.
+5. (Opsional, lewat konsol/API langsung — UI memang tidak punya tombol hapus log) Sebagai user non-supervisor, `delete` pada `order_logs` harus ditolak.
+6. Buat pesanan baru dari akun non-supervisor yang punya `orders.create` — harus tetap bisa (policy kini mewajibkan `created_by = auth.uid()`).
+7. Hapus akun user yang pernah membuat pesanan (Pengaturan → Pengguna) — harus tetap bisa (aturan `created_by` boleh jadi NULL dibuat justru untuk ini).
+8. Dashboard di browser: angka cocok dengan Daftar Pesanan (filter Telat/Kendala/Siap Kirim), mode gelap, tampilan HP, klik item "Perlu perhatian" lalu Kembali.
+
+**Sisa pengetatan yang SENGAJA belum dikerjakan (butuh keputusan/bagian lain):**
+- Pemisahan per-**tahap** di trigger (mis. `produksi.edit` tidak boleh menyentuh tahap QC lewat API langsung). QC gagal harus membuka lagi
+  Produksi Massal dalam satu update, jadi aturan per-tahap perlu didesain bersama Bagian 5.
+- `order_logs.oleh` bisa dipalsukan pengirimnya (log ditulis dari browser); perlu RPC/API server bila log dipakai sebagai bukti audit uang.
+- Policy storage bucket `production-proofs` (bersama Sablon; di luar migration Konveksi).
+- `notifications` INSERT masih terbuka untuk staf karena `lib/notificationHelper.ts` masih menulis dari browser; pindahkan semuanya ke `/api/notify` lalu cabut policy itu.
+- `eslint` belum bisa dijalankan; aturan `no-explicit-any` dan `react-hooks/exhaustive-deps` kemungkinan masih memberi peringatan (kode `any` ditoleransi, §3 no. 8).
+
+**Berikutnya:**
+- **Bagian 6 (Keuangan)** — butuh dari pemilik (hasil query di database Sablon, schema `monitoring_sablon`): definisi lengkap migration Sablon `001`–`009`
+  (tabel `finance_*`, view `v_*`, fungsi `fin_*`, trigger penjaga) — zip Sablon yang dikirim hanya berisi `010`–`011`; isi `finance_accounts`,
+  `finance_categories`, `finance_settings`; definisi `finance_expense_seq` dan indeks unik `finance_expenses(source, source_ref)`. Tanpa itu skema uang akan menebak-nebak. Juga konfirmasi §11 no. 9 (DP/lunas/invoice sama dengan Sablon?) dan no. 7.
+- **Bagian 5 (Config Harga & Gaji)** — dikerjakan paling akhir atas permintaan pemilik; jawab dulu 5 pertanyaan di §17.
+  Saat itu tambahkan juga kolom `assigned_to`/tim ke penjaga trigger (`assigned_to` sudah dijaga: butuh `orders.edit`) dan penjaga kolom gaji/harga.

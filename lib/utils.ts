@@ -24,17 +24,35 @@ export const formatDate = (dateStr?: string | null) => {
   });
 };
 
+/**
+ * Baca "YYYY-MM-DD" (tanggal saja) sebagai tanggal LOKAL (tengah malam waktu perangkat).
+ * String berisi jam (ISO timestamp) dibaca biasa.
+ * Jangan pakai `new Date("2026-10-17")` untuk membandingkan tanggal: string
+ * itu dibaca sebagai UTC, sehingga di WIB (UTC+7) hasilnya meleset sehari.
+ */
+export function parseLocalDate(dateStr: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(dateStr);
+}
+
+/**
+ * Selisih hari kalender dari `today` ke tanggal itu: 0 = hari ini, 1 = besok,
+ * -1 = kemarin. NaN bila tanggal tidak valid. `today` bisa diisi untuk uji.
+ */
+export function daysUntil(dateStr: string, today: Date = new Date()): number {
+  const target = parseLocalDate(dateStr);
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  // Math.round: selisih bisa 23/25 jam saat pergantian jam musim panas di zona lain
+  return Math.round((target.getTime() - start.getTime()) / 86_400_000);
+}
+
 export const getDeadlineStatus = (
   deadlineStr: string,
   status: OrderStatus,
+  today: Date = new Date(),
 ): "safe" | "warning" | "overdue" => {
   if (status === "Selesai" || status === "Kirim") return "safe";
-  const deadline = new Date(deadlineStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diffDays = Math.ceil(
-    (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-  );
+  const diffDays = daysUntil(deadlineStr, today);
   if (diffDays < 0) return "overdue";
   if (diffDays <= 2) return "warning";
   return "safe";
