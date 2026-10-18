@@ -1,7 +1,7 @@
 // app/components/apps/ConfigPriceView.tsx
 //
 // Config Harga (Bagian 5): rate gaji produksi PER PCS untuk tiap (jenis produksi × tahap), plus
-// parameter aturan (bagian PJ, bonus admin). Konsep dari ConfigPriceView Sablon:
+// parameter aturan (bonus admin). Konsep dari ConfigPriceView Sablon:
 // perubahan disimpan sebagai baris BARU berlaku mulai tanggal tertentu — baris lama tidak pernah
 // diubah, jadi gaji bulan lalu tidak ikut berubah. Lihat docs/PRD.md §20.
 "use client";
@@ -171,9 +171,6 @@ export default function ConfigPriceView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, drafts, baseline]);
 
-  const pjPct = Math.min(100, Number(valueOf("pj_share_percent", true) || 0));
-  const pjInvalid = Number(valueOf("pj_share_percent", true) || 0) > 100;
-
   const doSave = async () => {
     const err = await saveRates(changes, effectiveDate);
     if (err) {
@@ -188,10 +185,6 @@ export default function ConfigPriceView({
   };
 
   const save = () => {
-    if (pjInvalid) {
-      showAlert("Tidak valid", "Bagian PJ harus antara 0 dan 100 persen.", "error");
-      return;
-    }
     if (changes.length === 0) return;
     if (effectiveDate < today) {
       showConfirm(
@@ -286,7 +279,7 @@ export default function ConfigPriceView({
               <tr className="text-[10px] uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
                 <th rowSpan={2} className="text-left font-semibold px-5 py-2 min-w-[180px]">Jenis produksi</th>
                 <th colSpan={2} className="font-semibold px-2 pt-2 text-center border-l border-zinc-200 dark:border-zinc-800">
-                  Gaji PJ &amp; Tim Produksi
+                  Gaji Produksi (PJ &amp; Anggota Tim)
                 </th>
                 <th colSpan={2} className="font-semibold px-2 pt-2 text-center border-l border-zinc-200 dark:border-zinc-800">
                   Pool Tim QC
@@ -357,15 +350,16 @@ export default function ConfigPriceView({
           </table>
         </div>
         <p className="px-5 py-3 text-[11px] text-zinc-500 dark:text-zinc-400 border-t border-zinc-200 dark:border-zinc-800">
-          Gaji produksi = jumlah pcs × (rate Potong Kain + rate Jahit), dibagi PJ &amp; tim. Pool QC = jumlah pcs × (rate
-          QC + rate Packing), dibagi rata ke semua user ber-role QC. Rate dipilih menurut tanggal tahap selesai. Kosong =
-          belum diatur (Rp0); isi 0 bila memang tidak digaji.
+          Gaji produksi: pcs pesanan dibagi rata ke PJ + anggota tim; anggota digaji pcs bagiannya × rate Jahit / Produksi,
+          PJ digaji pcs bagiannya × rate Gaji PJ (Potong Kain tidak punya rate sendiri, sudah termasuk Gaji PJ). Pool QC
+          = jumlah pcs × (rate QC + rate Packing), dibagi rata ke semua user ber-role QC. Rate dipilih menurut tanggal
+          produksi tuntas (QC &amp; Packing: tanggal tahapnya). Kosong = belum diatur (Rp0); isi 0 bila memang tidak digaji.
         </p>
       </div>
 
       {/* Parameter aturan */}
       <div className={`${card} p-5`}>
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Aturan pembagian &amp; bonus</h2>
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Bonus admin</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
           {PARAM_INFO.map((p) => (
             <div key={p.key}>
@@ -384,12 +378,9 @@ export default function ConfigPriceView({
             </div>
           ))}
         </div>
-        <p className={`mt-4 text-xs ${pjInvalid ? "text-red-600 dark:text-red-400" : "text-zinc-600 dark:text-zinc-300"}`}>
-          {pjInvalid
-            ? "Bagian PJ tidak boleh lebih dari 100%."
-            : `Contoh: gaji produksi Rp1.000.000 → PJ ${rupiah((1_000_000 * pjPct) / 100)}, tim lain berbagi rata ${rupiah(
-                (1_000_000 * (100 - pjPct)) / 100,
-              )}.`}
+        <p className="mt-4 text-xs text-zinc-600 dark:text-zinc-300">
+          Contoh: pesanan 100 pcs dikerjakan PJ + 3 anggota (4 orang) → tiap orang menggarap 25 pcs. Anggota: 25 × rate
+          Jahit / Produksi; PJ: 25 × rate Gaji PJ.
         </p>
       </div>
 

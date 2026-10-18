@@ -1,7 +1,7 @@
 // app/components/apps/SalaryView.tsx
 //
 // Gaji & Upah (Bagian 5) — tiga kelompok penerima, mengikuti alur Sablon:
-//   1. Produksi  : PJ + anggota tim per pesanan (rate per jenis × tahap, dibagi PJ:tim)
+//   1. Produksi  : PJ + anggota tim per pesanan (pcs dibagi rata; anggota = rate Jahit, PJ = rate Gaji PJ)
 //   2. Tim QC    : pool (QC + Packing) dibagi rata ke semua user ber-role QC
 //   3. Admin     : bonus per pesanan selesai untuk pembuat pesanan ber-role admin
 // Semua angka dihitung di browser dari pesanan yang sudah dimuat (lib/salary.ts, teruji).

@@ -63,6 +63,10 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    if (!pjId) {
+      setError("Penanggung jawab (PJ) wajib dipilih.");
+      return;
+    }
     if (form.deadline < form.tanggal_masuk) {
       setError("Deadline tidak boleh lebih awal dari tanggal masuk.");
       return;

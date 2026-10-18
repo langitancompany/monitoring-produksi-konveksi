@@ -3,20 +3,21 @@
 // Logika murni Config Harga & Gaji (Bagian 5) — tanpa React / Supabase supaya
 // mudah diuji: tests/salary.test.ts. Aturan lengkap & keputusan desain: docs/PRD.md §20.
 //
-// RINGKAS CARA KERJA GAJI (mengikuti alur Sablon, disesuaikan ke model konveksi):
-//  1. PRODUKSI  — per pesanan. Nominal = Σ item (jumlah × rate[jenis, tahap]) untuk tahap
-//     Potong Kain & Jahit/Produksi. Dibagi: PJ mendapat `pj_share_percent`%, sisanya
-//     dibagi rata ke anggota tim (selain PJ). Tanpa tim → PJ 100%. Tanpa PJ → tim dibagi rata.
-//     Hak gaji muncul bila SEMUA tahap produksi pesanan selesai; bulan gaji = bulan
-//     tahap produksi terakhir selesai.
+// RINGKAS CARA KERJA GAJI (disesuaikan ke model konveksi; keputusan pemilik 19 Okt 2026):
+//  1. PRODUKSI  — per pesanan. PJ + anggota tim menggarap pesanan bersama: jumlah pcs dibagi RATA
+//     ke semua orang (PJ ikut dihitung). Tiap anggota digaji pcs bagiannya × tarif "Jahit /
+//     Produksi"; PJ digaji pcs bagiannya × tarif "Gaji PJ" (sedikit berbeda). TIDAK ada pembagian
+//     persen 70:30. Potong Kain tidak punya tarif sendiri: yang memotong kain adalah orang yang
+//     menjahit, jadi tarif Potong Kain digantikan "Gaji PJ". Tahap Potong Kain & Jahit tetap harus
+//     selesai dulu. Hak gaji muncul bila SEMUA tahap produksi pesanan selesai; bulan gaji = bulan
+//     tahap produksi terakhir selesai; tarif dipilih menurut tanggal itu.
 //  2. TIM QC    — pool = Σ item (jumlah × (rate QC + rate Packing)) untuk pesanan yang QC-nya
 //     lolos & packing selesai, dibagi RATA ke semua user ber-role `qc`.
 //  3. ADMIN     — bonus per pesanan SELESAI untuk pembuat pesanan (bila ber-role `admin`):
 //     `bonus_admin_closing` + (pcs di atas `batas_pcs_bonus_admin`) × `bonus_admin_per_pcs`.
-//  Rate berhistori: dipilih menurut tanggal tahap selesai (effective_date ≤ tanggal itu),
-//  jadi menaikkan harga hari ini tidak mengubah gaji bulan lalu.
-//  Semua nominal dibulatkan ke Rupiah utuh dengan metode sisa terbesar, jadi jumlah bagian
-//  SELALU sama persis dengan totalnya (tidak ada Rupiah yang hilang/lebih).
+//  Rate berhistori: dipilih menurut tanggal (effective_date ≤ tanggal itu), jadi menaikkan harga
+//  hari ini tidak mengubah gaji bulan lalu. Rate yang belum diatur dihitung Rp0 dan muncul sebagai
+//  peringatan. Nominal dibulatkan ke Rupiah utuh dengan metode sisa terbesar.
 
 import type { Order, ProductionStep, ProductionTypeData } from "@/types/order";
 import type { TeamData } from "@/types/team";
@@ -27,16 +28,17 @@ import { parseLocalDate, toLocalISODate, typeLabel } from "@/lib/utils";
 
 // ─── Kunci & nilai bawaan ────────────────────────────────────────────────────
 
-/** Tahap yang digaji sebagai "produksi" (dibagi PJ + tim). */
+/** Tahap produksi yang HARUS selesai sebelum gaji produksi muncul (bukan kunci tarif). */
 export const PRODUCTION_STEP_KEYS = ["potong_kain", "produksi_massal"] as const;
 /** Tahap yang digaji sebagai "tim QC" (pool dibagi rata). */
 export const QC_STEP_KEYS = ["qc", "packing"] as const;
 
-export type RateStepKey = (typeof PRODUCTION_STEP_KEYS)[number] | (typeof QC_STEP_KEYS)[number];
+/** Kunci tarif pada key_name: "{jenis}:{kunci}". `gaji_pj` menggantikan tarif Potong Kain lama. */
+export type RateStepKey = "gaji_pj" | "produksi_massal" | "qc" | "packing";
 
 /** Kolom matriks Config Harga (urutan = urutan tampil). */
 export const RATE_STEPS: { key: RateStepKey; label: string; group: "produksi" | "qc" }[] = [
-  { key: "potong_kain", label: "Potong Kain", group: "produksi" },
+  { key: "gaji_pj", label: "Gaji PJ", group: "produksi" },
   { key: "produksi_massal", label: "Jahit / Produksi", group: "produksi" },
   { key: "qc", label: "QC", group: "qc" },
   { key: "packing", label: "Packing", group: "qc" },
@@ -47,7 +49,6 @@ export const PARAM_CATEGORY = "PARAMETER" as const;
 
 /** Nama parameter aturan gaji (kolom key_name di pricing_configs, category PARAMETER). */
 export const PARAM = {
-  pjShare: "pj_share_percent",
   adminClosing: "bonus_admin_closing",
   adminLimit: "batas_pcs_bonus_admin",
   adminPerPcs: "bonus_admin_per_pcs",
@@ -56,22 +57,15 @@ export type ParamKey = (typeof PARAM)[keyof typeof PARAM];
 
 /**
  * Nilai bawaan bila belum ada barisnya di database (migration 007 juga mengisinya).
- * Angka bonus admin = nilai Sablon; pembagian PJ 70% = sistem lama Sablon (PRD §17).
+ * Angka bonus admin = nilai Sablon. (Parameter `pj_share_percent` lama sudah tidak dipakai.)
  */
 export const PARAM_DEFAULTS: Record<ParamKey, number> = {
-  [PARAM.pjShare]: 70,
   [PARAM.adminClosing]: 10000,
   [PARAM.adminLimit]: 50,
   [PARAM.adminPerPcs]: 500,
 };
 
 export const PARAM_INFO: { key: ParamKey; label: string; unit: string; hint: string }[] = [
-  {
-    key: PARAM.pjShare,
-    label: "Bagian PJ dari gaji produksi",
-    unit: "persen",
-    hint: "PJ menerima persen ini; sisanya dibagi rata ke anggota tim lain. Tanpa tim, PJ menerima 100%.",
-  },
   {
     key: PARAM.adminClosing,
     label: "Bonus admin per closing",
@@ -96,12 +90,14 @@ export const PARAM_INFO: { key: ParamKey; label: string; unit: string; hint: str
 export const rateKey = (jenis: string, stepKey: string) => `${jenis}:${stepKey}`;
 
 export const stepLabel = (stepKey: string) =>
-  RATE_STEPS.find((s) => s.key === stepKey)?.label ?? stepKey;
+  RATE_STEPS.find((s) => s.key === stepKey)?.label ??
+  // baris riwayat lama sebelum tarif Potong Kain diganti Gaji PJ (tidak lagi dipakai menghitung)
+  (stepKey === "potong_kain" ? "Potong Kain (lama, tidak dipakai)" : stepKey);
 
-/** Apakah tahap ini ada di template kategori itu? (pesanan non-utama tidak punya Potong & Packing) */
+/** Apakah kolom tarif ini berlaku untuk kategori itu? (non-utama tidak punya Packing) */
 export function stepAppliesTo(kategori: "utama" | "non_utama", stepKey: RateStepKey): boolean {
   if (kategori === "utama") return true;
-  return stepKey === "produksi_massal" || stepKey === "qc";
+  return stepKey === "gaji_pj" || stepKey === "produksi_massal" || stepKey === "qc";
 }
 
 export const rupiah = (n: number) => `Rp ${Math.round(n || 0).toLocaleString("id-ID")}`;
@@ -325,8 +321,44 @@ function priceOrder(order: Order, stepKeys: readonly string[], book: RateBook): 
   };
 }
 
-export const priceProduksi = (order: Order, book: RateBook) => priceOrder(order, PRODUCTION_STEP_KEYS, book);
 export const priceQc = (order: Order, book: RateBook) => priceOrder(order, QC_STEP_KEYS, book);
+
+/** Tarif produksi satu jenis: tarif anggota (Jahit/Produksi) dan tarif PJ (Gaji PJ). */
+export interface ProduksiLine {
+  jenis: string;
+  qty: number;
+  /** tarif anggota tim per pcs; null = belum diatur (dihitung Rp0) */
+  memberRate: number | null;
+  /** tarif PJ per pcs; null = belum diatur (dihitung Rp0) */
+  pjRate: number | null;
+}
+
+export interface ProduksiPay {
+  lines: ProduksiLine[];
+  /** key_name tarif yang belum diatur */
+  missing: string[];
+  noItems: boolean;
+}
+
+/**
+ * Tarif produksi satu pesanan. Kedua tarif dipilih menurut tanggal produksi tuntas (tanggal tahap
+ * produksi terakhir selesai). `hasPj=false` → tarif PJ tidak dibutuhkan, jadi tidak ditandai kurang.
+ */
+export function priceProduksi(order: Order, book: RateBook, hasPj = true): ProduksiPay {
+  const items = payItems(order);
+  const dateKey = toLocalISODate(produksiTuntasAt(order));
+  const missing = new Set<string>();
+  const lines: ProduksiLine[] = items.map((it) => {
+    const memberKey = rateKey(it.jenis, "produksi_massal");
+    const pjKey = rateKey(it.jenis, "gaji_pj");
+    const memberRate = book.at(memberKey, dateKey);
+    const pjRate = book.at(pjKey, dateKey);
+    if (memberRate === null) missing.add(memberKey);
+    if (hasPj && pjRate === null) missing.add(pjKey);
+    return { jenis: it.jenis, qty: it.qty, memberRate, pjRate };
+  });
+  return { lines, missing: [...missing], noItems: items.length === 0 };
+}
 
 export interface AdminBonus {
   amount: number;
@@ -375,37 +407,37 @@ export interface CrewShare {
   userId: string;
   role: "PJ" | "Tim";
   amount: number;
+  /** pcs bagian orang ini (jumlah pcs ÷ jumlah orang; bisa pecahan) */
+  pcs: number;
 }
 
 /**
- * Bagi gaji produksi satu pesanan.
- *  - ada PJ + anggota lain → PJ `pjPercent`%, sisanya rata ke anggota lain
- *  - ada PJ saja           → PJ 100%
- *  - tanpa PJ, ada tim     → dibagi rata ke semua anggota
+ * Bagi gaji produksi satu pesanan. Semua orang (PJ + anggota tim) menggarap pcs yang SAMA
+ * BANYAK: bagian = jumlah pcs ÷ jumlah orang. Anggota digaji bagian × tarif anggota; PJ digaji
+ * bagian × tarif PJ. Tarif yang belum diatur dihitung Rp0.
+ *  - ada PJ + anggota lain → PJ + anggota (PJ yang juga anggota tim tidak dihitung dua kali)
+ *  - ada PJ saja           → PJ menggarap semua pcs
+ *  - tanpa PJ, ada tim     → semua anggota, tarif anggota (laporan memberi peringatan)
  *  - tanpa keduanya        → [] (belum bisa dibagikan; ditandai peringatan)
- * PJ yang juga anggota tim tidak dihitung dua kali.
+ * Jumlah semua bagian = Σ gaji pesanan itu dibulatkan (metode sisa terbesar, tak ada Rupiah hilang).
  */
-export function splitCrew(
-  total: number,
-  crew: Pick<Crew, "pj" | "memberIds">,
-  pjPercent: number,
-): CrewShare[] {
-  const pct = Number.isFinite(pjPercent) ? Math.min(100, Math.max(0, pjPercent)) : PARAM_DEFAULTS[PARAM.pjShare];
+export function splitCrew(lines: ProduksiLine[], crew: Pick<Crew, "pj" | "memberIds">): CrewShare[] {
   const members = [...new Set(crew.memberIds)];
   const helpers = members.filter((id) => id !== crew.pj);
+  const people: { userId: string; role: "PJ" | "Tim" }[] = [
+    ...(crew.pj ? [{ userId: crew.pj, role: "PJ" as const }] : []),
+    ...helpers.map((userId) => ({ userId, role: "Tim" as const })),
+  ];
+  const n = people.length;
+  if (n === 0) return [];
 
-  if (crew.pj) {
-    if (helpers.length === 0) return [{ userId: crew.pj, role: "PJ", amount: Math.max(0, Math.round(total)) }];
-    const weights = [pct, ...helpers.map(() => (100 - pct) / helpers.length)];
-    const amounts = allocateRounded(total, weights);
-    return [
-      { userId: crew.pj, role: "PJ", amount: amounts[0] },
-      ...helpers.map((id, i) => ({ userId: id, role: "Tim" as const, amount: amounts[i + 1] })),
-    ];
-  }
-  if (members.length === 0) return [];
-  const amounts = splitEqual(total, members.length);
-  return members.map((id, i) => ({ userId: id, role: "Tim" as const, amount: amounts[i] }));
+  const totalQty = lines.reduce((a, l) => a + l.qty, 0);
+  // Gaji tepat (pecahan) tiap orang = Σ jenis (qty × tarif orang itu) ÷ n
+  const exact = people.map((p) =>
+    lines.reduce((a, l) => a + (l.qty * ((p.role === "PJ" ? l.pjRate : l.memberRate) ?? 0)) / n, 0),
+  );
+  const amounts = allocateRounded(Math.round(exact.reduce((a, b) => a + b, 0)), exact);
+  return people.map((p, i) => ({ ...p, amount: amounts[i], pcs: totalQty / n }));
 }
 
 // ─── Laporan gaji satu bulan ─────────────────────────────────────────────────
@@ -496,6 +528,23 @@ export function describeLines(lines: PayLine[], types: ProductionTypeData[]): st
     .join("; ");
 }
 
+/** "Seragam Sekolah 100 pcs ÷ 4 orang × Rp3.000" (PJ: tarif Gaji PJ). */
+export function describeProduksi(
+  lines: ProduksiLine[],
+  types: ProductionTypeData[],
+  people: number,
+  role: "PJ" | "Tim",
+): string {
+  return lines
+    .map((l) => {
+      const rate = role === "PJ" ? l.pjRate : l.memberRate;
+      const rateText = rate === null ? "belum diatur" : rupiah(rate);
+      const split = people > 1 ? ` ÷ ${people} orang` : "";
+      return `${typeLabel(l.jenis, types)} ${l.qty} pcs${split} × ${rateText}${role === "PJ" ? " (Gaji PJ)" : ""}`;
+    })
+    .join("; ");
+}
+
 const missingText = (missing: string[], types: ProductionTypeData[]) =>
   missing
     .map((k) => {
@@ -519,29 +568,30 @@ export function buildSalaryReport(input: SalaryInput): SalaryReport {
     warnMap.set(o.id, w);
   };
 
-  // ── 1. Produksi (PJ + tim) ────────────────────────────────────────────────
+  // ── 1. Produksi (PJ + tim, pcs dibagi rata, tarif PJ berbeda) ────────────────────────────────────────────────
   const produksi: Record<string, PersonSalary> = {};
   for (const o of orders) {
     if (!isProduksiTuntas(o)) continue;
     const when = produksiTuntasAt(o);
     if (!inMonth(when, month, year)) continue;
 
-    const pay = priceProduksi(o, book);
     const crew = crewOf(o, teams);
-    const pct = book.param(PARAM.pjShare, toLocalISODate(when));
-    const shares = splitCrew(pay.total, crew, pct);
+    const pay = priceProduksi(o, book, Boolean(crew.pj));
+    const shares = splitCrew(pay.lines, crew);
 
     if (pay.noItems) warn(o, "Pesanan tidak punya item/jumlah, gaji produksi Rp0.");
     if (pay.missing.length) warn(o, `Rate belum diatur: ${missingText(pay.missing, types)}.`);
     if (shares.length === 0) warn(o, "Belum ada PJ atau tim, gaji produksi belum bisa dibagikan.");
-    else if (crew.source === "live") {
-      warn(o, "Susunan PJ/tim dibaca dari data sekarang (belum ada salinan; jalankan migration 007).");
+    else {
+      if (!crew.pj) warn(o, "Belum ada PJ, semua anggota tim digaji dengan tarif anggota.");
+      if (crew.source === "live") {
+        warn(o, "Susunan PJ/tim dibaca dari data sekarang (belum ada salinan; jalankan migration 007).");
+      }
     }
 
-    const qty = payItems(o).reduce((n, i) => n + i.qty, 0);
-    const detail = describeLines(pay.lines, types);
     for (const s of shares) {
       const p = (produksi[s.userId] ??= emptyPerson(s.userId));
+      const qty = Math.round(s.pcs);
       p.total += s.amount;
       p.qty += qty;
       p.orders += 1;
@@ -549,7 +599,7 @@ export function buildSalaryReport(input: SalaryInput): SalaryReport {
         orderId: o.id,
         kode: o.kode_produksi,
         label: o.nama_pemesan || o.kode_produksi,
-        detail,
+        detail: describeProduksi(pay.lines, types, shares.length, s.role),
         role: s.role,
         qty,
         rate: qty > 0 ? Math.round(s.amount / qty) : undefined,
@@ -664,7 +714,7 @@ export function pricingErrorMessage(err: DbError): string {
   if (code === "42501" || /row-level security/i.test(msg)) {
     return "Anda tidak punya izin mengubah harga (butuh izin Config Harga → Edit rate gaji).";
   }
-  if (code === "23514") return "Nilai tidak valid: harus bilangan bulat ≥ 0 (persen PJ: 0–100).";
+  if (code === "23514") return "Nilai tidak valid: harus bilangan bulat ≥ 0.";
   return msg || "Terjadi kesalahan tak dikenal.";
 }
 

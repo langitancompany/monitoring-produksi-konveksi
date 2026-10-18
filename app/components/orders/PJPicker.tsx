@@ -1,7 +1,6 @@
 // app/components/orders/PJPicker.tsx
-// Pilihan Penanggung Jawab (PJ) di form Pesanan Baru & Edit Pesanan. PJ menerima bagian terbesar
-// gaji produksi pesanan ini (sisanya dibagi ke anggota tim) — lihat Config Harga & docs/PRD.md §20.
-// Opsional ("Belum ditentukan"); tanpa PJ/tim, gaji produksi pesanan belum bisa dibagikan.
+// Pilihan Penanggung Jawab (PJ) di form Pesanan Baru & Edit Pesanan. WAJIB diisi (keputusan pemilik,
+// 19 Okt 2026). PJ digaji dengan rate "Gaji PJ" di Config Harga — lihat docs/PRD.md §20.
 "use client";
 
 import React, { useMemo } from "react";
@@ -34,19 +33,20 @@ export default function PJPicker({ value, onChange, users, disabled }: Props) {
 
   return (
     <div>
-      <label className={labelCls}>Penanggung jawab (PJ)</label>
+      <label className={labelCls}>Penanggung jawab (PJ) *</label>
       <select
+        required
         className={inputCls}
         value={value ?? ""}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value || null)}
       >
-        <option value="">Belum ditentukan</option>
+        <option value="">Pilih penanggung jawab…</option>
         {produksi.length > 0 && <optgroup label="Tim Produksi">{produksi.map(opt)}</optgroup>}
         {lainnya.length > 0 && <optgroup label="Lainnya">{lainnya.map(opt)}</optgroup>}
       </select>
       <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
-        PJ menerima bagian terbesar gaji produksi pesanan ini.
+        PJ digaji dengan rate Gaji PJ (Config Harga) dan ikut menggarap pcs bersama anggota tim.
       </p>
     </div>
   );

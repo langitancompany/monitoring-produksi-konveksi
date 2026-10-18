@@ -125,7 +125,7 @@ export interface NewOrderInput {
   jenis_produksi?: string;
   /** tim pengerjaan (opsional) */
   team_id?: string | null;
-  /** penanggung jawab / PJ (users.id, opsional — dasar gaji produksi, Bagian 5) */
+  /** penanggung jawab / PJ (users.id) — WAJIB di form; dasar gaji produksi (tarif Gaji PJ), Bagian 5 */
   assigned_to?: string | null;
 }
 

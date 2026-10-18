@@ -12,6 +12,7 @@ import {
   crewOf,
   currentRates,
   describeLines,
+  describeProduksi,
   inMonth,
   pricingErrorMessage,
   salaryErrorMessage,
@@ -31,6 +32,7 @@ import {
 import { buildInitialSteps } from "../lib/steps";
 import type { Order, ProductionStep, ProductionTypeData } from "../types/order";
 import type { PricingConfig } from "../types/salary";
+import type { ProduksiLine } from "../lib/salary";
 
 let passed = 0;
 const test = (name: string, fn: () => void) => {
@@ -183,13 +185,13 @@ test("baris jadwal masa depan tidak berlaku sebelum tanggalnya", () => {
   const book = buildRateBook([cfg("polo:qc", 400, "2026-01-01"), cfg("polo:qc", 900, "2027-01-01")]);
   assert.equal(book.at("polo:qc", "2026-10-18"), 400);
 });
-test("parameter: pakai baris bila ada, kalau tidak nilai bawaan", () => {
+test("parameter bonus admin: pakai baris bila ada, kalau tidak nilai bawaan", () => {
   const empty = buildRateBook([]);
-  assert.equal(empty.param(PARAM.pjShare, "2026-10-01"), 70);
+  assert.equal(empty.param(PARAM.adminClosing, "2026-10-01"), 10000);
   assert.equal(empty.param(PARAM.adminClosing, "2026-10-01"), PARAM_DEFAULTS[PARAM.adminClosing]);
-  const book = buildRateBook([cfg(PARAM.pjShare, 60, "2026-10-01", "PARAMETER")]);
-  assert.equal(book.param(PARAM.pjShare, "2026-09-30"), 70); // sebelum berlaku → bawaan
-  assert.equal(book.param(PARAM.pjShare, "2026-10-01"), 60);
+  const book = buildRateBook([cfg(PARAM.adminClosing, 15000, "2026-10-01", "PARAMETER")]);
+  assert.equal(book.param(PARAM.adminClosing, "2026-09-30"), 10000); // sebelum berlaku → bawaan
+  assert.equal(book.param(PARAM.adminClosing, "2026-10-01"), 15000);
 });
 test("nilai berbentuk string dari database tetap terbaca (numeric)", () => {
   const row = { ...cfg("polo:qc", 0, "2026-01-01"), value_amount: "1250" as unknown as number };
@@ -270,57 +272,74 @@ test("batas bulan memakai tanggal LOKAL (31 Okt malam tetap Oktober)", () => {
   const o = makeOrder("m", { done: { potong_kain: at(2026, 10, 31, 23), produksi_massal: at(2026, 10, 31, 23) } });
   assert.ok(inMonth(produksiTuntasAt(o), 10, 2026));
 });
-test("stepAppliesTo: non-utama tidak punya Potong & Packing", () => {
-  assert.equal(stepAppliesTo("utama", "potong_kain"), true);
-  assert.equal(stepAppliesTo("non_utama", "potong_kain"), false);
+test("stepAppliesTo: non-utama punya Gaji PJ, Jahit, QC — tanpa Packing", () => {
+  assert.equal(stepAppliesTo("utama", "gaji_pj"), true);
+  assert.equal(stepAppliesTo("non_utama", "gaji_pj"), true);
   assert.equal(stepAppliesTo("non_utama", "packing"), false);
   assert.equal(stepAppliesTo("non_utama", "produksi_massal"), true);
   assert.equal(stepAppliesTo("non_utama", "qc"), true);
+  assert.equal(stepAppliesTo("utama", "packing"), true);
 });
 
 // ─── Harga satu pesanan ──────────────────────────────────────────────────────
 console.log("priceProduksi / priceQc / adminBonus");
 const rates = [
-  cfg(rateKey("seragam", "potong_kain"), 1000, "2026-01-01"),
+  cfg(rateKey("seragam", "gaji_pj"), 3500, "2026-01-01"),
+  cfg(rateKey("seragam", "gaji_pj"), 4500, "2026-10-10"), // naik 10 Okt
   cfg(rateKey("seragam", "produksi_massal"), 3000, "2026-01-01"),
   cfg(rateKey("seragam", "produksi_massal"), 4000, "2026-10-10"), // naik 10 Okt
-  cfg(rateKey("polo", "potong_kain"), 800, "2026-01-01"),
+  cfg(rateKey("polo", "gaji_pj"), 3000, "2026-01-01"),
   cfg(rateKey("polo", "produksi_massal"), 2500, "2026-01-01"),
   cfg(rateKey("seragam", "qc"), 300, "2026-01-01"),
   cfg(rateKey("seragam", "packing"), 200, "2026-01-01"),
   cfg(rateKey("polo", "qc"), 250, "2026-01-01"),
   cfg(rateKey("polo", "packing"), 150, "2026-01-01"),
+  // baris lama sebelum Potong Kain diganti Gaji PJ — harus DIABAIKAN
+  cfg(rateKey("seragam", "potong_kain"), 1000, "2026-01-01"),
 ];
-test("rate dipilih menurut tanggal TIAP tahap selesai (naik harga di tengah pengerjaan)", () => {
-  // Potong 5 Okt (rate lama), Jahit 12 Okt (rate baru 4000)
+test("rate produksi dipilih menurut tanggal produksi TUNTAS (potong 5 Okt, jahit 12 Okt → tarif baru)", () => {
   const o = makeOrder("p", { done: { potong_kain: at(2026, 10, 5), produksi_massal: at(2026, 10, 12) } });
   const pay = priceProduksi(o, buildRateBook(rates));
-  assert.equal(pay.total, 100 * 1000 + 100 * 4000);
+  assert.deepEqual(pay.lines, [{ jenis: "seragam", qty: 100, memberRate: 4000, pjRate: 4500 }]);
   assert.deepEqual(pay.missing, []);
 });
-test("jahit selesai SEBELUM kenaikan → rate lama; gaji lampau tidak ikut naik", () => {
+test("produksi tuntas SEBELUM kenaikan → tarif lama; gaji lampau tidak ikut naik", () => {
   const o = makeOrder("p", { done: { potong_kain: at(2026, 10, 5), produksi_massal: at(2026, 10, 9) } });
-  assert.equal(priceProduksi(o, buildRateBook(rates)).total, 100 * 1000 + 100 * 3000);
+  assert.deepEqual(priceProduksi(o, buildRateBook(rates)).lines, [
+    { jenis: "seragam", qty: 100, memberRate: 3000, pjRate: 3500 },
+  ]);
 });
-test("beberapa item: tiap jenis memakai rate-nya sendiri", () => {
+test("tarif Potong Kain lama diabaikan sama sekali", () => {
+  const o = makeOrder("p", { done: { potong_kain: at(2026, 10, 5), produksi_massal: at(2026, 10, 9) } });
+  const lines = splitCrew(priceProduksi(o, buildRateBook(rates)).lines, { pj: "pj", memberIds: [] });
+  assert.equal(lines[0].amount, 100 * 3500); // bukan 100 × (3500 + 1000)
+});
+test("beberapa item: tiap jenis memakai tarifnya sendiri", () => {
   const o = makeOrder("p", {
     items: [{ jenis: "seragam", qty: 100 }, { jenis: "polo", qty: 40 }],
     done: { potong_kain: at(2026, 10, 5), produksi_massal: at(2026, 10, 9) },
   });
-  assert.equal(priceProduksi(o, buildRateBook(rates)).total, 100 * 4000 + 40 * 3300);
+  const pay = priceProduksi(o, buildRateBook(rates));
+  assert.deepEqual(pay.lines, [
+    { jenis: "seragam", qty: 100, memberRate: 3000, pjRate: 3500 },
+    { jenis: "polo", qty: 40, memberRate: 2500, pjRate: 3000 },
+  ]);
 });
-test("rate belum diatur → dihitung Rp0 dan ditandai di `missing`", () => {
+test("tarif belum diatur → null & ditandai di `missing` (anggota + PJ)", () => {
   const o = makeOrder("p", {
     items: [{ jenis: "celana", qty: 10 }],
     done: { potong_kain: at(2026, 10, 5), produksi_massal: at(2026, 10, 9) },
   });
   const pay = priceProduksi(o, buildRateBook(rates));
-  assert.equal(pay.total, 0);
-  assert.deepEqual(pay.missing.sort(), ["celana:potong_kain", "celana:produksi_massal"]);
+  assert.deepEqual(pay.lines, [{ jenis: "celana", qty: 10, memberRate: null, pjRate: null }]);
+  assert.deepEqual(pay.missing.sort(), ["celana:gaji_pj", "celana:produksi_massal"]);
 });
-test("tahap yang belum selesai tidak ikut dihitung", () => {
-  const o = makeOrder("p", { done: { potong_kain: at(2026, 10, 5) } });
-  assert.equal(priceProduksi(o, buildRateBook(rates)).total, 100 * 1000);
+test("tanpa PJ: tarif Gaji PJ yang kosong tidak ditandai kurang", () => {
+  const o = makeOrder("p", {
+    items: [{ jenis: "celana", qty: 10 }],
+    done: { potong_kain: at(2026, 10, 5), produksi_massal: at(2026, 10, 9) },
+  });
+  assert.deepEqual(priceProduksi(o, buildRateBook(rates), false).missing, ["celana:produksi_massal"]);
 });
 test("priceQc: qc + packing per item", () => {
   const o = makeOrder("q", {
@@ -333,14 +352,22 @@ test("pesanan tanpa item → noItems", () => {
   const o = { ...makeOrder("p", { done: { potong_kain: at(2026, 10, 5), produksi_massal: at(2026, 10, 9) } }), items: [], jenis_produksi: null, jumlah: 0 };
   const pay = priceProduksi(o, buildRateBook(rates));
   assert.equal(pay.noItems, true);
-  assert.equal(pay.total, 0);
+  assert.deepEqual(pay.lines, []);
+  assert.equal(priceQc(o, buildRateBook(rates)).noItems, true);
 });
-test("describeLines menyebut jenis, qty, dan rate per tahap", () => {
-  const o = makeOrder("p", { done: { potong_kain: at(2026, 10, 5), produksi_massal: at(2026, 10, 9) } });
-  const text = describeLines(priceProduksi(o, buildRateBook(rates)).lines, types);
+test("describeLines (QC) menyebut jenis, qty, dan rate per tahap", () => {
+  const o = makeOrder("p", { done: { potong_kain: at(2026, 10, 1), produksi_massal: at(2026, 10, 2), qc: at(2026, 10, 3), packing: at(2026, 10, 4) } });
+  const text = describeLines(priceQc(o, buildRateBook(rates)).lines, types);
   assert.match(text, /Seragam Sekolah 100 pcs/);
-  assert.match(text, /Potong Kain Rp\s?1\.000/);
-  assert.match(text, /Jahit \/ Produksi Rp\s?3\.000/);
+  assert.match(text, /QC Rp\s?300/);
+  assert.match(text, /Packing Rp\s?200/);
+});
+test("describeProduksi: pcs ÷ orang × tarif; PJ memakai tarif Gaji PJ", () => {
+  const lines: ProduksiLine[] = [{ jenis: "seragam", qty: 100, memberRate: 3000, pjRate: 3500 }];
+  assert.match(describeProduksi(lines, types, 4, "Tim"), /Seragam Sekolah 100 pcs ÷ 4 orang × Rp\s?3\.000$/);
+  assert.match(describeProduksi(lines, types, 4, "PJ"), /× Rp\s?3\.500 \(Gaji PJ\)$/);
+  assert.doesNotMatch(describeProduksi(lines, types, 1, "PJ"), /÷/);
+  assert.match(describeProduksi([{ ...lines[0], memberRate: null }], types, 2, "Tim"), /belum diatur/);
 });
 test("adminBonus: closing + pcs di atas batas × per pcs", () => {
   const all: Record<string, string> = {};
@@ -355,49 +382,78 @@ test("adminBonus: closing + pcs di atas batas × per pcs", () => {
 
 // ─── PJ + tim ────────────────────────────────────────────────────────────────
 console.log("splitCrew / crewOf");
-test("PJ + tim: PJ 70%, sisanya rata ke anggota LAIN (PJ tidak dihitung dua kali)", () => {
-  const r = splitCrew(1_000_000, { pj: "pj", memberIds: ["pj", "a", "b", "c"] }, 70);
-  assert.equal(r.length, 4);
-  assert.deepEqual(r[0], { userId: "pj", role: "PJ", amount: 700_000 });
-  assert.deepEqual(r.slice(1).map((s) => s.amount), [100_000, 100_000, 100_000]);
-  assert.ok(r.slice(1).every((s) => s.role === "Tim"));
+const L = (qty: number, memberRate: number | null, pjRate: number | null, jenis = "seragam"): ProduksiLine => ({
+  jenis,
+  qty,
+  memberRate,
+  pjRate,
 });
-test("jumlah semua bagian selalu = total (sisa Rupiah tidak hilang)", () => {
-  for (const total of [1, 999, 1_000_001, 7_777_777]) {
-    for (const helpers of [1, 2, 3, 7]) {
+/** Gaji tepat (pecahan) satu orang — dasar uji jumlah. */
+const exactPay = (lines: ProduksiLine[], n: number, isPj: boolean) =>
+  lines.reduce((a, l) => a + (l.qty * ((isPj ? l.pjRate : l.memberRate) ?? 0)) / n, 0);
+
+test("PJ + 3 anggota: pcs dibagi rata 4 orang; anggota tarif Jahit, PJ tarif Gaji PJ (tanpa 70:30)", () => {
+  const r = splitCrew([L(120, 3000, 3600)], { pj: "pj", memberIds: ["pj", "a", "b", "c"] });
+  assert.equal(r.length, 4);
+  assert.deepEqual(r[0], { userId: "pj", role: "PJ", amount: 108_000, pcs: 30 }); // 30 pcs × 3.600
+  assert.deepEqual(r.slice(1).map((s) => s.amount), [90_000, 90_000, 90_000]); // 30 pcs × 3.000
+  assert.ok(r.slice(1).every((s) => s.role === "Tim" && s.pcs === 30));
+});
+test("tarif PJ = tarif anggota → semua orang menerima sama rata", () => {
+  const r = splitCrew([L(100, 3000, 3000)], { pj: "pj", memberIds: ["a", "b", "c"] });
+  assert.deepEqual(r.map((s) => s.amount), [75_000, 75_000, 75_000, 75_000]);
+});
+test("PJ + anggota: PJ yang juga anggota tim tidak dihitung dua kali", () => {
+  const r = splitCrew([L(100, 3000, 3500)], { pj: "pj", memberIds: ["pj", "a"] });
+  assert.equal(r.length, 2);
+  assert.deepEqual(r.map((s) => s.userId), ["pj", "a"]);
+});
+test("jumlah semua bagian = Σ gaji tepat dibulatkan (tak ada Rupiah hilang/lebih)", () => {
+  for (const qty of [1, 7, 99, 101, 1_001]) {
+    for (const helpers of [0, 1, 2, 3, 6]) {
+      const lines = [L(qty, 2_750, 3_333), L(qty + 3, 1_999, 2_501, "polo")];
       const ids = Array.from({ length: helpers }, (_, i) => `m${i}`);
-      assert.equal(sum(splitCrew(total, { pj: "pj", memberIds: ids }, 70).map((s) => s.amount)), total);
-      assert.equal(sum(splitCrew(total, { pj: null, memberIds: ids }, 70).map((s) => s.amount)), total);
+      const n = helpers + 1;
+      const expected = Math.round(exactPay(lines, n, true) + helpers * exactPay(lines, n, false));
+      const r = splitCrew(lines, { pj: "pj", memberIds: ids });
+      assert.equal(sum(r.map((s) => s.amount)), expected, `qty ${qty} helpers ${helpers}`);
+      assert.ok(r.every((s) => Number.isInteger(s.amount) && s.amount >= 0));
     }
   }
 });
-test("PJ tanpa tim → PJ 100%", () => {
-  assert.deepEqual(splitCrew(500, { pj: "pj", memberIds: [] }, 70), [{ userId: "pj", role: "PJ", amount: 500 }]);
+test("PJ tanpa tim → PJ menggarap semua pcs dengan tarif PJ", () => {
+  assert.deepEqual(splitCrew([L(100, 3000, 3500)], { pj: "pj", memberIds: [] }), [
+    { userId: "pj", role: "PJ", amount: 350_000, pcs: 100 },
+  ]);
 });
-test("PJ adalah satu-satunya anggota tim → tetap 100%", () => {
-  assert.deepEqual(splitCrew(500, { pj: "pj", memberIds: ["pj"] }, 70), [{ userId: "pj", role: "PJ", amount: 500 }]);
+test("PJ adalah satu-satunya anggota tim → tetap menggarap semua pcs", () => {
+  assert.deepEqual(splitCrew([L(100, 3000, 3500)], { pj: "pj", memberIds: ["pj"] }), [
+    { userId: "pj", role: "PJ", amount: 350_000, pcs: 100 },
+  ]);
 });
-test("tanpa PJ, ada tim → dibagi rata semua anggota", () => {
-  const r = splitCrew(1000, { pj: null, memberIds: ["a", "b", "c"] }, 70);
-  assert.deepEqual(r.map((s) => s.amount), [334, 333, 333]);
+test("tanpa PJ, ada tim → semua anggota memakai tarif anggota", () => {
+  const r = splitCrew([L(100, 3000, 3500)], { pj: null, memberIds: ["a", "b", "c"] });
+  assert.deepEqual(r.map((s) => s.amount), [100_000, 100_000, 100_000]);
   assert.ok(r.every((s) => s.role === "Tim"));
 });
 test("tanpa PJ dan tanpa tim → kosong (ditandai peringatan di laporan)", () => {
-  assert.deepEqual(splitCrew(1000, { pj: null, memberIds: [] }, 70), []);
+  assert.deepEqual(splitCrew([L(100, 3000, 3500)], { pj: null, memberIds: [] }), []);
 });
-test("persen 100 → tim 0; persen 0 → PJ 0; persen aneh dijepit 0–100", () => {
-  const hundred = splitCrew(900, { pj: "pj", memberIds: ["a", "b"] }, 100);
-  assert.deepEqual(hundred.map((s) => s.amount), [900, 0, 0]);
-  const zero = splitCrew(900, { pj: "pj", memberIds: ["a", "b"] }, 0);
-  assert.deepEqual(zero.map((s) => s.amount), [0, 450, 450]);
-  assert.equal(splitCrew(900, { pj: "pj", memberIds: ["a"] }, 250)[0].amount, 900); // 250 → 100
-  assert.equal(splitCrew(900, { pj: "pj", memberIds: ["a"] }, -5)[0].amount, 0); // -5 → 0
-  assert.equal(splitCrew(1000, { pj: "pj", memberIds: ["a"] }, NaN)[0].amount, 700); // NaN → bawaan 70
+test("tarif belum diatur (null) dihitung Rp0, bukan error", () => {
+  const r = splitCrew([L(100, 3000, null)], { pj: "pj", memberIds: ["a"] });
+  assert.equal(r[0].amount, 0); // PJ: tarif Gaji PJ belum diatur
+  assert.equal(r[1].amount, 150_000); // anggota: 50 pcs × 3.000
+  const none = splitCrew([L(100, null, null)], { pj: "pj", memberIds: ["a"] });
+  assert.deepEqual(none.map((s) => s.amount), [0, 0]);
+});
+test("tanpa item → semua Rp0 tetapi orangnya tetap tercatat", () => {
+  const r = splitCrew([], { pj: "pj", memberIds: ["a"] });
+  assert.deepEqual(r.map((s) => [s.userId, s.amount]), [["pj", 0], ["a", 0]]);
 });
 test("anggota ganda di daftar tidak dibayar dua kali", () => {
-  const r = splitCrew(1000, { pj: null, memberIds: ["a", "a", "b"] }, 70);
+  const r = splitCrew([L(100, 3000, 3000)], { pj: null, memberIds: ["a", "a", "b"] });
   assert.equal(r.length, 2);
-  assert.equal(sum(r.map((s) => s.amount)), 1000);
+  assert.equal(sum(r.map((s) => s.amount)), 300_000); // 2 orang × 50 pcs × Rp3.000
 });
 test("crewOf: salinan database menang atas tim sekarang (tim diubah → gaji lama tetap)", () => {
   const teams = [{ id: "t1", member_ids: ["x", "y", "z"] }]; // tim SEKARANG
@@ -445,7 +501,7 @@ const FULL = (m: number, d: number) => ({
 const report = (orders: Order[], over: Partial<Parameters<typeof buildSalaryReport>[0]> = {}) =>
   buildSalaryReport({ orders, users, teams, types, configs: rates, month: 10, year: 2026, ...over });
 
-test("satu pesanan: PJ 70% + tim rata; total produksi = harga pesanan", () => {
+test("satu pesanan: pcs dibagi rata 3 orang; PJ tarif Gaji PJ, anggota tarif Jahit", () => {
   const o = makeOrder("o1", {
     done: FULL(10, 6),
     assigned_to: "pj1",
@@ -454,16 +510,36 @@ test("satu pesanan: PJ 70% + tim rata; total produksi = harga pesanan", () => {
     crew_snapshot: { pj: "pj1", team_id: "t1", member_ids: ["m1", "m2"] },
   });
   const r = report([o]);
-  const harga = 100 * 1000 + 100 * 3000; // potong + jahit (semua sebelum kenaikan 10 Okt)
-  assert.equal(r.produksiTotal, harga);
-  assert.equal(r.produksi.pj1.total, 280_000);
-  assert.equal(r.produksi.m1.total, 60_000);
-  assert.equal(r.produksi.m2.total, 60_000);
+  // 100 pcs ÷ 3 orang; tarif sebelum kenaikan 10 Okt: PJ 3.500, anggota 3.000
+  // PJ 33,33 pcs × 3.500 = 116.666,67 · anggota 33,33 pcs × 3.000 = 100.000 → total 316.667 (sisa ke PJ)
+  assert.equal(r.produksiTotal, 316_667);
+  assert.equal(r.produksi.pj1.total, 116_667);
+  assert.equal(r.produksi.m1.total, 100_000);
+  assert.equal(r.produksi.m2.total, 100_000);
   assert.equal(r.produksi.pj1.rows[0].role, "PJ");
   assert.equal(r.produksi.m1.rows[0].role, "Tim");
   assert.equal(r.produksi.pj1.orders, 1);
-  assert.equal(r.produksi.pj1.rows[0].qty, 100);
+  assert.equal(r.produksi.pj1.rows[0].qty, 33); // bagian pcs PJ (dibulatkan untuk tampilan)
+  assert.match(r.produksi.pj1.rows[0].detail, /÷ 3 orang × Rp\s?3\.500 \(Gaji PJ\)/);
+  assert.match(r.produksi.m1.rows[0].detail, /÷ 3 orang × Rp\s?3\.000$/);
   assert.deepEqual(r.warnings, []);
+});
+test("tarif sama untuk PJ & anggota → gaji sama rata", () => {
+  const same = rates.filter((c) => !c.key_name.startsWith("seragam:gaji_pj")).concat(
+    cfg(rateKey("seragam", "gaji_pj"), 3000, "2026-01-01"),
+  );
+  const o = makeOrder("o1", {
+    items: [{ jenis: "seragam", qty: 90 }],
+    done: FULL(10, 6),
+    assigned_to: "pj1",
+    crew_snapshot: { pj: "pj1", team_id: "t1", member_ids: ["m1", "m2"] },
+  });
+  const r = report([o], { configs: same });
+  assert.deepEqual([r.produksi.pj1.total, r.produksi.m1.total, r.produksi.m2.total], [90_000, 90_000, 90_000]);
+});
+test("tarif Potong Kain lama tidak ikut dihitung dalam gaji", () => {
+  const o = makeOrder("o1", { done: FULL(10, 6), assigned_to: "pj1", crew_snapshot: { pj: "pj1", team_id: null, member_ids: [] } });
+  assert.equal(report([o]).produksi.pj1.total, 100 * 3500); // PJ sendiri: 100 pcs × Gaji PJ
 });
 test("pool QC dibagi rata ke SEMUA user ber-role qc (qty × (qc + packing))", () => {
   const o = makeOrder("o1", { done: FULL(10, 6), assigned_to: "pj1" });
@@ -538,18 +614,22 @@ test("QC revisi: produksi dibuka lagi → keluar dari gaji sampai selesai ulang"
   assert.deepEqual(r.produksi, {});
   assert.equal(r.qc.orderCount, 0);
 });
-test("peringatan: tanpa PJ/tim, rate belum diatur, tanpa salinan", () => {
+test("peringatan: tanpa PJ/tim, tanpa PJ saja, rate belum diatur, tanpa salinan", () => {
   const noCrew = makeOrder("n1", { done: FULL(10, 6) });
+  const noPj = makeOrder("n5", { done: FULL(10, 6), crew_snapshot: { pj: null, team_id: "t1", member_ids: ["m1"] } });
   const noRate = makeOrder("n2", { items: [{ jenis: "celana", qty: 10 }], done: FULL(10, 6), assigned_to: "pj1" });
   const live = makeOrder("n3", { done: FULL(10, 6), assigned_to: "pj1" }); // tanpa crew_snapshot
   const frozen = makeOrder("n4", {
     done: FULL(10, 6),
     crew_snapshot: { pj: "pj1", team_id: null, member_ids: [] },
   });
-  const r = report([noCrew, noRate, live, frozen]);
+  const r = report([noCrew, noRate, live, frozen, noPj]);
   const by = Object.fromEntries(r.warnings.map((w) => [w.orderId, w.problems.join(" | ")]));
   assert.match(by.n1, /Belum ada PJ atau tim/);
-  assert.match(by.n2, /Rate belum diatur: celana|Rate belum diatur: Celana|Rate belum diatur/);
+  assert.match(by.n2, /Rate belum diatur: .*Gaji PJ/);
+  assert.match(by.n2, /Rate belum diatur: .*Jahit \/ Produksi/);
+  assert.match(by.n5, /Belum ada PJ, semua anggota tim digaji dengan tarif anggota/);
+  assert.equal(r.produksi.m1.rows.some((row) => row.orderId === "n5"), true); // tetap digaji
   assert.match(by.n3, /belum ada salinan/);
   assert.equal(by.n4, undefined); // salinan ada + PJ ada + rate ada → bersih
   // pesanan tanpa PJ/tim tidak menghasilkan baris gaji siapa pun
@@ -606,13 +686,20 @@ test("semua baris slip menjumlah ke total orang itu", () => {
     assert.equal(sum(p.rows.map((row) => row.amount)), p.total);
   }
 });
-test("jumlah semua orang produksi = jumlah harga semua pesanan (tidak ada Rupiah hilang)", () => {
+test("jumlah semua orang produksi = Σ gaji tepat tiap pesanan dibulatkan (tidak ada Rupiah hilang)", () => {
   const orders = Array.from({ length: 6 }, (_, i) =>
     makeOrder(`o${i}`, { items: [{ jenis: "seragam", qty: 13 + i }, { jenis: "polo", qty: 7 + i }], done: FULL(10, 6), assigned_to: "pj1", team_id: "t1" }),
   );
-  const book = buildRateBook(rates);
-  const expected = sum(orders.map((o) => priceProduksi(o, book).total));
-  assert.equal(report(orders).produksiTotal, expected);
+  // PJ + m1 + m2 = 3 orang; tarif sebelum 10 Okt: seragam PJ 3.500 / anggota 3.000, polo PJ 3.000 / anggota 2.500
+  const expected = sum(
+    orders.map((o, i) => {
+      const [q1, q2] = [13 + i, 7 + i];
+      return Math.round((q1 * (3500 + 2 * 3000) + q2 * (3000 + 2 * 2500)) / 3);
+    }),
+  );
+  const r = report(orders);
+  assert.equal(r.produksiTotal, expected);
+  assert.equal(sum(Object.values(r.produksi).map((p) => p.total)), expected);
 });
 
 console.log("pesan galat");

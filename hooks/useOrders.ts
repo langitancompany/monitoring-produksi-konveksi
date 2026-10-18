@@ -198,6 +198,10 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
   const handleCreateOrder = useCallback(
     async (input: NewOrderInput): Promise<Order | null> => {
       if (!currentUser) return null;
+      if (!input.assigned_to) {
+        showAlert("Gagal", "Penanggung jawab (PJ) wajib dipilih.", "error");
+        return null;
+      }
       setIsCreating(true);
       try {
         const isNon = input.kategori === "non_utama";
@@ -397,9 +401,13 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
         if (next !== (order.team_id ?? null)) fields.team_id = next;
       }
 
-      // PJ: hanya disimpan bila berubah (undefined = tidak diubah, null = dikosongkan)
+      // PJ: wajib ada. Hanya disimpan bila berubah (undefined = tidak diubah).
       if (input.assigned_to !== undefined) {
         const next = input.assigned_to || null;
+        if (!next) {
+          showAlert("Gagal", "Penanggung jawab (PJ) wajib dipilih.", "error");
+          return false;
+        }
         if (next !== (order.assigned_to ?? null)) fields.assigned_to = next;
       }
 

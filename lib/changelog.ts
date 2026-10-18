@@ -6,7 +6,7 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.8",
+  version: "V.1.9",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.9",
+    date: "2026-10-19",
+    changes: [
+      "Gaji produksi diubah: tidak ada lagi pembagian 70% PJ / 30% tim. PJ dan anggota tim menggarap pcs pesanan sama banyak (pcs dibagi rata). Anggota digaji pcs bagiannya × rate Jahit / Produksi, PJ digaji pcs bagiannya × rate Gaji PJ (boleh sedikit berbeda).",
+      "Config Harga: kolom Potong Kain diganti Gaji PJ (yang memotong kain adalah orang yang menjahit). Aturan persen PJ dihapus; sisa pengaturan hanya bonus admin. Rate Potong Kain lama tersimpan di riwayat tetapi tidak dipakai lagi — isi Gaji PJ untuk tiap jenis produksi.",
+      "Penanggung Jawab (PJ) kini wajib diisi di Pesanan Baru dan Edit Pesanan. Pesanan lama yang belum punya PJ harus diisi PJ-nya saat diedit.",
+    ],
+  },
   {
     version: "1.8",
     date: "2026-10-19",
