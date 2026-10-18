@@ -2,7 +2,19 @@
 "use client";
 
 import React, { memo } from "react";
-import { Home, Settings, Info, X, LogOut, Shirt, Scissors } from "lucide-react";
+import {
+  Home,
+  Settings,
+  Info,
+  X,
+  LogOut,
+  Shirt,
+  Scissors,
+  CheckCircle2,
+  CalendarDays,
+  ScrollText,
+  Trash2,
+} from "lucide-react";
 import { UserData } from "@/types";
 import { APP_INFO } from "@/lib/changelog";
 import ThemedLogo from "@/app/components/ui/ThemedLogo";
@@ -55,11 +67,35 @@ export default function Sidebar({
           icon: Scissors,
           visible: p?.orders?.view,
         },
+        {
+          id: "completed_orders",
+          label: "Pesanan Selesai",
+          icon: CheckCircle2,
+          visible: p?.orders?.view,
+        },
+        {
+          id: "calendar",
+          label: "Kalender",
+          icon: CalendarDays,
+          visible: p?.orders?.view,
+        },
       ],
     },
     {
       title: "LAINNYA",
       items: [
+        {
+          id: "logs",
+          label: "Log Aktivitas",
+          icon: ScrollText,
+          visible: p?.logs?.view,
+        },
+        {
+          id: "trash",
+          label: "Sampah",
+          icon: Trash2,
+          visible: p?.trash?.view,
+        },
         {
           id: "settings",
           label: "Pengaturan Admin",

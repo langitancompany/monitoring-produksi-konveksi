@@ -8,6 +8,10 @@ export const VALID_TABS = [
   "dashboard",
   "orders_utama",
   "orders_lain",
+  "completed_orders",
+  "calendar",
+  "logs",
+  "trash",
   "settings",
   "about",
 ] as const;

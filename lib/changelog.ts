@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.3",
+  version: "V.1.4",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Alur produksi: aksi tahap, upload bukti, QC, kendala",
+  notes: "Arsip & pemantauan: Pesanan Selesai, Kalender, Log Aktivitas, Sampah",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.4",
+    date: "2026-10-18",
+    changes: [
+      "Menu baru Pesanan Selesai: arsip pesanan yang sudah rampung, dengan filter kategori, bulan selesai, dan pencarian, plus ringkasan total pesanan, total pakaian, dan persentase selesai tepat waktu.",
+      "Menu baru Kalender: deadline dan tanggal masuk pesanan, ditambah agenda tim yang bisa dicatat sendiri (jam, tempat, warna). Klik pesanan di kalender untuk membuka detailnya.",
+      "Menu baru Log Aktivitas: jejak semua kejadian pesanan dengan filter kategori dan pencarian; kode pesanan bisa diklik untuk membuka detail.",
+      "Menu baru Sampah: pesanan yang dihapus bisa dipulihkan, atau dihapus permanen beserta semua file fotonya (khusus yang berhak). Log aktivitasnya tetap tersimpan sebagai jejak.",
+      "Tombol Kembali di detail pesanan kini pulang ke menu asal (Pesanan Selesai, Kalender, atau Log Aktivitas).",
+    ],
+  },
   {
     version: "1.3",
     date: "2026-10-18",

@@ -32,6 +32,7 @@ import dynamic from "next/dynamic";
 
 import { createClient } from "@/lib/supabase/client";
 import { ActiveTab, isValidTab } from "@/lib/tabs";
+import { can } from "@/lib/access";
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 import { useAuth } from "@/hooks/useAuth";
@@ -75,6 +76,21 @@ const OrderDetail = dynamic(
   () => import("@/app/components/orders/OrderDetail"),
 );
 const EditOrder = dynamic(() => import("@/app/components/orders/EditOrder"));
+const CompletedOrders = dynamic(
+  () => import("@/app/components/orders/CompletedOrders"),
+  { loading: Spinner },
+);
+const TrashView = dynamic(() => import("@/app/components/orders/TrashView"), {
+  loading: Spinner,
+});
+const ActivityLogView = dynamic(
+  () => import("@/app/components/apps/ActivityLogView"),
+  { loading: Spinner },
+);
+const CalendarView = dynamic(
+  () => import("@/app/components/apps/CalendarView"),
+  { loading: Spinner },
+);
 
 type OrderView = "list" | "detail" | "create" | "edit";
 const isOrderView = (v: string | null): v is OrderView =>
@@ -90,6 +106,9 @@ export default function KonveksiApp() {
   const [isRestored, setIsRestored] = useState(false);
   const [view, setView] = useState<OrderView>("list");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  // Menu asal saat detail pesanan dibuka dari Pesanan Selesai / Kalender / Log,
+  // supaya tombol Kembali pulang ke menu itu (bukan ke daftar pesanan).
+  const [returnTab, setReturnTab] = useState<ActiveTab | null>(null);
   // pesanan yang sedang dihapus dari daftar (spinner di tombol Hapus kartu)
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [alertState, setAlertState] = useState<{
@@ -156,8 +175,12 @@ export default function KonveksiApp() {
 
   const {
     orders,
+    activeOrders,
     utamaOrders,
     nonUtamaOrders,
+    completedOrders,
+    trashedOrders,
+    trashBusy,
     ordersLoading,
     ordersError,
     fetchOrders,
@@ -169,6 +192,8 @@ export default function KonveksiApp() {
     applyKendalaUpdate,
     handleEditOrder,
     handleDeleteOrder,
+    handleRestoreOrder,
+    handlePermanentDelete,
   } = useOrders({ supabase, currentUser, fetchNotifications, showAlert });
 
   const { isUploading, uploadProof } = useUpload({
@@ -247,6 +272,7 @@ export default function KonveksiApp() {
       await markAsRead(notificationId);
       const target = orders.find((o: Order) => o.id === orderId);
       if (target) {
+        setReturnTab(null);
         setActiveTab(target.kategori === "non_utama" ? "orders_lain" : "orders_utama");
         setView("detail");
         setSelectedOrderId(orderId);
@@ -254,6 +280,26 @@ export default function KonveksiApp() {
       setSidebarOpen(false);
     },
     [markAsRead, orders],
+  );
+
+  // Buka detail pesanan dari menu lain (Pesanan Selesai, Kalender, Log Aktivitas)
+  const openOrder = useCallback(
+    (orderId: string, from: ActiveTab) => {
+      const target = orders.find((o: Order) => o.id === orderId);
+      if (!target) {
+        showAlert(
+          "Pesanan tidak ditemukan",
+          "Pesanan ini mungkin sudah dihapus permanen.",
+          "error",
+        );
+        return;
+      }
+      setReturnTab(from);
+      setActiveTab(target.kategori === "non_utama" ? "orders_lain" : "orders_utama");
+      setSelectedOrderId(orderId);
+      setView("detail");
+    },
+    [orders, showAlert],
   );
 
   // ─── Guards ────────────────────────────────────────────────────────────────
@@ -272,6 +318,11 @@ export default function KonveksiApp() {
   const backToList = () => {
     setSelectedOrderId(null);
     setView("list");
+    // dibuka dari menu lain → kembali ke menu itu
+    if (returnTab) {
+      setActiveTab(returnTab);
+      setReturnTab(null);
+    }
   };
 
   const renderOrders = (tab: ActiveTab) => {
@@ -425,6 +476,7 @@ export default function KonveksiApp() {
           setActiveTab(tab);
           setView("list");
           setSelectedOrderId(null);
+          setReturnTab(null);
           setSidebarOpen(false);
         }}
         onLogout={handleLogout}
@@ -474,6 +526,51 @@ export default function KonveksiApp() {
             )}
 
             {isOrderTab(activeTab) && p?.orders?.view && renderOrders(activeTab)}
+
+            {activeTab === "completed_orders" && p?.orders?.view && (
+              <CompletedOrders
+                orders={completedOrders}
+                productionTypes={productionTypes}
+                onSelectOrder={(id) => openOrder(id, "completed_orders")}
+              />
+            )}
+
+            {activeTab === "calendar" && p?.orders?.view && (
+              <CalendarView
+                orders={activeOrders}
+                supabase={supabase}
+                showAlert={showAlert}
+                showConfirm={showConfirm}
+                onSelectOrder={(id) => openOrder(id, "calendar")}
+              />
+            )}
+
+            {activeTab === "logs" && p?.logs?.view && (
+              <ActivityLogView
+                supabase={supabase}
+                onSelectOrder={(id) => openOrder(id, "logs")}
+              />
+            )}
+
+            {activeTab === "trash" && p?.trash?.view && (
+              <TrashView
+                orders={trashedOrders}
+                busy={trashBusy}
+                canRestore={
+                  can(currentUser, "orders", "delete") ||
+                  can(currentUser, "trash", "delete")
+                }
+                canPurge={can(currentUser, "trash", "delete")}
+                onRestore={(o) => void handleRestoreOrder(o)}
+                onPermanentDelete={(o) =>
+                  showConfirm(
+                    "Hapus permanen?",
+                    `Pesanan ${o.kode_produksi} (${o.nama_pemesan}) dan semua file fotonya akan hilang selamanya. Tindakan ini tidak bisa dibatalkan. Log aktivitasnya tetap tersimpan sebagai jejak.`,
+                    () => void handlePermanentDelete(o),
+                  )
+                }
+              />
+            )}
 
             {activeTab === "settings" && p?.settings?.view && (
               <SettingsPage

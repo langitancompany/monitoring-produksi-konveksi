@@ -4,7 +4,7 @@
 > **baca dokumen ini dulu**, lalu kerjakan bagian berikutnya di tabel *Status*.
 > Perbarui tabel Status dan changelog setiap selesai satu bagian.
 
-Terakhir diperbarui: 17 Oktober 2026 · Versi aplikasi: V.1.3 (Bagian 2 selesai — belum diuji di database/storage sungguhan)
+Terakhir diperbarui: 18 Oktober 2026 · Versi aplikasi: V.1.4 (Bagian 3 selesai — Bagian 0–2 sudah diuji pemilik di database sungguhan; Bagian 3 belum diuji, migration `003` belum dijalankan)
 
 ---
 
@@ -34,11 +34,11 @@ dan **Pesanan Non-Utama**.
 | # | Bagian | Isi | Status |
 |---|---|---|---|
 | 0 | Kerangka | Login, profil, pengguna & hak akses, pengumuman, notifikasi, backup, Tentang App, pindah unit | ✅ selesai |
-| 1 | Fondasi pesanan | Model data, template tahap, status otomatis, Pengaturan → Jenis Produksi, daftar pesanan, form pesanan baru, detail (hanya baca), migration `001` (umum) & `002` (inti) berdasar skema asli Sablon | ✅ selesai (belum diuji di database sungguhan) |
-| 1.5 | Pengelolaan user | `/api/users` (tambah/ubah/hapus: akun login + profil sekaligus), form Pengguna memakai Email Login, tanpa kolom password | ✅ selesai (belum diuji di Supabase sungguhan) |
-| 2 | Alur produksi | Aksi tiap tahap di Detail (Approval, Potong, Jahit, QC, Packing, Kirim, Terima — 4 kartu gaya Sablon), upload file, kendala, edit & hapus (ke Sampah), log, notifikasi (penerima dihitung di server — lihat §13.4) | ✅ selesai (belum diuji di Supabase/storage sungguhan; `tsc` penuh belum bisa dijalankan — lihat §14) |
-| 3 | Arsip & pemantauan | Pesanan Selesai, Sampah, Log Aktivitas, Kalender | ⬜ berikutnya |
-| 4 | Catatan Rapat | Terintegrasi dengan menu produksi (ikuti Sablon) | ⬜ |
+| 1 | Fondasi pesanan | Model data, template tahap, status otomatis, Pengaturan → Jenis Produksi, daftar pesanan, form pesanan baru, detail (hanya baca), migration `001` (umum) & `002` (inti) berdasar skema asli Sablon | ✅ selesai, sudah diuji pemilik di database sungguhan (18 Okt 2026) |
+| 1.5 | Pengelolaan user | `/api/users` (tambah/ubah/hapus: akun login + profil sekaligus), form Pengguna memakai Email Login, tanpa kolom password | ✅ selesai, sudah diuji pemilik di Supabase sungguhan (18 Okt 2026) |
+| 2 | Alur produksi | Aksi tiap tahap di Detail (Approval, Potong, Jahit, QC, Packing, Kirim, Terima — 4 kartu gaya Sablon), upload file, kendala, edit & hapus (ke Sampah), log, notifikasi (penerima dihitung di server — lihat §13.4) | ✅ selesai, sudah diuji pemilik di Supabase/storage sungguhan (18 Okt 2026) |
+| 3 | Arsip & pemantauan | Pesanan Selesai, Sampah (pulihkan / hapus permanen + file), Log Aktivitas, Kalender + migration `003` | ✅ selesai (belum diuji di database sungguhan — lihat §15) |
+| 4 | Catatan Rapat | Terintegrasi dengan menu produksi (ikuti Sablon) | ⬜ berikutnya |
 | 5 | Config Harga & Gaji | Rate gaji per item/tahap, Gaji & Upah, slip gaji | ⬜ |
 | 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon) | ⬜ |
 | 7 | Dashboard & finishing | Dashboard ringkasan, tampilan Kanban, pengetatan RLS, rapikan lint | ⬜ |
@@ -82,7 +82,7 @@ penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 - **Supabase:** satu instance, **schema per unit** (`monitoring_konveksi`). Sesi login dibagi lintas subdomain lewat cookie domain `.langitan.co` (`authCookieOptions()` di `lib/config.ts`; dimatikan saat localhost).
 - **Server-only:** route API di `app/api/*` memakai `getSupabaseAdmin()` (service role) + `requireUser()` (cek sesi & role). Operasi sensitif (uang, hapus user) harus lewat API, bukan langsung dari browser.
 - **Deploy:** Coolify di VPS sendiri, `Dockerfile` standalone, health check `/api/health`. Variabel `NEXT_PUBLIC_*` = Build Variable.
-- **Env:** lihat `.env.example`. **Setup database:** README → "Menyiapkan Supabase" (`supabase/migrations/001_base_umum.sql` lalu `002_konveksi_core.sql`).
+- **Env:** lihat `.env.example`. **Setup database:** README → "Menyiapkan Supabase" (`supabase/migrations/001_base_umum.sql` lalu `002_konveksi_core.sql`, lalu `003_calendar.sql`).
 
 ### Struktur folder (inti)
 ```
@@ -92,7 +92,7 @@ app/api/                          users (kelola user) · notify (broadcast per r
 hooks/   useAuth useUsers useNotifications useOrders useOrderDetail useUpload useProductionTypes useUnitAccess useUpdateCheck
 lib/     config steps access orderItems utils orderLogic notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
 types/   index.ts (user & hak akses)  order.ts (pesanan)
-supabase/migrations/              001 base_umum · 002 konveksi_core
+supabase/migrations/              001 base_umum · 002 konveksi_core · 003 calendar
 supabase/optional/                salin user dari Sablon (hanya untuk supervisor pertama)
 supabase/patches/                 perbaikan untuk database SABLON (bukan Konveksi)
 docs/PRD.md                       dokumen ini
@@ -178,7 +178,7 @@ Acuan Sablon ada di kolom kanan — **baca file itu dulu**.
 - Acuan Sablon: `app/components/orders/OrderDetail.tsx` + `orders/detail/*`, `hooks/useOrderDetail.ts`, `hooks/useUpload.ts`, `checkAutoStatus` di `hooks/useOrders.ts`, `lib/orderLogic.ts`, `EditOrder.tsx`.
 - Tambah ke `useOrders`: `applyStepUpdate(order, stepKey, patch)` (menghitung ulang `deriveStatus`, update, log, notifikasi), `handleEditOrder`, `handleDeleteOrder`.
 
-### Bagian 3 — Arsip & pemantauan
+### Bagian 3 — Arsip & pemantauan ✅ (ringkasan hasil di §15)
 - **Pesanan Selesai** (`status = 'Selesai'`, tidak dihapus), pagination. Acuan: `orders/CompletedOrders.tsx`.
 - **Sampah** (`deleted_at` terisi): pulihkan / hapus permanen (hapus file storage terkait). Acuan: `orders/TrashView.tsx`, `handleRestoreOrder`, `handlePermanentDelete`.
 - **Log Aktivitas** dari `order_logs` (filter kategori, pencarian). Acuan: `apps/ActivityLogView.tsx`.
@@ -268,6 +268,7 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 
 ## 12. Riwayat
 
+- **V.1.4** — Bagian 3: Pesanan Selesai, Kalender (+ agenda), Log Aktivitas, Sampah (pulihkan / hapus permanen), migration `003`.
 - **V.1.0** — Kerangka (zip `monitoring-produksi-konveksi`): login, profil, pengguna, pengumuman, notifikasi, backup, Tentang App, pindah unit.
 - **V.1.3** — Bagian 2: aksi tiap tahap, upload bukti, Approval (items), QC & revisi, kendala, edit & hapus ke Sampah, `/api/notify`.
 - **V.1.2** — Pengelolaan user lewat `/api/users` (akun login + profil sekaligus); kolom password dihapus dari skema.
@@ -285,7 +286,7 @@ Dipakai sebagai acuan agar Konveksi tidak menebak-nebak.
 fungsi `is_staff, is_supervisor, is_admin_or_supervisor, has_perm, get_user_units, get_public_tables`, trigger `guard_users_update`, `guard_orders_update`.
 
 ### 13.2 Untuk Bagian 3–5 (belum dibuat; buat migration `003+`)
-- **Kalender:** `calendar_events(id, title, date, color, event_time text, location, created_at)`; policy: staf kelola semua.
+- **Kalender:** ✅ dibuat di `003_calendar.sql` (Bagian 3): `calendar_events(id, title, date, color, event_time text, location, created_at)`; policy: staf kelola semua.
 - **Catatan Rapat:** `production_notes(id, order_id, kode_produksi, nama_pemesan, content, section, created_by_id text, created_by_name, created_at)`; policy: staf baca & tulis (`created_by_id = auth.uid()`), hanya pembuat yang boleh hapus.
 - **Config Harga:** `pricing_configs(id int, category, key_name, display_name, value_amount numeric, unit, effective_date date)` — riwayat per tanggal efektif; SELECT semua user login, INSERT/UPDATE `has_perm('config_harga','edit')`.
   Rencana pemakaian di Konveksi: `category='PRODUKSI'`, `key_name='{jenis_produksi.value}:{step_key}'` (mis. `kaos_polo:produksi_massal`), `unit='per_pcs'`, **tambah baris baru** tiap perubahan (jangan UPDATE).
@@ -313,7 +314,7 @@ Isi `PGRST_DB_SCHEMAS` (apakah schema pertama dipakai sebagai default bila clien
 **Pintu tunggal perubahan pesanan:** `commitOrder()` di `hooks/useOrders.ts`. Semua aksi
 (tahap, kendala, edit) lewat sini: hitung `deriveStatus` → update → log → notifikasi → `fetchOrders`.
 Pengaman dua-orang-sekaligus: update memakai `.eq('updated_at', …)`; bila 0 baris berubah,
-perubahan ditolak & data dimuat ulang. **Belum diuji** (format timestamp PostgREST).
+perubahan ditolak & data dimuat ulang. Sudah diuji pemilik di database sungguhan (18 Okt 2026).
 
 **Keputusan yang saya ambil (ubah bila pemilik tidak setuju):**
 1. `deriveStatus`: *Revisi* hanya selama Produksi Massal belum diselesaikan ulang; setelah itu status *Finishing* (menunggu QC diulang).
@@ -327,7 +328,7 @@ perubahan ditolak & data dimuat ulang. **Belum diuji** (format timestamp PostgRE
 - Gaji borongan memakai pengunggah foto sebagai pekerja. Kalau penjahit/tukang potong tidak punya akun sendiri dan yang upload orang lain (mis. admin), gaji tercatat ke pengunggah — butuh keputusan pemilik (§11 no. 3 & 8).
 - Catatan per kartu ("Catatan" di bawah kartu 02/03/04 pada Sablon) belum ada: itu bagian dari Catatan Rapat (Bagian 4, tabel `production_notes`).
 - Approval pesanan utama tetap berupa form (jenis produksi + jumlah per item + file/link), bukan hanya upload mockup seperti Sablon, karena item dipakai untuk gaji & tagihan.
-- Hapus file dari storage saat tahap dibatalkan **belum** dilakukan (hanya dilepas dari pesanan); pembersihan dikerjakan di Bagian 3 (hapus permanen).
+- Hapus file dari storage saat tahap dibatalkan **belum** dilakukan (hanya dilepas dari pesanan); pembersihan sudah dikerjakan di Bagian 3 lewat Hapus Permanen (§15).
 - Pesanan baru: pesan "Pesanan Baru" memberi notifikasi ke semua user termasuk pembuatnya (perilaku Sablon).
 - `npm install` dan `next build` tidak bisa dijalankan di lingkungan pengerjaan (tanpa internet). Verifikasi dilakukan dengan `tsc` + stub tipe dan 28 uji logika (urutan tahap, QC→revisi→QC ulang, validasi item, nama file). **Jalankan `npm install && npx tsc --noEmit && npm run build` di komputer Anda sebelum deploy.**
 
@@ -336,3 +337,36 @@ perubahan ditolak & data dimuat ulang. **Belum diuji** (format timestamp PostgRE
 **Perubahan nama tahap:** `pengiriman` kini berlabel "Bukti Kirim (Resi)", `penerimaan` "Bukti Terima (User)" (mengikuti Sablon).
 
 **Pertanyaan terbuka yang makin mendesak (§11):** no. 3 & 8 (siapa mengerjakan Potong/Jahit; perlu role penjahit?) — menentukan Bagian 5.
+
+---
+
+## 15. Hasil Bagian 3 (V.1.4) — baca sebelum lanjut
+
+**Menu baru** (tab di `lib/tabs.ts`): `completed_orders` (Pesanan Selesai), `calendar`, `logs`, `trash`.
+Izin: Pesanan Selesai & Kalender = `orders.view`; Log = `logs.view`; Sampah = `trash.view`
+(pulihkan = `orders.delete` atau `trash.delete`; hapus permanen = `trash.delete`, sesuai RLS/trigger `002`).
+User selain supervisor **tidak otomatis** dapat `logs`/`trash` — atur di Pengaturan → Pengguna.
+
+**File:** `orders/CompletedOrders.tsx`, `orders/TrashView.tsx`, `apps/ActivityLogView.tsx`, `apps/CalendarView.tsx`,
+`ui/TablePagination.tsx`, `lib/orderArchive.ts` (helper murni), `hooks/useOrders.ts` (+`completedOrders`, `trashedOrders`,
+`handleRestoreOrder`, `handlePermanentDelete`), `lib/access.ts` (`can()` kini menerima semua modul & aksi `view`),
+migration `003_calendar.sql`.
+
+**Keputusan yang saya ambil (ubah bila pemilik tidak setuju):**
+1. **Tgl. Selesai = waktu tahap terakhir selesai** (`completionDate()`), bukan deadline seperti Sablon; filter bulan memakai bulan+tahun. Sejalan dengan dasar bulan gaji (Bagian 5).
+2. **Hapus Permanen:** baris pesanan dihapus DULU, baru file storage (kalau ditolak izin, tidak ada file yang hilang). File yang dihapus = yang dirujuk data pesanan + seluruh isi folder `konveksi/{orderId}/` (termasuk file lepasan dari tahap yang dibatalkan). Pengaman: hanya path berawalan `konveksi/`; tautan luar (Drive) tak disentuh; hanya pesanan yang memang di Sampah.
+3. **Log pesanan TIDAK ikut dihapus** (beda dengan Sablon): `order_id` menjadi kosong lewat `on delete set null`, ditambah satu log "Pesanan Dihapus Permanen". Alasan: jejak audit.
+4. Tombol Kembali dari detail pesanan pulang ke menu asal (`returnTab` di `app/page.tsx`; tidak tersimpan di URL, jadi setelah refresh kembali ke daftar pesanan).
+5. Kalender memakai `Date` bawaan (tanpa `date-fns`), memuat agenda hanya untuk rentang bulan yang tampil. Tanggal masuk bisa dimatikan lewat centang.
+6. Tanpa grafik tren di Pesanan Selesai (recharts belum dipasang; masuk Bagian 7). Diganti statistik "selesai tepat waktu".
+7. Log Aktivitas memuat 1000 log terbaru (seperti Sablon); filter & cari bekerja di data itu.
+
+**Verifikasi:** `npm install` + `tsc` + `next build` kini bisa dijalankan. 13 uji logika `lib/orderArchive.ts` lulus
+(termasuk pengaman path storage). **Belum diuji dengan database/storage sungguhan:** `003_calendar.sql`, pulihkan,
+hapus permanen (terutama `storage.list/remove` dan RLS), agenda kalender.
+
+**Temuan lama (bukan dari Bagian 3):** `app/components/orders/detail/StepCard.tsx` adalah sisa desain lama (pemilih pekerja),
+tidak diimpor di mana pun, dan mengimpor `STEPS_WITH_WORKER_PICKER` yang sudah tidak ada → `tsc` dan `next build` GAGAL.
+Hapus file itu. (`next build` lolos bila file itu dikeluarkan.)
+
+**Catatan:** notifikasi lama yang menunjuk pesanan yang sudah dihapus permanen tidak punya tujuan (klik tidak berefek).

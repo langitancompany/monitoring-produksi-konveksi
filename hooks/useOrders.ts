@@ -5,8 +5,8 @@
 //
 // Semua perubahan pesanan setelah dibuat lewat SATU pintu: commitOrder().
 // Ia menghitung ulang status (deriveStatus), menyimpan, menulis log, mengirim
-// notifikasi, lalu memuat ulang daftar. Bagian 3+ (Sampah, Pesanan Selesai, …)
-// menambah fungsi di file ini.
+// notifikasi, lalu memuat ulang daftar. Bagian 3 menambah: daftar Pesanan
+// Selesai & Sampah, pulihkan, dan hapus permanen (beserta file storage-nya).
 
 import { useState, useCallback, useMemo, useRef } from "react";
 import { SupabaseClient } from "@supabase/supabase-js";
@@ -22,7 +22,9 @@ import type {
 import { buildInitialSteps, deriveStatus } from "@/lib/steps";
 import { triggerOrderNotifications } from "@/lib/orderLogic";
 import { cleanItems, sumItems } from "@/lib/orderItems";
+import { collectStoragePaths, KONVEKSI_STORAGE_PREFIX } from "@/lib/orderArchive";
 import { formatDate } from "@/lib/utils";
+import { STORAGE_BUCKET } from "@/hooks/useUpload";
 
 interface Props {
   supabase: SupabaseClient;
@@ -30,6 +32,9 @@ interface Props {
   fetchNotifications: () => Promise<void>;
   showAlert: (title: string, message: string, type?: "success" | "error") => void;
 }
+
+/** Proses di menu Sampah yang sedang berjalan (tombol terkait menampilkan loading). */
+export type TrashBusy = { id: string; action: "restore" | "purge" } | null;
 
 export type LogCategory = "STATUS" | "FILE" | "KENDALA" | "QC" | "REVISI" | "SISTEM";
 
@@ -74,6 +79,9 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
   // true selama satu perubahan sedang disimpan (tombol di UI dinonaktifkan → tidak bisa dobel klik)
   const [isSaving, setIsSaving] = useState(false);
   const savingRef = useRef(false);
+  // proses Sampah (pulihkan / hapus permanen): satu per satu
+  const [trashBusy, setTrashBusy] = useState<TrashBusy>(null);
+  const trashBusyRef = useRef(false);
 
   // ─── Fetch ────────────────────────────────────────────────────────────────
   const fetchOrders = useCallback(async () => {
@@ -108,6 +116,16 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
   const activeOrders = useMemo(() => orders.filter((o) => !o.deleted_at), [orders]);
   const utamaOrders = useMemo(() => activeOrders.filter((o) => o.kategori === "utama"), [activeOrders]);
   const nonUtamaOrders = useMemo(() => activeOrders.filter((o) => o.kategori === "non_utama"), [activeOrders]);
+  // Arsip: pesanan Selesai yang tidak dihapus (menu Pesanan Selesai)
+  const completedOrders = useMemo(() => activeOrders.filter((o) => o.status === "Selesai"), [activeOrders]);
+  // Sampah: terbaru dihapus di atas
+  const trashedOrders = useMemo(
+    () =>
+      orders
+        .filter((o) => o.deleted_at)
+        .sort((a, b) => Date.parse(b.deleted_at ?? "") - Date.parse(a.deleted_at ?? "")),
+    [orders],
+  );
 
   // ─── Log aktivitas ────────────────────────────────────────────────────────
   const writeLog = useCallback(
@@ -118,6 +136,7 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
       ket = "-",
       newVal = "",
       isSystem = false,
+      detached = false,
       meta = {},
     }: {
       order: Pick<Order, "id" | "kode_produksi" | "status">;
@@ -126,12 +145,14 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
       ket?: string;
       newVal?: string;
       isSystem?: boolean;
+      /** true = pesanan sudah tidak ada di database (hapus permanen): log tersimpan tanpa order_id */
+      detached?: boolean;
       meta?: Record<string, unknown>;
     }) => {
       if (!currentUser && !isSystem) return;
       const { error } = await supabase.from("order_logs").insert([
         {
-          order_id: order.id,
+          order_id: detached ? null : order.id,
           kode_produksi: order.kode_produksi,
           category,
           event_name: event,
@@ -400,7 +421,7 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
     [commitOrder, showAlert],
   );
 
-  // ─── Hapus = pindah ke Sampah (soft delete; bisa dipulihkan di Bagian 3) ───
+  // ─── Hapus = pindah ke Sampah (soft delete; dipulihkan lewat menu Sampah) ───
   const handleDeleteOrder = useCallback(
     async (order: Order): Promise<boolean> => {
       if (!currentUser || savingRef.current) return false;
@@ -437,11 +458,156 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
     [currentUser, supabase, writeLog, fetchOrders, showAlert],
   );
 
+  // ─── Sampah: pulihkan ──────────────────────────────────────────────────────
+  // Izin dicek database (trigger guard_orders_update: orders.delete atau trash.delete).
+  const handleRestoreOrder = useCallback(
+    async (order: Order): Promise<boolean> => {
+      if (!currentUser || trashBusyRef.current) return false;
+      trashBusyRef.current = true;
+      setTrashBusy({ id: order.id, action: "restore" });
+      try {
+        const { data, error } = await supabase
+          .from("orders")
+          .update({ deleted_at: null })
+          .eq("id", order.id)
+          .not("deleted_at", "is", null) // hanya yang memang masih di Sampah
+          .select("id");
+        if (error) {
+          showAlert("Gagal memulihkan", error.message, "error");
+          return false;
+        }
+        if (!data || data.length === 0) {
+          await fetchOrders();
+          showAlert(
+            "Tidak bisa dipulihkan",
+            "Pesanan ini sudah dipulihkan/dihapus orang lain, atau Anda tidak punya izin. Data sudah dimuat ulang.",
+            "error",
+          );
+          return false;
+        }
+        await writeLog({
+          order,
+          category: "STATUS",
+          event: "Pesanan Dipulihkan",
+          ket: `Pesanan ${order.kode_produksi} (${order.nama_pemesan}) dikembalikan dari Sampah`,
+        });
+        await fetchOrders();
+        showAlert("Sukses", `Pesanan ${order.kode_produksi} dipulihkan`);
+        return true;
+      } finally {
+        trashBusyRef.current = false;
+        setTrashBusy(null);
+      }
+    },
+    [currentUser, supabase, writeLog, fetchOrders, showAlert],
+  );
+
+  // ─── Sampah: hapus permanen ────────────────────────────────────────────────
+  // Urutan sengaja: (1) baca data terbaru → (2) hapus BARIS pesanan → (3) hapus
+  // file storage. Kalau langkah 2 ditolak (mis. tidak punya izin), tidak ada
+  // file yang sudah hilang. Kalau langkah 3 gagal, yang tersisa hanya file
+  // yatim (tidak merusak data) dan jumlahnya dilaporkan ke pengguna.
+  // Log aktivitas pesanan TIDAK dihapus (order_id jadi kosong lewat
+  // `on delete set null`) sebagai jejak audit, ditambah satu log "Dihapus Permanen".
+  const handlePermanentDelete = useCallback(
+    async (order: Order): Promise<boolean> => {
+      if (!currentUser || trashBusyRef.current) return false;
+      trashBusyRef.current = true;
+      setTrashBusy({ id: order.id, action: "purge" });
+      try {
+        // 1. data terbaru (file bisa berubah sejak daftar dimuat)
+        const { data: fresh, error: readError } = await supabase
+          .from("orders")
+          .select("id, deleted_at, steps, kendala, items")
+          .eq("id", order.id)
+          .maybeSingle();
+        if (readError) {
+          showAlert("Gagal menghapus", readError.message, "error");
+          return false;
+        }
+        if (!fresh) {
+          await fetchOrders();
+          showAlert("Sudah terhapus", "Pesanan ini sudah tidak ada. Daftar dimuat ulang.", "error");
+          return false;
+        }
+        if (!fresh.deleted_at) {
+          await fetchOrders();
+          showAlert("Tidak dihapus", "Pesanan ini sudah dipulihkan oleh orang lain, jadi tidak dihapus.", "error");
+          return false;
+        }
+
+        // File yang dirujuk data pesanan + semua isi foldernya (termasuk file
+        // yang dulu dilepas saat tahap dibatalkan — lihat PRD §14).
+        const paths = new Set(collectStoragePaths(fresh, STORAGE_BUCKET));
+        const folder = `${KONVEKSI_STORAGE_PREFIX}${order.id}`;
+        try {
+          const { data: listed } = await supabase.storage.from(STORAGE_BUCKET).list(folder, { limit: 1000 });
+          for (const f of listed ?? []) if (f.name) paths.add(`${folder}/${f.name}`);
+        } catch (err) {
+          console.error("Gagal membaca isi folder storage:", err);
+        }
+
+        // 2. hapus baris pesanan (RLS: trash.delete); .not() = tidak pernah menghapus pesanan aktif
+        const { data: deleted, error: delError } = await supabase
+          .from("orders")
+          .delete()
+          .eq("id", order.id)
+          .not("deleted_at", "is", null)
+          .select("id");
+        if (delError) {
+          showAlert("Gagal menghapus", delError.message, "error");
+          return false;
+        }
+        if (!deleted || deleted.length === 0) {
+          showAlert("Gagal menghapus", "Anda tidak punya izin menghapus permanen pesanan ini.", "error");
+          return false;
+        }
+
+        // 3. hapus file storage (upaya terbaik)
+        let failedFiles = 0;
+        if (paths.size > 0) {
+          const { error: rmError } = await supabase.storage.from(STORAGE_BUCKET).remove([...paths]);
+          if (rmError) {
+            failedFiles = paths.size;
+            console.error("Gagal menghapus file storage:", rmError);
+          }
+        }
+
+        await writeLog({
+          order,
+          category: "SISTEM",
+          event: "Pesanan Dihapus Permanen",
+          ket: `Pesanan ${order.kode_produksi} (${order.nama_pemesan}) dihapus permanen, ${paths.size - failedFiles} file dihapus`,
+          detached: true,
+        });
+        await fetchOrders();
+
+        if (failedFiles > 0) {
+          showAlert(
+            "Pesanan terhapus, file belum",
+            `Data pesanan ${order.kode_produksi} sudah dihapus, tetapi ${failedFiles} file di storage belum berhasil dihapus (periksa kebijakan storage). File itu tidak berpengaruh ke data, hanya memakai ruang.`,
+            "error",
+          );
+        } else {
+          showAlert("Sukses", `Pesanan ${order.kode_produksi} dan file terkait dihapus selamanya`);
+        }
+        return true;
+      } finally {
+        trashBusyRef.current = false;
+        setTrashBusy(null);
+      }
+    },
+    [currentUser, supabase, writeLog, fetchOrders, showAlert],
+  );
+
   return {
     orders,
     activeOrders,
     utamaOrders,
     nonUtamaOrders,
+    completedOrders,
+    trashedOrders,
+    trashBusy,
     ordersLoading,
     ordersError,
     fetchOrders,
@@ -453,6 +619,8 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
     applyKendalaUpdate,
     handleEditOrder,
     handleDeleteOrder,
+    handleRestoreOrder,
+    handlePermanentDelete,
   };
 }
 
