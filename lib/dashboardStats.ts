@@ -199,3 +199,222 @@ export function attentionList(orders: Order[], today: Date, limit = 6): Attentio
     .sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level] || a.days - b.days)
     .slice(0, limit);
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Tampilan Dashboard ala Sablon: HeroSection, grafik tren/donut, Perlu Tindakan
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ─── Hero ────────────────────────────────────────────────────────────────────
+
+export interface HeroStats {
+  /** semua pesanan (di luar Sampah), sepanjang masa */
+  totalOrders: number;
+  totalPcs: number;
+  /** belum selesai */
+  berjalan: number;
+  selesai: number;
+  /** badge: pesanan dengan kendala / telat / deadline mepet */
+  kendala: number;
+  telat: number;
+  urgent: number;
+  /** bulan berjalan, dipisah menurut kategori pesanan */
+  utamaMonthlyOrders: number;
+  utamaMonthlyPcs: number;
+  nonUtamaMonthlyOrders: number;
+  nonUtamaMonthlyPcs: number;
+}
+
+// ─── Perlu Tindakan Segera ───────────────────────────────────────────────────
+
+export type ActionItemType = "KENDALA" | "REVISI" | "TELAT" | "URGENT";
+
+export interface ActionItem {
+  uniqueKey: string;
+  order: Order;
+  type: ActionItemType;
+  detail: string;
+}
+
+const ACTION_PRIORITY: Record<ActionItemType, number> = { KENDALA: 4, REVISI: 3, TELAT: 2, URGENT: 1 };
+
+/** Satu pesanan bisa menghasilkan beberapa item (mis. Kendala + Telat). Urut: paling genting dulu. */
+export function actionItems(orders: Order[], today: Date): ActionItem[] {
+  const items: ActionItem[] = [];
+  const daysOf = new Map<string, number>(); // uniqueKey → hari ke deadline, hanya untuk pengurutan
+  for (const o of orders) {
+    if (!isOpen(o)) continue;
+    const days = daysUntil(o.deadline, today);
+
+    const openKendala = (o.kendala ?? []).filter((k) => !k.isResolved);
+    if (o.status === "Ada Kendala" || openKendala.length > 0) {
+      const latest = [...openKendala].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))[0];
+      items.push({
+        uniqueKey: `${o.id}-kendala`,
+        order: o,
+        type: "KENDALA",
+        detail: latest?.notes || "Ada kendala produksi",
+      });
+      daysOf.set(`${o.id}-kendala`, days);
+    }
+
+    if (o.status === "Revisi") {
+      const qc = o.steps?.find((s) => s.key === "qc");
+      items.push({
+        uniqueKey: `${o.id}-revisi`,
+        order: o,
+        type: "REVISI",
+        detail: qc?.qc?.notes || "Perbaikan QC diperlukan",
+      });
+      daysOf.set(`${o.id}-revisi`, days);
+    }
+
+    if (isOverdue(o, today)) {
+      const n = Math.abs(days);
+      items.push({
+        uniqueKey: `${o.id}-telat`,
+        order: o,
+        type: "TELAT",
+        detail: Number.isFinite(n) && n > 0 ? `Telat ${n} hari` : "Telat",
+      });
+      daysOf.set(`${o.id}-telat`, days);
+    } else if (getDeadlineStatus(o.deadline, o.status, today) === "warning") {
+      items.push({
+        uniqueKey: `${o.id}-urgent`,
+        order: o,
+        type: "URGENT",
+        detail: days === 0 ? "Deadline hari ini" : `Deadline ${days} hari lagi`,
+      });
+      daysOf.set(`${o.id}-urgent`, days);
+    }
+  }
+  const d = (i: ActionItem) => daysOf.get(i.uniqueKey) ?? 0;
+  return items.sort((a, b) => ACTION_PRIORITY[b.type] - ACTION_PRIORITY[a.type] || d(a) - d(b));
+}
+
+export function computeHeroStats(orders: Order[], today: Date): HeroStats {
+  const thisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const items = actionItems(orders, today);
+  const count = (t: ActionItemType) => items.filter((i) => i.type === t).length;
+
+  const s: HeroStats = {
+    totalOrders: orders.length,
+    totalPcs: 0,
+    berjalan: 0,
+    selesai: 0,
+    kendala: count("KENDALA"),
+    telat: count("TELAT"),
+    urgent: count("URGENT"),
+    utamaMonthlyOrders: 0,
+    utamaMonthlyPcs: 0,
+    nonUtamaMonthlyOrders: 0,
+    nonUtamaMonthlyPcs: 0,
+  };
+  for (const o of orders) {
+    const pcs = o.jumlah || 0;
+    s.totalPcs += pcs;
+    if (isOpen(o)) s.berjalan++;
+    else s.selesai++;
+    if (monthKey(o.tanggal_masuk) === thisMonth) {
+      if (o.kategori === "non_utama") {
+        s.nonUtamaMonthlyOrders++;
+        s.nonUtamaMonthlyPcs += pcs;
+      } else {
+        s.utamaMonthlyOrders++;
+        s.utamaMonthlyPcs += pcs;
+      }
+    }
+  }
+  return s;
+}
+
+// ─── Grafik per kategori (tren 6 bulan + donut jenis produksi) ───────────────
+
+export interface MonthlyDataPoint {
+  /** "Okt" */
+  name: string;
+  /** pcs masuk pada bulan itu (menurut tanggal masuk) */
+  pcs: number;
+  /** jumlah pesanan masuk */
+  total: number;
+  /** pcs per jenis produksi (p_<value>) — hanya terisi pada mode bertumpuk */
+  [key: string]: unknown;
+}
+
+export interface ProductionTypeDataPoint {
+  name: string;
+  value: number;
+  [key: string]: unknown; // diperlukan oleh Recharts v3 ChartDataInput
+}
+
+export interface TypeSeries {
+  /** value jenis produksi ("" = belum ditentukan) */
+  key: string;
+  /** kunci di dalam MonthlyDataPoint */
+  dataKey: string;
+  label: string;
+}
+
+/** Pcs sebuah pesanan per jenis produksi (rincian item bila ada, jika tidak jumlah total). */
+function typePcs(o: Order): { value: string; pcs: number }[] {
+  if (o.items?.length) return o.items.map((it) => ({ value: it.jenis_produksi, pcs: it.jumlah || 0 }));
+  return [{ value: o.jenis_produksi ?? "", pcs: o.jumlah || 0 }];
+}
+
+const seriesDataKey = (value: string) => `p_${value || "belum"}`;
+
+/** Jenis produksi yang muncul, diurut dari pcs terbanyak (urutan dipakai bar & donut agar warnanya sama). */
+export function typeSeries(orders: Order[], types: ProductionTypeData[]): TypeSeries[] {
+  const totals = new Map<string, number>();
+  for (const o of orders) for (const t of typePcs(o)) totals.set(t.value, (totals.get(t.value) ?? 0) + t.pcs);
+  return [...totals.entries()]
+    .map(([key, pcs]) => ({
+      key,
+      pcs,
+      dataKey: seriesDataKey(key),
+      label: key ? typeLabel(key, types) : UNASSIGNED_LABEL,
+    }))
+    .sort((a, b) => b.pcs - a.pcs || a.label.localeCompare(b.label, "id"))
+    .map(({ key, dataKey, label }) => ({ key, dataKey, label }));
+}
+
+/** Data donut: pcs per jenis produksi, urutan sama dengan typeSeries. */
+export function typePie(orders: Order[], series: TypeSeries[]): ProductionTypeDataPoint[] {
+  const totals = new Map<string, number>();
+  for (const o of orders) for (const t of typePcs(o)) totals.set(t.value, (totals.get(t.value) ?? 0) + t.pcs);
+  return series
+    .map((s) => ({ name: s.label.toUpperCase(), value: totals.get(s.key) ?? 0 }))
+    .filter((d) => d.value > 0);
+}
+
+/** Tren `months` bulan terakhir. `stacked` memecah pcs per jenis produksi. */
+export function monthlyVolume(orders: Order[], today: Date, stacked = false, months = 6): MonthlyDataPoint[] {
+  const keys: string[] = [];
+  const points: MonthlyDataPoint[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    points.push({
+      name: MONTHS[d.getMonth()].slice(0, 3),
+      total: 0,
+      pcs: 0,
+    });
+  }
+  const index = new Map(keys.map((k, i) => [k, points[i]]));
+  for (const o of orders) {
+    const m = index.get(monthKey(o.tanggal_masuk));
+    if (!m) continue;
+    m.total += 1;
+    m.pcs += o.jumlah || 0;
+    if (stacked) {
+      for (const t of typePcs(o)) {
+        const k = seriesDataKey(t.value);
+        m[k] = ((m[k] as number) || 0) + t.pcs;
+      }
+    }
+  }
+  return points;
+}
+
+export function categorySummary(orders: Order[]): { orders: number; pcs: number } {
+  return { orders: orders.length, pcs: orders.reduce((a, o) => a + (o.jumlah || 0), 0) };
+}

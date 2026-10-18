@@ -528,7 +528,6 @@ export default function KonveksiApp() {
                 (daftarkan id "orders" dulu di lib/tabs.ts & Sidebar.tsx) */}
             {activeTab === "dashboard" && p?.dashboard?.view && (
               <Dashboard
-                currentUser={currentUser}
                 orders={activeOrders}
                 productionTypes={productionTypes}
                 loading={ordersLoading}
