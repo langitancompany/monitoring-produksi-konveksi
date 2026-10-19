@@ -3,7 +3,7 @@
 // Gaji & Upah (Bagian 5) — tiga kelompok penerima, mengikuti alur Sablon:
 //   1. Produksi  : PJ + anggota tim per pesanan (pcs dibagi rata; anggota = rate Jahit, PJ = rate Gaji PJ)
 //   2. Tim QC    : pool (QC + Packing) dibagi rata ke semua user ber-role QC
-//   3. Admin     : bonus per pesanan selesai untuk pembuat pesanan ber-role admin
+//   3. Admin     : gaji BULANAN semua user ber-role admin (gaji tetap + bonus closing pilihan + bonus manual)
 // Semua angka dihitung di browser dari pesanan yang sudah dimuat (lib/salary.ts, teruji).
 // Bulan gaji = bulan tahap terakhir selesai. Tandai lunas & slip cetak per orang.
 // Lihat docs/PRD.md §20.
@@ -28,7 +28,16 @@ import type { TeamData } from "@/types/team";
 import type { SalaryKategori } from "@/types/salary";
 import { usePricing } from "@/hooks/usePricing";
 import { paymentKey, useSalaryPayments } from "@/hooks/useSalaryPayments";
-import { buildSalaryReport, rupiah, type PersonSalary } from "@/lib/salary";
+import {
+  buildRateBook,
+  buildSalaryReport,
+  closingCandidates,
+  rupiah,
+  type AdminPerson,
+  type PersonSalary,
+} from "@/lib/salary";
+import { useAdminSalary } from "@/hooks/useAdminSalary";
+import AdminSalaryDetail from "./AdminSalaryDetail";
 import { printSlips, type SlipToPrint } from "@/lib/salaryPrint";
 import { can } from "@/lib/access";
 import { MONTHS } from "@/lib/utils";
@@ -107,10 +116,36 @@ export default function SalaryView({
     year,
   });
 
+  const adminSalary = useAdminSalary({ supabase, month, year });
+
   const report = useMemo(
-    () => buildSalaryReport({ orders, users, teams, types: productionTypes, configs, month, year }),
-    [orders, users, teams, productionTypes, configs, month, year],
+    () =>
+      buildSalaryReport({
+        orders,
+        users,
+        teams,
+        types: productionTypes,
+        configs,
+        adminData: adminSalary.data,
+        month,
+        year,
+      }),
+    [orders, users, teams, productionTypes, configs, adminSalary.data, month, year],
   );
+
+  const candidates = useMemo(
+    () => closingCandidates(orders, adminSalary.data.closings, configs, month, year),
+    [orders, adminSalary.data.closings, configs, month, year],
+  );
+  const ruleText = useMemo(() => {
+    const book = buildRateBook(configs);
+    const d = new Date();
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const base = book.param("bonus_admin_closing", dateKey);
+    const perPcs = book.param("bonus_admin_per_pcs", dateKey);
+    const limit = book.param("batas_pcs_bonus_admin", dateKey);
+    return `Rp${base.toLocaleString("id-ID")} per closing + Rp${perPcs.toLocaleString("id-ID")} per pcs di atas ${limit} pcs`;
+  }, [configs]);
 
   const nameOf = (id: string) => users.find((u) => u.id === id)?.name ?? "Pengguna tidak ditemukan";
   const avatarOf = (id: string) => users.find((u) => u.id === id)?.avatar_url ?? null;
@@ -176,6 +211,10 @@ export default function SalaryView({
       setPrinting(false);
       showAlert("Gagal menyiapkan dokumen", "Dokumen cetak tidak bisa dibuat. Coba lagi.", "error");
     }
+  };
+
+  const showAdminError = (err: string | null) => {
+    if (err) showAlert("Gagal menyimpan", err, "error");
   };
 
   const doMark = (p: PersonSalary) =>
@@ -251,9 +290,9 @@ export default function SalaryView({
         </div>
       </div>
 
-      {(cfgError || payError) && (
+      {(cfgError || payError || adminSalary.error) && (
         <div className="rounded-md border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-xs text-red-700 dark:text-red-300">
-          {cfgError || payError}
+          {cfgError || payError || adminSalary.error}
         </div>
       )}
 
@@ -344,7 +383,8 @@ export default function SalaryView({
       )}
       {tab === "admin" && (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Bonus per pesanan selesai untuk pembuat pesanan yang ber-role Admin (aturan di Config Harga).
+          Gaji bulanan semua user ber-role Admin: gaji tetap + bonus closing (pesanan dipilih manual, aturan di Config
+          Harga) + bonus tambahan. Admin tetap tampil walau tidak ada closing.
         </p>
       )}
 
@@ -366,11 +406,13 @@ export default function SalaryView({
             )}
           </div>
           <div className="p-2 space-y-1.5 max-h-[60vh] overflow-y-auto">
-            {payLoading && people.length === 0 ? (
+            {(payLoading || (tab === "admin" && adminSalary.loading)) && people.length === 0 ? (
               <div className="p-6 text-center text-xs text-zinc-400">Memuat…</div>
             ) : people.length === 0 ? (
               <div className="p-6 text-center text-xs text-zinc-400 dark:text-zinc-600">
-                Belum ada gaji untuk {periodLabel}.
+                {tab === "admin"
+                  ? "Belum ada user ber-role Admin. Atur di Pengaturan → Pengguna."
+                  : `Belum ada gaji untuk ${periodLabel}.`}
               </div>
             ) : (
               people.map((p) => {
@@ -405,7 +447,9 @@ export default function SalaryView({
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{name}</span>
                         <span className="block text-[11px] text-zinc-500 dark:text-zinc-400">
-                          {p.orders} pesanan · {p.qty.toLocaleString("id-ID")} pcs
+                          {tab === "admin"
+                            ? `Gaji tetap ${rupiah((p as AdminPerson).fixed)}`
+                            : `${p.orders} pesanan · ${p.qty.toLocaleString("id-ID")} pcs`}
                         </span>
                       </span>
                       <span className="text-right shrink-0">
@@ -445,7 +489,8 @@ export default function SalaryView({
                     {nameOf(selected.userId)}
                   </h2>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {periodLabel} · {selected.orders} pesanan
+                    {periodLabel}
+                    {tab === "admin" ? " · gaji bulanan" : ` · ${selected.orders} pesanan`}
                   </p>
                 </div>
               </div>
@@ -489,10 +534,34 @@ export default function SalaryView({
               <div className="px-4 py-2.5 text-xs bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 border-b border-amber-200 dark:border-amber-900/50">
                 Angka berubah sejak ditandai lunas: dibayar{" "}
                 <span className="font-mono font-semibold">{rupiah(selectedPay.total_amount)}</span>, hitungan sekarang{" "}
-                <span className="font-mono font-semibold">{rupiah(selected.total)}</span>. Periksa rate, PJ, atau tim.
+                <span className="font-mono font-semibold">{rupiah(selected.total)}</span>. Periksa rate, PJ, tim, gaji tetap, atau bonus.
               </div>
             )}
 
+            {tab === "admin" ? (
+              <AdminSalaryDetail
+                key={`${selected.userId}:${year}-${month}`}
+                person={selected as AdminPerson}
+                periodLabel={periodLabel}
+                canManage={canMark}
+                candidates={candidates}
+                busy={adminSalary.busy}
+                ruleText={ruleText}
+                onSaveFixed={async (amount) => showAdminError(await adminSalary.saveFixed(selected.userId, amount))}
+                onAddClosing={async (orderId) => showAdminError(await adminSalary.addClosing(selected.userId, orderId))}
+                onDeleteClosing={(id) =>
+                  showConfirm("Hapus closing?", "Closing ini dihapus dari bonus admin bulan ini.", async () =>
+                    showAdminError(await adminSalary.deleteClosing(id)),
+                  )
+                }
+                onAddBonus={async (label, amount) => showAdminError(await adminSalary.addBonus(selected.userId, label, amount))}
+                onDeleteBonus={(id) =>
+                  showConfirm("Hapus bonus?", "Bonus tambahan ini dihapus dari gaji bulan ini.", async () =>
+                    showAdminError(await adminSalary.deleteBonus(id)),
+                  )
+                }
+              />
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -525,7 +594,7 @@ export default function SalaryView({
                           </span>
                         </td>
                       )}
-                      <td className="px-2 py-2.5 text-right font-mono tabular-nums align-top">{r.qty.toLocaleString("id-ID")}</td>
+                      <td className="px-2 py-2.5 text-right font-mono tabular-nums align-top">{(r.qty ?? 0).toLocaleString("id-ID")}</td>
                       <td className="px-2 py-2.5 text-right font-mono tabular-nums align-top text-zinc-500 dark:text-zinc-400">
                         {r.rate !== undefined ? rupiah(r.rate) : "—"}
                       </td>
@@ -542,6 +611,7 @@ export default function SalaryView({
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         ) : (
           <div className={`${card} hidden md:flex items-center justify-center h-48 text-xs text-zinc-400 dark:text-zinc-600`}>

@@ -13,15 +13,18 @@
 //     tahap produksi terakhir selesai; tarif dipilih menurut tanggal itu.
 //  2. TIM QC    — pool = Σ item (jumlah × (rate QC + rate Packing)) untuk pesanan yang QC-nya
 //     lolos & packing selesai, dibagi RATA ke semua user ber-role `qc`.
-//  3. ADMIN     — bonus per pesanan SELESAI untuk pembuat pesanan (bila ber-role `admin`):
-//     `bonus_admin_closing` + (pcs di atas `batas_pcs_bonus_admin`) × `bonus_admin_per_pcs`.
+//  3. ADMIN     — GAJI BULANAN (seperti menu "Admin & Designer" Sablon, bukan per closing). SEMUA user
+//     ber-role `admin` selalu muncul di tab Admin tiap bulan, walau tidak ada closing. Gaji = gaji
+//     tetap bulanan (berhistori, berlaku sampai diubah) + bonus closing (pesanan yang DIPILIH
+//     sebagai closing admin itu: `bonus_admin_closing` + pcs di atas `batas_pcs_bonus_admin` ×
+//     `bonus_admin_per_pcs`) + bonus tambahan manual.
 //  Rate berhistori: dipilih menurut tanggal (effective_date ≤ tanggal itu), jadi menaikkan harga
 //  hari ini tidak mengubah gaji bulan lalu. Rate yang belum diatur dihitung Rp0 dan muncul sebagai
 //  peringatan. Nominal dibulatkan ke Rupiah utuh dengan metode sisa terbesar.
 
 import type { Order, ProductionStep, ProductionTypeData } from "@/types/order";
 import type { TeamData } from "@/types/team";
-import type { PricingConfig } from "@/types/salary";
+import type { PricingConfig, SalaryBonus, SalaryClosing, SalaryFixed } from "@/types/salary";
 import { completionDate } from "@/lib/orderArchive";
 import { hasRole } from "@/lib/roles";
 import { parseLocalDate, toLocalISODate, typeLabel } from "@/lib/utils";
@@ -70,7 +73,7 @@ export const PARAM_INFO: { key: ParamKey; label: string; unit: string; hint: str
     key: PARAM.adminClosing,
     label: "Bonus admin per closing",
     unit: "Rp",
-    hint: "Diterima admin pembuat pesanan untuk setiap pesanan yang selesai.",
+    hint: "Diterima admin untuk setiap pesanan yang dipilih sebagai closing-nya di menu Gaji → tab Admin.",
   },
   {
     key: PARAM.adminLimit,
@@ -449,7 +452,8 @@ export interface SalaryRow {
   label: string;
   detail: string;
   role?: "PJ" | "Tim";
-  qty: number;
+  /** kosong untuk baris bukan-pesanan (gaji tetap, bonus tambahan) */
+  qty?: number;
   /** rata-rata per pcs untuk orang ini (hanya tampilan) */
   rate?: number;
   amount: number;
@@ -477,6 +481,43 @@ export interface SalaryUserLike {
   roles?: string[] | null;
 }
 
+/** Satu closing admin pada rincian (dipilih manual dari pesanan selesai bulan itu). */
+export interface AdminClosingRow {
+  /** id baris salary_closings (untuk menghapus) */
+  id: number;
+  orderId: string;
+  kode: string;
+  nama: string;
+  qty: number;
+  bonus: number;
+  /** false = pesanan tidak ditemukan / belum selesai / selesai di bulan lain → bonus Rp0 */
+  counted: boolean;
+}
+
+export interface AdminBonusRow {
+  id: number;
+  label: string;
+  amount: number;
+}
+
+/** Gaji bulanan satu admin: gaji tetap + bonus closing + bonus tambahan manual. */
+export interface AdminPerson extends PersonSalary {
+  fixed: number;
+  closingTotal: number;
+  manualTotal: number;
+  closings: AdminClosingRow[];
+  bonuses: AdminBonusRow[];
+}
+
+export interface AdminSalaryData {
+  /** seluruh riwayat gaji tetap */
+  fixed: SalaryFixed[];
+  closings: SalaryClosing[];
+  bonuses: SalaryBonus[];
+}
+
+export const EMPTY_ADMIN_DATA: AdminSalaryData = { fixed: [], closings: [], bonuses: [] };
+
 export interface SalaryReport {
   produksi: Record<string, PersonSalary>;
   qc: {
@@ -488,7 +529,8 @@ export interface SalaryReport {
     orderCount: number;
     qty: number;
   };
-  admin: Record<string, PersonSalary>;
+  /** SEMUA user ber-role admin (juga yang gajinya Rp0) */
+  admin: Record<string, AdminPerson>;
   produksiTotal: number;
   /** 0 bila tidak ada anggota tim QC (uangnya tidak punya penerima) */
   qcTotal: number;
@@ -503,6 +545,8 @@ export interface SalaryInput {
   teams: Pick<TeamData, "id" | "member_ids">[];
   types: ProductionTypeData[];
   configs: PricingConfig[];
+  /** gaji tetap, closing & bonus manual admin (migration 008); kosong = belum dimuat / belum ada */
+  adminData?: AdminSalaryData;
   /** 1–12 */
   month: number;
   year: number;
@@ -552,6 +596,127 @@ const missingText = (missing: string[], types: ProductionTypeData[]) =>
       return `${typeLabel(jenis, types)} · ${stepLabel(step ?? "")}`;
     })
     .join(", ");
+
+/** Gaji tetap yang berlaku pada `dateKey`: baris dengan effective_date terbesar ≤ tanggal itu, seri → id terbesar. */
+export function fixedSalaryAt(fixed: SalaryFixed[], userId: string, dateKey: string): number {
+  let best: SalaryFixed | null = null;
+  for (const r of fixed) {
+    if (r.user_id !== userId || r.effective_date > dateKey) continue;
+    if (
+      !best ||
+      r.effective_date > best.effective_date ||
+      (r.effective_date === best.effective_date && r.id > best.id)
+    ) {
+      best = r;
+    }
+  }
+  const v = best ? Number(best.amount) : 0;
+  return Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
+}
+
+/** Hari terakhir bulan (1–12) sebagai YYYY-MM-DD — tanggal acuan gaji tetap bulan itu. */
+export const monthEndKey = (month: number, year: number) => toLocalISODate(new Date(year, month, 0));
+
+/** Pesanan yang sah dijadikan closing bulan itu: tidak di Sampah, semua tahap selesai, selesai di bulan itu. */
+const closingEligible = (o: Order, month: number, year: number) =>
+  !o.deleted_at && isSelesai(o) && inMonth(selesaiAt(o), month, year);
+
+/**
+ * Pesanan yang masih bisa dipilih sebagai closing bulan itu (belum jadi closing siapa pun),
+ * terurut tanggal selesai, lengkap dengan bonusnya.
+ */
+export function closingCandidates(
+  orders: Order[],
+  closings: SalaryClosing[],
+  configs: PricingConfig[],
+  month: number,
+  year: number,
+): { order: Order; bonus: number }[] {
+  const book = buildRateBook(configs);
+  const taken = new Set(closings.map((c) => c.order_id));
+  return orders
+    .filter((o) => !taken.has(o.id) && closingEligible(o, month, year))
+    .sort((a, b) => selesaiAt(a).getTime() - selesaiAt(b).getTime() || a.kode_produksi.localeCompare(b.kode_produksi))
+    .map((order) => ({ order, bonus: adminBonus(order, book).amount }));
+}
+
+/**
+ * Gaji bulanan SEMUA user ber-role admin. Tidak bergantung pada ada-tidaknya closing: admin tanpa
+ * closing tetap muncul dengan gaji tetap (bisa Rp0 bila gaji tetapnya belum diisi).
+ */
+export function buildAdminSalary(
+  users: SalaryUserLike[],
+  orders: Order[],
+  book: RateBook,
+  data: AdminSalaryData,
+  month: number,
+  year: number,
+): Record<string, AdminPerson> {
+  const out: Record<string, AdminPerson> = {};
+  const periodEnd = monthEndKey(month, year);
+  const live = orders.filter((o) => !o.deleted_at);
+
+  for (const u of users) {
+    if (!hasRole(u, "admin")) continue;
+    const fixed = fixedSalaryAt(data.fixed, u.id, periodEnd);
+
+    const closings: AdminClosingRow[] = data.closings
+      .filter((c) => c.user_id === u.id && c.period_month === month && c.period_year === year)
+      .map((c) => {
+        const o = live.find((x) => x.id === c.order_id);
+        const counted = !!o && closingEligible(o, month, year);
+        return {
+          id: c.id,
+          orderId: c.order_id,
+          kode: o?.kode_produksi ?? "",
+          nama: o?.nama_pemesan ?? "",
+          qty: o?.jumlah ?? 0,
+          bonus: o && counted ? adminBonus(o, book).amount : 0,
+          counted,
+        };
+      })
+      .sort((a, b) => a.id - b.id);
+
+    const bonuses: AdminBonusRow[] = data.bonuses
+      .filter((b) => b.user_id === u.id && b.period_month === month && b.period_year === year)
+      .map((b) => ({ id: b.id, label: b.label, amount: Math.round(Number(b.amount) || 0) }))
+      .sort((a, b) => a.id - b.id);
+
+    const closingTotal = closings.reduce((n, c) => n + c.bonus, 0);
+    const manualTotal = bonuses.reduce((n, b) => n + b.amount, 0);
+    const counted = closings.filter((c) => c.counted);
+
+    const rows: SalaryRow[] = [];
+    if (fixed > 0) rows.push({ orderId: "", kode: "", label: "Gaji tetap", detail: "Gaji bulanan", amount: fixed });
+    for (const c of counted) {
+      rows.push({
+        orderId: c.orderId,
+        kode: c.kode,
+        label: c.nama || c.kode,
+        detail: "Bonus closing",
+        qty: c.qty,
+        amount: c.bonus,
+      });
+    }
+    for (const b of bonuses) {
+      rows.push({ orderId: "", kode: "", label: b.label, detail: "Bonus tambahan", amount: b.amount });
+    }
+
+    out[u.id] = {
+      userId: u.id,
+      total: fixed + closingTotal + manualTotal,
+      qty: counted.reduce((n, c) => n + c.qty, 0),
+      orders: counted.length,
+      rows,
+      fixed,
+      closingTotal,
+      manualTotal,
+      closings,
+      bonuses,
+    };
+  }
+  return out;
+}
 
 export function buildSalaryReport(input: SalaryInput): SalaryReport {
   const { users, teams, types, configs, month, year } = input;
@@ -652,29 +817,8 @@ export function buildSalaryReport(input: SalaryInput): SalaryReport {
     });
   }
 
-  // ── 3. Admin (bonus per pesanan selesai, untuk pembuat pesanan ber-role admin) ──
-  const adminIds = new Set(users.filter((u) => hasRole(u, "admin")).map((u) => u.id));
-  const admin: Record<string, PersonSalary> = {};
-  for (const o of orders) {
-    if (!o.created_by || !adminIds.has(o.created_by)) continue;
-    if (!isSelesai(o) || !inMonth(selesaiAt(o), month, year)) continue;
-    const b = adminBonus(o, book);
-    const p = (admin[o.created_by] ??= emptyPerson(o.created_by));
-    p.total += b.amount;
-    p.qty += o.jumlah || 0;
-    p.orders += 1;
-    p.rows.push({
-      orderId: o.id,
-      kode: o.kode_produksi,
-      label: o.nama_pemesan || o.kode_produksi,
-      detail:
-        b.extraPcs > 0
-          ? `Closing ${rupiah(b.base)} + ${b.extraPcs} pcs di atas ${b.limit} × ${rupiah(b.perPcs)}`
-          : `Closing ${rupiah(b.base)}`,
-      qty: o.jumlah || 0,
-      amount: b.amount,
-    });
-  }
+  // ── 3. Admin: gaji bulanan (gaji tetap + bonus closing pilihan + bonus manual) ──
+  const admin = buildAdminSalary(users, orders, book, input.adminData ?? EMPTY_ADMIN_DATA, month, year);
 
   const sum = (r: Record<string, PersonSalary>) => Object.values(r).reduce((n, p) => n + p.total, 0);
   const noQcMembers = members.length === 0 && poolTotal > 0;
@@ -703,6 +847,31 @@ const migrationMissing = (err: DbError) => {
     /(pricing_configs|salary_payments|mark_salary_paid|unmark_salary_paid).*(schema cache|does not exist|not find)/i.test(msg)
   );
 };
+
+const MIGRATION_HINT_ADMIN =
+  "Tabel gaji admin belum terbaca. Jalankan supabase/migrations/008_admin_salary.sql di SQL Editor Supabase; bila sudah dijalankan, restart PostgREST/Supabase API agar daftar tabel dimuat ulang.";
+
+const adminMigrationMissing = (err: DbError) => {
+  const code = err?.code ?? "";
+  const msg = err?.message ?? "";
+  return (
+    ["42P01", "PGRST205"].includes(code) ||
+    /(salary_fixed|salary_bonus_manual|salary_closings).*(schema cache|does not exist|not find)/i.test(msg)
+  );
+};
+
+/** Pesan galat untuk gaji tetap / closing / bonus manual admin. */
+export function adminSalaryErrorMessage(err: DbError): string {
+  const code = err?.code ?? "";
+  const msg = err?.message ?? "";
+  if (adminMigrationMissing(err)) return MIGRATION_HINT_ADMIN;
+  if (code === "23505") return "Pesanan ini sudah dicatat sebagai closing. Data dimuat ulang.";
+  if (code === "42501" || /row-level security/i.test(msg)) {
+    return "Anda tidak punya izin mengubah gaji admin (butuh izin Gaji & Upah → Edit).";
+  }
+  if (code === "23514") return "Nilai tidak valid: nominal harus bilangan bulat ≥ 0 dan keterangan tidak boleh kosong.";
+  return msg || "Terjadi kesalahan tak dikenal.";
+}
 
 const MIGRATION_HINT =
   "Tabel gaji belum terbaca. Jalankan supabase/migrations/007_pricing_salary.sql di SQL Editor Supabase; bila sudah dijalankan, restart PostgREST/Supabase API agar daftar tabel dimuat ulang.";

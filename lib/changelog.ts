@@ -6,7 +6,7 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.9",
+  version: "V.1.10",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.10",
+    date: "2026-10-19",
+    changes: [
+      "Gaji admin kini bulanan seperti di Sablon: semua user ber-role Admin otomatis muncul di tab Admin menu Gaji & Upah, tanpa perlu ada closing. Gaji = gaji tetap per bulan (berlaku sampai diubah, bulan lalu tidak ikut berubah) + bonus closing + bonus tambahan manual.",
+      "Bonus closing tidak lagi otomatis ke pembuat pesanan: pilih sendiri pesanan selesai bulan itu sebagai closing admin (opsional). Rumus bonus tetap: Rp per closing + Rp per pcs di atas batas pcs (Config Harga).",
+      "Butuh migration 008_admin_salary.sql di Supabase (tabel gaji tetap, closing, bonus manual).",
+    ],
+  },
   {
     version: "1.9",
     date: "2026-10-19",

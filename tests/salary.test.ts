@@ -6,6 +6,9 @@ import {
   PARAM,
   PARAM_DEFAULTS,
   adminBonus,
+  adminSalaryErrorMessage,
+  closingCandidates,
+  fixedSalaryAt,
   allocateRounded,
   buildRateBook,
   buildSalaryReport,
@@ -566,14 +569,134 @@ test("pool QC ganjil: sisa Rupiah tetap terbagi habis & adil di banyak pesanan",
   const r7 = report(orders.slice(0, 7), { users: three });
   assert.equal(sum(r7.qc.members.map((id) => r7.qc.perMember[id].total)), 7 * 400);
 });
-test("bonus admin untuk pembuat pesanan ber-role admin saja", () => {
-  const o1 = makeOrder("a1", { items: [{ jenis: "seragam", qty: 120 }], done: FULL(10, 6), assigned_to: "pj1", created_by: "adm" });
-  const o2 = makeOrder("a2", { done: FULL(10, 7), assigned_to: "pj1", created_by: "spv" }); // supervisor: tak dapat bonus
-  const r = report([o1, o2]);
-  assert.equal(r.admin.adm.total, 10_000 + 70 * 500);
-  assert.equal(r.admin.adm.orders, 1);
+// ─── Gaji admin bulanan (seperti Sablon: gaji tetap + closing pilihan + bonus manual) ─────────────
+console.log("gaji admin bulanan");
+const fx = (id: number, user_id: string, amount: number, effective_date: string) => ({ id, user_id, amount, effective_date });
+const closing = (id: number, user_id: string, order_id: string, month = 10, year = 2026) => ({
+  id,
+  user_id,
+  order_id,
+  period_month: month,
+  period_year: year,
+});
+const bonus = (id: number, user_id: string, label: string, amount: number, month = 10, year = 2026) => ({
+  id,
+  user_id,
+  label,
+  amount,
+  period_month: month,
+  period_year: year,
+});
+const usersTwoAdmins = [...users, { id: "adm2", name: "Gita", role: "produksi", roles: ["produksi", "admin"] }];
+
+test("fixedSalaryAt: riwayat menurut tanggal, seri di tanggal sama → id terbesar, sebelum baris pertama → 0", () => {
+  const rows = [
+    fx(1, "adm", 2_000_000, "2026-01-01"),
+    fx(2, "adm", 2_500_000, "2026-10-01"),
+    fx(3, "adm", 2_600_000, "2026-10-01"), // koreksi di tanggal yang sama
+    fx(4, "adm", 3_000_000, "2026-11-01"),
+    fx(5, "lain", 9_999_999, "2026-01-01"),
+  ];
+  assert.equal(fixedSalaryAt(rows, "adm", "2025-12-31"), 0);
+  assert.equal(fixedSalaryAt(rows, "adm", "2026-09-30"), 2_000_000); // bulan lalu tidak ikut naik
+  assert.equal(fixedSalaryAt(rows, "adm", "2026-10-31"), 2_600_000);
+  assert.equal(fixedSalaryAt(rows, "adm", "2026-11-30"), 3_000_000);
+  assert.equal(fixedSalaryAt(rows, "belum-ada", "2026-10-31"), 0);
+});
+test("admin muncul & digaji bulanan TANPA closing sama sekali (tak perlu close order)", () => {
+  const r = report([], { adminData: { fixed: [fx(1, "adm", 2_500_000, "2026-01-01")], closings: [], bonuses: [] } });
+  assert.deepEqual(Object.keys(r.admin), ["adm"]);
+  assert.equal(r.admin.adm.total, 2_500_000);
+  assert.equal(r.admin.adm.fixed, 2_500_000);
+  assert.equal(r.admin.adm.closingTotal, 0);
+  assert.equal(r.adminTotal, 2_500_000);
+  assert.deepEqual(r.admin.adm.rows.map((x) => [x.label, x.amount]), [["Gaji tetap", 2_500_000]]);
+  assert.equal(r.admin.adm.rows[0].qty, undefined);
+});
+test("semua user ber-role admin tampil (juga yang multi-role); non-admin tidak", () => {
+  const r = report([], { users: usersTwoAdmins });
+  assert.deepEqual(Object.keys(r.admin).sort(), ["adm", "adm2"]);
   assert.equal(r.admin.spv, undefined);
-  assert.equal(r.adminTotal, 45_000);
+});
+test("pembuat pesanan ber-role admin TIDAK lagi otomatis dapat bonus (harus dipilih sebagai closing)", () => {
+  const o = makeOrder("a1", { items: [{ jenis: "seragam", qty: 120 }], done: FULL(10, 6), assigned_to: "pj1", created_by: "adm" });
+  const r = report([o], { adminData: { fixed: [fx(1, "adm", 1_000_000, "2026-01-01")], closings: [], bonuses: [] } });
+  assert.equal(r.admin.adm.total, 1_000_000);
+});
+test("gaji = gaji tetap + bonus closing pilihan + bonus manual; baris slip menjumlah ke total", () => {
+  const o = makeOrder("a1", { items: [{ jenis: "seragam", qty: 120 }], done: FULL(10, 6), assigned_to: "pj1" });
+  const r = report([o], {
+    adminData: {
+      fixed: [fx(1, "adm", 2_000_000, "2026-01-01")],
+      closings: [closing(7, "adm", "a1")],
+      bonuses: [bonus(3, "adm", "Lembur", 150_000), bonus(4, "adm", "Target", 50_000)],
+    },
+  });
+  const a = r.admin.adm;
+  assert.equal(a.closingTotal, 10_000 + 70 * 500); // Rp10.000 + 70 pcs di atas 50 × Rp500
+  assert.equal(a.manualTotal, 200_000);
+  assert.equal(a.total, 2_000_000 + 45_000 + 200_000);
+  assert.equal(a.orders, 1);
+  assert.equal(a.qty, 120);
+  assert.deepEqual(a.closings.map((c) => [c.id, c.kode, c.bonus, c.counted]), [[7, o.kode_produksi, 45_000, true]]);
+  assert.equal(sum(a.rows.map((x) => x.amount)), a.total);
+  assert.equal(r.adminTotal, a.total);
+});
+test("closing yang pesanannya belum selesai / selesai di bulan lain / di Sampah / hilang → Rp0, ditandai tidak dihitung", () => {
+  const sept = makeOrder("s", { done: FULL(9, 10), assigned_to: "pj1" });
+  const unfinished = makeOrder("u", { done: { approval: at(2026, 10, 3) }, assigned_to: "pj1" });
+  const trash = makeOrder("t", { done: FULL(10, 6), assigned_to: "pj1", deleted_at: at(2026, 10, 15) });
+  const r = report([sept, unfinished, trash], {
+    adminData: {
+      fixed: [],
+      closings: [closing(1, "adm", "s"), closing(2, "adm", "u"), closing(3, "adm", "t"), closing(4, "adm", "hilang")],
+      bonuses: [],
+    },
+  });
+  assert.equal(r.admin.adm.closingTotal, 0);
+  assert.equal(r.admin.adm.total, 0);
+  assert.deepEqual(r.admin.adm.closings.map((c) => c.counted), [false, false, false, false]);
+  assert.equal(r.admin.adm.orders, 0);
+  assert.deepEqual(r.admin.adm.rows, []);
+});
+test("closing, bonus manual, dan gaji tetap milik orang/bulan lain tidak tercampur", () => {
+  const o = makeOrder("a1", { done: FULL(10, 6), assigned_to: "pj1" });
+  const r = report([o], {
+    users: usersTwoAdmins,
+    adminData: {
+      fixed: [fx(1, "adm", 1_000_000, "2026-01-01"), fx(2, "adm2", 1_500_000, "2026-01-01")],
+      closings: [closing(1, "adm", "a1"), closing(2, "adm2", "a1", 9)], // yang kedua periode September
+      bonuses: [bonus(1, "adm2", "Bulan lalu", 77_000, 9), bonus(2, "adm2", "Bulan ini", 25_000)],
+    },
+  });
+  assert.equal(r.admin.adm.total, 1_000_000 + 35_000); // 100 pcs → Rp10.000 + 50 × Rp500
+  assert.equal(r.admin.adm2.total, 1_500_000 + 25_000);
+  assert.equal(r.admin.adm2.closings.length, 0);
+  assert.equal(r.adminTotal, r.admin.adm.total + r.admin.adm2.total);
+});
+test("closingCandidates: hanya pesanan selesai bulan ini yang belum jadi closing, terurut tanggal selesai", () => {
+  const a = makeOrder("a", { items: [{ jenis: "seragam", qty: 60 }], done: FULL(10, 8), assigned_to: "pj1" });
+  const b = makeOrder("b", { done: FULL(10, 2), assigned_to: "pj1" });
+  const taken = makeOrder("c", { done: FULL(10, 4), assigned_to: "pj1" });
+  const sept = makeOrder("d", { done: FULL(9, 4), assigned_to: "pj1" });
+  const open = makeOrder("e", { done: { approval: at(2026, 10, 3) }, assigned_to: "pj1" });
+  const trash = makeOrder("f", { done: FULL(10, 5), assigned_to: "pj1", deleted_at: at(2026, 10, 15) });
+  const list = closingCandidates([a, b, taken, sept, open, trash], [closing(1, "adm", "c")], rates, 10, 2026);
+  assert.deepEqual(list.map((x) => x.order.id), ["b", "a"]); // b selesai lebih dulu
+  assert.equal(list[1].bonus, 10_000 + 10 * 500); // 60 pcs → 10 di atas batas
+});
+test("gaji admin yang sudah ditandai lunas tidak ikut berubah bila gaji tetap bulan depan naik", () => {
+  const rows = [fx(1, "adm", 2_000_000, "2026-01-01")];
+  const before = report([], { adminData: { fixed: rows, closings: [], bonuses: [] } }).admin.adm.total;
+  const after = report([], { adminData: { fixed: [...rows, fx(2, "adm", 9_000_000, "2026-11-01")], closings: [], bonuses: [] } }).admin.adm.total;
+  assert.equal(after, before);
+});
+test("pesan galat gaji admin: migration belum dijalankan, closing ganda, tak punya izin", () => {
+  assert.match(adminSalaryErrorMessage({ code: "42P01", message: 'relation "salary_fixed" does not exist' }), /008_admin_salary\.sql/);
+  assert.match(adminSalaryErrorMessage({ code: "PGRST205", message: "Could not find the table 'public.salary_closings' in the schema cache" }), /008_admin_salary\.sql/);
+  assert.match(adminSalaryErrorMessage({ code: "23505", message: "duplicate key" }), /sudah dicatat sebagai closing/);
+  assert.match(adminSalaryErrorMessage({ code: "42501", message: "new row violates row-level security policy" }), /izin/);
+  assert.match(adminSalaryErrorMessage({ code: "23514", message: "check constraint" }), /Nilai tidak valid/);
 });
 test("pesanan di bulan lain tidak ikut; pesanan di Sampah tidak ikut", () => {
   const sept = makeOrder("s", { done: FULL(9, 10), assigned_to: "pj1" });
@@ -671,7 +794,9 @@ test("menaikkan rate hari ini tidak mengubah gaji bulan lalu", () => {
 test("tidak ada pesanan → laporan kosong, tidak error", () => {
   const r = report([]);
   assert.deepEqual(r.produksi, {});
-  assert.deepEqual(r.admin, {});
+  // semua user ber-role admin tetap tampil walau Rp0
+  assert.deepEqual(Object.keys(r.admin), ["adm"]);
+  assert.equal(r.admin.adm.total, 0);
   assert.equal(r.produksiTotal + r.qcTotal + r.adminTotal, 0);
   assert.deepEqual(r.warnings, []);
   assert.equal(r.noQcMembers, false);

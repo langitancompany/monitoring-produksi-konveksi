@@ -4,7 +4,7 @@
 > **baca dokumen ini dulu**, lalu kerjakan bagian berikutnya di tabel *Status*.
 > Perbarui tabel Status dan changelog setiap selesai satu bagian.
 
-Terakhir diperbarui: 19 Oktober 2026 · Versi aplikasi: V.1.8 (Bagian 5 — Config Harga & Gaji — selesai di kode: logika murni teruji 72 uji, tetapi **migration `007` BELUM pernah dijalankan di database mana pun** (tidak ada Postgres di lingkungan pengerjaan) dan layar baru belum dilihat di browser; rincian & daftar uji di §20. Sebelumnya V.1.7 (Bagian 8 — Tim Produksi — selesai di kode; migration `006` sudah diuji di PostgreSQL 16 lokal tetapi **belum dijalankan di Supabase pemilik** dan tampilannya belum dilihat pemilik di browser. Bagian 7 juga masih **belum diuji pemilik** — migration `005` belum dijalankan di Supabase pemilik, Dashboard baru belum dilihat. Bagian 0–4 sudah diuji pemilik di database sungguhan)
+Terakhir diperbarui: 19 Oktober 2026 · Versi aplikasi: V.1.8 (Bagian 5 — Config Harga & Gaji — selesai di kode: logika murni teruji 81 uji, tetapi **migration `007` BELUM pernah dijalankan di database mana pun** (tidak ada Postgres di lingkungan pengerjaan) dan layar baru belum dilihat di browser; rincian & daftar uji di §20. Sebelumnya V.1.7 (Bagian 8 — Tim Produksi — selesai di kode; migration `006` sudah diuji di PostgreSQL 16 lokal tetapi **belum dijalankan di Supabase pemilik** dan tampilannya belum dilihat pemilik di browser. Bagian 7 juga masih **belum diuji pemilik** — migration `005` belum dijalankan di Supabase pemilik, Dashboard baru belum dilihat. Bagian 0–4 sudah diuji pemilik di database sungguhan)
 
 ---
 
@@ -295,6 +295,7 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 
 ## 12. Riwayat
 
+- **V.1.10** — Gaji Admin jadi **bulanan** seperti tab "Admin & Designer" Sablon: semua user ber-role admin tampil tanpa closing; gaji tetap berhistori + bonus closing pilihan + bonus manual; migration `008`. Lihat §20 "Revisi V.1.10".
 - **V.1.9** — Revisi Bagian 5 sesuai jawaban pemilik (19 Okt 2026): gaji produksi = pcs dibagi rata, anggota tarif Jahit & PJ tarif **Gaji PJ** (tanpa 70:30), kolom Potong Kain di Config Harga diganti Gaji PJ, PJ wajib di form. Tanpa migration baru. Lihat §20 "Revisi V.1.9".
 - **V.1.8** — Bagian 5: Config Harga, Gaji & Upah (produksi PJ+tim, pool QC, bonus admin, tandai lunas, slip cetak), PJ di form pesanan, salinan PJ/tim di pesanan, migration `007`, tes `tests/salary.test.ts`.
 - **V.1.7** — Bagian 8: Tim Produksi (Pengaturan → Tim berupa kartu avatar anggota, pilihan Tim di Pesanan Baru & Edit, tampil di Detail Pesanan, log perubahan tim), migration `006`, tes `tests/teams.test.ts`.
@@ -464,7 +465,7 @@ tim QC (`qc`), dan admin (`admin`). Saat **pesanan dibuat**, diisi **PJ (penangg
    (sistem lama 70% PJ : 30% Helper; sistem baru: upah dasar per profesi + bonus).
 2. **Tim QC (tetap, bukan per pesanan):** semua user ber-role `qc` = anggota tim. Pool = total qty semua pesanan yang QC lolos + packing selesai
    × (tarif finishing + packing), **dibagi rata** ke seluruh anggota tim.
-3. **Admin:** bonus per pesanan (Sablon: Rp X per closing + Rp Y per pcs di atas batas pcs; parameter di Config Harga). Memakai pembuat pesanan.
+3. **Admin:** gaji bulanan (sejak V.1.10; mengikuti Sablon): gaji tetap + bonus closing pilihan (Rp X per closing + Rp Y per pcs di atas batas pcs; parameter di Config Harga) + bonus manual.
 4. **Bulan gaji** = bulan tahap terakhir selesai (`completedAt`), bukan bulan pesanan dibuat. **Rate berhistori** (`pricing_configs`, INSERT baru tiap perubahan,
    dipilih menurut `effective_date` ≤ tanggal tahap selesai). Status **lunas** per orang per kategori per bulan (`salary_payments`), slip gaji bisa dicetak.
 
@@ -618,14 +619,14 @@ timnya (konveksi punya tim sendiri-sendiri: tim jahit kaos, tim jahit seragam, d
 - **Config Harga** (`apps/ConfigPriceView.tsx`, tab `config_harga`, ikon `Tags`): matriks jenis produksi × rate (Gaji PJ, Jahit/Produksi | QC, Packing; non-utama hanya Gaji PJ, Jahit & QC), 3 parameter bonus admin, tanggal "Berlaku mulai", riwayat 80 baris terakhir. Simpan = INSERT baris baru hanya untuk sel yang berubah; tanggal mundur meminta konfirmasi.
 - **Gaji & Upah** (`apps/SalaryView.tsx`, tab `salary`, ikon `Wallet`): pilih bulan/tahun; kartu ringkasan; panel peringatan; tiga tab (Produksi · Tim QC · Admin) berisi daftar penerima + rincian per pesanan; tandai/batalkan lunas; cetak slip satu atau banyak (`lib/salaryPrint.tsx` + `SalaryPrintSlip.tsx`, dialog cetak → Simpan sebagai PDF, nama file `SLIP-GAJI-OKTOBER-2026-NAMA`).
 - **PJ di form pesanan** (`orders/PJPicker.tsx`): Pesanan Baru, Edit Pesanan, Detail Pesanan, log "PJ: A → B".
-- **Logika murni** `lib/salary.ts` (rate berhistori, kelayakan, pembagian, laporan bulanan, pesan galat) + **72 uji** `tests/salary.test.ts` (lulus di Asia/Jakarta, UTC, America/New_York, Pacific/Auckland).
+- **Logika murni** `lib/salary.ts` (rate berhistori, kelayakan, pembagian, laporan bulanan, pesan galat) + **81 uji** `tests/salary.test.ts` (lulus di Asia/Jakarta, UTC, America/New_York, Pacific/Auckland).
 - **Migration `007`:** lihat §5 dan §10.
 
 **Rumus (jawaban sementara atas §17):**
 1. **Produksi (direvisi V.1.9):** ~~PJ 70% + sisanya rata~~ → **tidak ada pembagian persen**. Pcs tiap jenis dibagi **rata** ke semua orang (PJ + anggota tim selain PJ). Anggota digaji `pcs ÷ n × rate Jahit/Produksi`; PJ digaji `pcs ÷ n × rate Gaji PJ`. Layak bila **semua** tahap produksi (Potong Kain + Jahit; non-utama: Produksi) selesai; bulan gaji **dan** tanggal pemilihan rate = tanggal tahap produksi **terakhir** selesai. Tanpa tim → PJ menggarap semua pcs; tanpa PJ tapi ada tim → semua anggota memakai tarif anggota + peringatan; tanpa keduanya → tidak dibagikan & muncul peringatan. (§17 no. 2)
 2. **Potong Kain tidak punya rate sendiri (direvisi V.1.9):** yang memotong kain adalah orang yang menjahit, jadi kolom rate Potong Kain di Config Harga **diganti Gaji PJ**. Tahap Potong Kain tetap harus selesai sebelum gaji muncul. (§17 no. 4)
 3. **Tim QC:** pool = Σ item (`jumlah` × (rate QC + rate Packing)) untuk pesanan yang produksinya tuntas + QC lolos + Packing selesai (non-utama: tanpa Packing), dibagi **rata** ke semua user ber-role `qc`. Sisa Rupiah diputar per pesanan agar adil. Pool tanpa anggota QC tidak dihitung sebagai pengeluaran dan diberi peringatan.
-4. **Admin:** bonus per pesanan **selesai** untuk **pembuat pesanan** yang ber-role `admin`: `bonus_admin_closing` (bawaan Rp10.000) + (pcs di atas `batas_pcs_bonus_admin` bawaan 50) × `bonus_admin_per_pcs` (bawaan Rp500). Angka = nilai Sablon (asumsi). Tanpa gaji tetap / bonus manual (§13.2). Bulan = bulan pesanan selesai. (§17 no. 3)
+4. **Admin (direvisi V.1.10):** ~~bonus otomatis ke pembuat pesanan~~ → **gaji bulanan**. SEMUA user ber-role `admin` selalu tampil di tab Admin tiap bulan (tak perlu closing). Gaji = **gaji tetap** (tabel `salary_fixed`, berhistori per tanggal berlaku, berlaku sampai diubah; acuan = hari terakhir bulan, jadi menaikkan gaji tidak mengubah bulan lalu) + **bonus closing** (`salary_closings`: pesanan yang dipilih manual; dihitung hanya bila pesanan tidak di Sampah, semua tahap selesai, dan selesai di bulan itu; `bonus_admin_closing` bawaan Rp10.000 + pcs di atas `batas_pcs_bonus_admin` bawaan 50 × `bonus_admin_per_pcs` bawaan Rp500; satu pesanan hanya untuk satu admin) + **bonus tambahan manual** (`salary_bonus_manual`). Pembayaran tetap `salary_payments` kategori `admin`. Designer (ada di Sablon) belum dimasukkan. (§17 no. 3)
 5. **Non-utama** (Selempang, Permak) **ikut dihitung** dengan rate per jenisnya; rate kosong = Rp0 + peringatan, jadi tinggal tidak diisi bila tidak digaji. Harga permak yang bervariasi per jahitan **belum** dimodelkan (hanya rate per pcs). (§17 no. 5, §11 no. 7)
 6. Semua nominal bulat Rupiah, metode sisa terbesar → jumlah bagian **selalu** = total (diuji).
 
@@ -646,7 +647,7 @@ timnya (konveksi punya tim sendiri-sendiri: tim jahit kaos, tim jahit seragam, d
 - Tanpa notifikasi gaji, tanpa filter gaji per tim, tanpa chip PJ di kartu daftar/Kanban.
 
 **Verifikasi (lingkungan pengerjaan tanpa internet & tanpa Postgres, 19 Okt 2026):**
-- `npx tsx tests/salary.test.ts`: **72 uji lulus** ×4 zona waktu; `tests/teams.test.ts`: 15 uji lulus.
+- `npx tsx tests/salary.test.ts`: **81 uji lulus** ×4 zona waktu; `tests/teams.test.ts`: 15 uji lulus.
 - Cek tipe dengan stub modul pihak ketiga: **tidak ada galat nyata** di `lib/`, `types/`, `hooks/`, `SalaryView`, `ConfigPriceView`, `PJPicker`, `useOrders`, `page.tsx` (galat tersisa hanya artefak stub). **`npm install && npx tsc --noEmit && npm run build && npm run lint` wajib dijalankan di komputer Anda.** Ikon baru `Wallet`, `Tags`, `Printer`, `CheckSquare`, `Square`, `Undo2`, `ChevronLeft` belum diperiksa terhadap paket asli.
 - **Migration `007` TIDAK dijalankan di mana pun** — hanya dibaca ulang manual (tidak ada parser SQL maupun Postgres). Risiko terbesar proyek ini ada di sini; jalankan dulu di database uji / di luar jam kerja (bagian 9 migration mengisi ulang `crew_snapshot` pesanan lama).
 
@@ -655,7 +656,7 @@ timnya (konveksi punya tim sendiri-sendiri: tim jahit kaos, tim jahit seragam, d
 2. Beri akun admin izin **Config Harga (lihat+edit)** dan **Gaji & Upah (lihat+buat+edit)** di Pengaturan → Pengguna. Menu "Config Harga" & "Gaji & Upah" muncul; user tanpa izin tidak melihatnya.
 3. Config Harga: isi rate untuk 1 jenis utama & 1 non-utama → Simpan → muncul di Riwayat. Ubah satu rate lagi → baris lama tetap ada. Coba tanggal mundur (harus minta konfirmasi). Coba persen PJ 150 (ditolak). Sebagai user tanpa edit: kolom terkunci.
 4. Buat pesanan utama baru dengan **PJ + Tim**; selesaikan Approval, Potong, Jahit. Di Supabase: `select crew_snapshot from orders` → terisi PJ + anggota. Lalu **ubah anggota tim** di Pengaturan → `crew_snapshot` pesanan itu **tidak** berubah; menu Gaji tetap membagi ke anggota lama.
-5. Gaji & Upah bulan ini: Produksi menampilkan PJ 70% / tim rata; hitung manual satu pesanan dan cocokkan. Selesaikan QC + Packing → Tim QC terisi, dibagi rata. Selesaikan sampai Selesai → bonus Admin muncul untuk pembuat pesanan.
+5. Gaji & Upah bulan ini: Produksi menampilkan PJ 70% / tim rata; hitung manual satu pesanan dan cocokkan. Selesaikan QC + Packing → Tim QC terisi, dibagi rata. Tab Admin: semua user ber-role Admin tampil; isi gaji tetap, pilih closing & isi bonus manual, cocokkan total.
 6. Pesanan tanpa PJ/tim & pesanan dengan rate kosong muncul di panel peringatan; "Edit pesanan" membuka form lalu Kembali pulang ke Gaji.
 7. QC gagal → pesanan hilang dari gaji produksi sampai Jahit diselesaikan lagi (`crew_snapshot` kosong lalu terisi lagi).
 8. **Tandai lunas** → status Lunas & baris di `salary_audit_log`; tandai lagi dari tab lain (harus pesan "sudah ditandai lunas"); **Batalkan lunas** → hilang + log `BATAL_LUNAS`. Sebagai user tanpa `salary.edit`: tombol tidak ada, dan memanggil fungsinya langsung ditolak.
@@ -671,7 +672,7 @@ timnya (konveksi punya tim sendiri-sendiri: tim jahit kaos, tim jahit seragam, d
 |---|---|---|
 | 1 | Tidak ada 70%/30%; tarif sama, PJ dibedakan sedikit; kolom rate Potong Kain di Config Harga diganti **Gaji PJ** | `lib/salary.ts` (`splitCrew`, `priceProduksi`), `ConfigPriceView`; parameter `pj_share_percent` dihapus dari UI |
 | 2 | Gugur (sudah tercakup no. 1) | Rate Potong = 0 tidak perlu lagi |
-| 3 | Bonus admin Rp10.000/closing + Rp500/pcs di atas 50 pcs, ke pembuat pesanan ber-role admin | Tidak berubah |
+| 3 | Bonus admin Rp10.000/closing + Rp500/pcs di atas 50 pcs | Angka tidak berubah; cara pemberian diganti di V.1.10 (lihat bawah) |
 | 4 | Non-utama ikut digaji per jenis; rate kosong = Rp0 + peringatan | Tidak berubah (Gaji PJ & Jahit berlaku juga di non-utama) |
 | 5 | PJ wajib | `PJPicker` (`required`), `CreateOrder`, `EditOrder`, `useOrders` |
 | 6 | Tandai lunas belum mencatat ke Keuangan | Tidak berubah (menunggu Bagian 6) |
@@ -679,3 +680,21 @@ timnya (konveksi punya tim sendiri-sendiri: tim jahit kaos, tim jahit seragam, d
 **Interpretasi yang saya pakai untuk no. 1 — konfirmasi ke pemilik:** "tarif yang sama" saya artikan *tarif per pcs*, dan **pcs pesanan dibagi rata ke semua orang di tim (PJ ikut dihitung)**, sehingga total gaji = pcs × tarif (bukan pcs × tarif × jumlah orang). Tarif Gaji PJ **menggantikan** tarif Jahit untuk PJ (bukan ditambahkan di atasnya). Bila maksud pemilik berbeda (mis. Gaji PJ = tambahan di atas tarif Jahit, atau tiap anggota digaji penuh per pcs), ubah hanya `splitCrew()` di `lib/salary.ts` dan tesnya.
 
 **Data lama:** baris rate `…:potong_kain` dan `pj_share_percent` di `pricing_configs` tetap ada di riwayat tetapi **tidak dipakai**. Gaji bulan yang belum lunas akan memakai rumus baru; isi **Gaji PJ** untuk tiap jenis produksi dulu, kalau tidak PJ dihitung Rp0 dengan peringatan "Rate belum diatur". Gaji yang sudah ditandai lunas tidak berubah (nominalnya dibekukan), tetapi banner "Angka berubah sejak ditandai lunas" bisa muncul.
+
+### Revisi V.1.10 (19 Okt 2026) — gaji Admin bulanan, mengikuti Sablon
+
+Permintaan pemilik: gaji admin dibuat **sama seperti di Sablon** — semua user ber-role admin muncul di tab Admin dan **tidak harus close order**, karena gaji mereka bulanan.
+
+| Hal | Sablon (`FixedSalaryView`) | Konveksi V.1.10 |
+|---|---|---|
+| Siapa muncul | role admin **dan designer** | semua role **admin** (designer belum — Konveksi belum membahasnya) |
+| Gaji tetap | `salary_fixed`, bisa diubah di hari yang sama | `salary_fixed` **hanya ditambah** (id terbesar menang di tanggal sama), seperti `pricing_configs` |
+| Bonus closing | pilih order selesai bulan itu | sama; satu pesanan hanya untuk satu admin (`unique(order_id)`) |
+| Bonus tambahan | `salary_bonus_manual` | sama |
+| Pembayaran | `salary_fixed_payments` + posting ke Keuangan | `salary_payments` kategori `admin` (sudah ada); posting ke Keuangan menunggu Bagian 6 |
+
+**Perubahan perilaku:** pembuat pesanan ber-role admin **tidak lagi otomatis** dapat bonus; bonus hanya untuk pesanan yang dipilih sebagai closing. Pesanan yang sudah ditandai lunas di versi lama tidak terpengaruh nominalnya, tetapi banner "Angka berubah sejak ditandai lunas" bisa muncul.
+
+**Migration `008_admin_salary.sql`** (belum dijalankan/diuji di Supabase): 3 tabel + RLS (`salary.view` baca, `salary.edit` tambah/hapus; gaji tetap tanpa update/delete). Kode: `lib/salary.ts` (`buildAdminSalary`, `fixedSalaryAt`, `closingCandidates`), `hooks/useAdminSalary.ts`, `AdminSalaryDetail.tsx`.
+
+**Catatan:** perubahan gaji tetap/closing/bonus **setelah** ditandai lunas tidak diblokir; sistem menampilkan banner selisih. Ubah/hapus tidak masuk `salary_audit_log` (hanya tandai/batal lunas yang tercatat) — tambahkan bila pemilik ingin jejak audit.

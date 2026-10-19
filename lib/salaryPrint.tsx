@@ -22,7 +22,7 @@ export interface SlipToPrint {
 const KATEGORI_LABEL: Record<SalaryKategori, string> = {
   produksi: "Produksi (PJ & Tim)",
   qc: "Tim QC & Packing",
-  admin: "Bonus Admin",
+  admin: "Gaji Admin",
 };
 
 const slug = (t: string) =>
@@ -58,7 +58,7 @@ export function printSlips(
             companyAddress={COMPANY.address}
             logoUrl={logoUrl}
             recipientName={s.name}
-            recipientRoleLabel={s.kategori === "qc" ? "Tim QC & Packing" : undefined}
+            recipientRoleLabel={s.kategori === "qc" ? "Tim QC & Packing" : s.kategori === "admin" ? "Admin" : undefined}
             kategoriLabel={KATEGORI_LABEL[s.kategori]}
             periodLabel={periodLabel}
             rows={s.rows}

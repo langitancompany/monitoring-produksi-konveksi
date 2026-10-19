@@ -57,3 +57,33 @@ export interface CrewSnapshot {
   at?: string;
   backfill?: boolean;
 }
+
+/** Gaji tetap bulanan satu orang (tabel salary_fixed, migration 008). Baris hanya ditambah. */
+export interface SalaryFixed {
+  id: number;
+  user_id: string;
+  amount: number;
+  /** YYYY-MM-DD — berlaku mulai tanggal ini sampai ada baris yang lebih baru */
+  effective_date: string;
+}
+
+/** Bonus tambahan manual satu bulan (tabel salary_bonus_manual). */
+export interface SalaryBonus {
+  id: number;
+  user_id: string;
+  /** 1–12 */
+  period_month: number;
+  period_year: number;
+  label: string;
+  amount: number;
+}
+
+/** Pesanan yang dipilih sebagai closing seorang admin pada satu bulan (tabel salary_closings). */
+export interface SalaryClosing {
+  id: number;
+  user_id: string;
+  order_id: string;
+  /** 1–12 */
+  period_month: number;
+  period_year: number;
+}
