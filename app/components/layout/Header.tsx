@@ -210,6 +210,7 @@ export default function Header({
     meeting_notes: "Catatan Rapat",
     salary: "Gaji & Upah",
     config_harga: "Config Harga",
+    keuangan: "Keuangan",
     logs: "Log Aktivitas",
     trash: "Sampah",
     settings: "Pengaturan",

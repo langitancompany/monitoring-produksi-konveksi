@@ -6,7 +6,7 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.10",
+  version: "V.1.13",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
@@ -20,6 +20,32 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.13",
+    date: "2026-10-19",
+    changes: [
+      "Keuangan langkah 6.3 (Pembayaran): mesin pembayaran sudah ada di database dan API — catat DP/cicilan/pelunasan/refund, verifikasi atau tolak, dan void (koreksi) dengan alasan. Transaksi tidak pernah dihapus. Layarnya menyusul di langkah 6.4.",
+      "Aturan uang dijaga database: bukti wajib untuk transfer/QRIS, pembayaran tidak boleh melebihi tagihan, refund tidak boleh melebihi uang masuk, dan revisi tagihan tidak boleh menurunkan total di bawah uang yang sudah terverifikasi. Status tagihan (Belum Bayar, DP, Lunas, Kelebihan Bayar) kini dihitung dari pembayaran.",
+      "Butuh migration 011_finance_payments.sql di Supabase (setelah 010). Migration ini juga membuat bucket privat finance-proofs untuk bukti pembayaran.",
+    ],
+  },
+  {
+    version: "1.12",
+    date: "2026-10-19",
+    changes: [
+      "Keuangan langkah 6.2 (Tagihan): mesin tagihan per pesanan sudah ada di database dan API — tagihan dihitung dari baris item pesanan × harga per pcs, bisa direvisi (wajib beralasan), versi lama tersimpan, dan tidak bisa diubah atau dihapus. Layar untuk menerbitkan tagihan menyusul di langkah 6.4.",
+      "Pesanan yang sudah punya tagihan tidak bisa dihapus permanen dari Sampah (tetap boleh disimpan di Sampah).",
+      "Butuh migration 010_finance_invoices.sql di Supabase (setelah 009).",
+    ],
+  },
+  {
+    version: "1.11",
+    date: "2026-10-19",
+    changes: [
+      "Menu Keuangan mulai dibangun bertahap. Langkah 6.1 (fondasi): akun kas/bank, kategori pengeluaran, pengaturan, dan log audit yang tidak bisa diubah. Menu Keuangan tampil untuk user yang punya izin Keuangan → Lihat; isinya baru ringkasan fondasi.",
+      "Butuh migration 009_finance_foundation.sql di Supabase. Akun, kategori, dan pengaturan awalnya adalah nilai bawaan — sesuaikan sebelum dipakai sungguhan.",
+    ],
+  },
   {
     version: "1.10",
     date: "2026-10-19",

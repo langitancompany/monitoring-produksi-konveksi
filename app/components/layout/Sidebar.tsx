@@ -17,6 +17,7 @@ import {
   Trash2,
   Wallet,
   Tags,
+  Landmark,
 } from "lucide-react";
 import { UserData } from "@/types";
 import { APP_INFO } from "@/lib/changelog";
@@ -104,6 +105,17 @@ export default function Sidebar({
           label: "Config Harga",
           icon: Tags,
           visible: p?.config_harga?.view,
+        },
+      ],
+    },
+    {
+      title: "KEUANGAN",
+      items: [
+        {
+          id: "keuangan",
+          label: "Keuangan",
+          icon: Landmark,
+          visible: p?.keuangan?.view,
         },
       ],
     },

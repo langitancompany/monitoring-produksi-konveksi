@@ -13,6 +13,7 @@ export const VALID_TABS = [
   "meeting_notes",
   "salary",
   "config_harga",
+  "keuangan",
   "logs",
   "trash",
   "settings",

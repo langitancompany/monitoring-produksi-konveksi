@@ -104,6 +104,10 @@ const ConfigPriceView = dynamic(
   () => import("@/app/components/apps/ConfigPriceView"),
   { loading: Spinner },
 );
+const FinanceModule = dynamic(
+  () => import("@/app/components/finance/FinanceModule"),
+  { loading: Spinner },
+);
 
 type OrderView = "list" | "detail" | "create" | "edit";
 const isOrderView = (v: string | null): v is OrderView =>
@@ -631,6 +635,8 @@ export default function KonveksiApp() {
                 showConfirm={showConfirm}
               />
             )}
+
+            {activeTab === "keuangan" && p?.keuangan?.view && <FinanceModule />}
 
             {activeTab === "logs" && p?.logs?.view && (
               <ActivityLogView

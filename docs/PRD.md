@@ -4,7 +4,7 @@
 > **baca dokumen ini dulu**, lalu kerjakan bagian berikutnya di tabel *Status*.
 > Perbarui tabel Status dan changelog setiap selesai satu bagian.
 
-Terakhir diperbarui: 19 Oktober 2026 · Versi aplikasi: V.1.8 (Bagian 5 — Config Harga & Gaji — selesai di kode: logika murni teruji 81 uji, tetapi **migration `007` BELUM pernah dijalankan di database mana pun** (tidak ada Postgres di lingkungan pengerjaan) dan layar baru belum dilihat di browser; rincian & daftar uji di §20. Sebelumnya V.1.7 (Bagian 8 — Tim Produksi — selesai di kode; migration `006` sudah diuji di PostgreSQL 16 lokal tetapi **belum dijalankan di Supabase pemilik** dan tampilannya belum dilihat pemilik di browser. Bagian 7 juga masih **belum diuji pemilik** — migration `005` belum dijalankan di Supabase pemilik, Dashboard baru belum dilihat. Bagian 0–4 sudah diuji pemilik di database sungguhan)
+Terakhir diperbarui: 19 Oktober 2026 · Versi aplikasi: V.1.8 (Bagian 5 — Config Harga & Gaji — selesai di kode: logika murni teruji 81 uji (+15 uji keuangan), tetapi **migration `007` BELUM pernah dijalankan di database mana pun** (tidak ada Postgres di lingkungan pengerjaan) dan layar baru belum dilihat di browser; rincian & daftar uji di §20. Sebelumnya V.1.7 (Bagian 8 — Tim Produksi — selesai di kode; migration `006` sudah diuji di PostgreSQL 16 lokal tetapi **belum dijalankan di Supabase pemilik** dan tampilannya belum dilihat pemilik di browser. Bagian 7 juga masih **belum diuji pemilik** — migration `005` belum dijalankan di Supabase pemilik, Dashboard baru belum dilihat. Bagian 0–4 sudah diuji pemilik di database sungguhan)
 
 ---
 
@@ -40,11 +40,11 @@ dan **Pesanan Non-Utama**.
 | 3 | Arsip & pemantauan | Pesanan Selesai, Sampah (pulihkan / hapus permanen + file), Log Aktivitas, Kalender + migration `003` | ✅ selesai, sudah diuji pemilik di database sungguhan (18 Okt 2026) |
 | 4 | Catatan Rapat | Catatan per pesanan di kartu 02/03/04 + menu rekap mingguan (ikuti Sablon) + migration `004` | ✅ selesai, sudah diuji pemilik di database & browser (18 Okt 2026) |
 | 5 | Config Harga & Gaji | Menu Config Harga (rate per jenis × tahap, parameter PJ/bonus admin, riwayat), menu Gaji & Upah (produksi PJ+tim, pool QC, bonus admin, tandai lunas, slip cetak), PJ di form pesanan, salinan PJ/tim di pesanan, migration `007` | ✅ selesai di kode, logika teruji; **migration `007` & semua layar belum diuji** di Supabase/browser pemilik. Jawaban §17 diganti **asumsi bawaan yang bisa diubah di Config Harga** — rincian di §20 |
-| 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon) | ⬜ |
+| 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon). **Dibangun bertahap, 8 langkah (6.1–6.8)** — rencana & status tiap langkah di §21 | 🟡 **6.1–6.3 selesai di kode** (migration `009`–`011` diuji di Postgres lokal, belum di Supabase/browser pemilik); 6.4–6.8 belum |
 | 7 | Dashboard & finishing | Dashboard ringkasan, tampilan Kanban, pengetatan RLS, rapikan lint | ✅ selesai di kode, **belum diuji** (migration `005`, Dashboard di browser) — rincian & sisa pekerjaan di §18 |
 | 8 | Tim Produksi | Pengaturan → Tim (kartu + avatar anggota), pilihan Tim di Pesanan Baru/Edit, tampil di Detail Pesanan, migration `006` | ✅ selesai di kode, migration diuji di Postgres lokal, **belum diuji** di Supabase & browser pemilik — rincian di §19 |
 
-Urutan berikutnya: **Bagian 6 (Keuangan)** — masih terblokir bahan dari Sablon (lihat §18 "Berikutnya"). Pekerjaan dibagi per bagian **sengaja** (batas token). Selesaikan satu bagian
+Urutan berikutnya: **Bagian 6 (Keuangan), langkah 6.4 (layar Tagihan & Pembayaran)** — lihat §21. (Sempat terblokir karena DDL Sablon `001`–`009` tidak ada; diatasi dengan merancang skema Konveksi sendiri dari tipe TypeScript & pemanggilan API Sablon — rincian di §21.) Pekerjaan dibagi per bagian **sengaja** (batas token). Selesaikan satu bagian
 penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 
 ---
@@ -295,6 +295,9 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 
 ## 12. Riwayat
 
+- **V.1.13** — Bagian 6 langkah 6.3: pembayaran (migration `011`, `payments.ts`, `/api/finance/payments/*`, bucket `finance-proofs`). Lihat §21.6.
+- **V.1.12** — Bagian 6 langkah 6.2: tagihan (migration `010`, `pricing.ts`, `/api/finance/invoices`, `/api/finance/orders/[orderId]`). Lihat §21.5.
+- **V.1.11** — Bagian 6 langkah 6.1: fondasi Keuangan (migration `009`, `lib/finance/*`, `/api/finance/meta`, menu Keuangan versi awal, `tests/finance.test.ts`). Lihat §21.
 - **V.1.10** — Gaji Admin jadi **bulanan** seperti tab "Admin & Designer" Sablon: semua user ber-role admin tampil tanpa closing; gaji tetap berhistori + bonus closing pilihan + bonus manual; migration `008`. Lihat §20 "Revisi V.1.10".
 - **V.1.9** — Revisi Bagian 5 sesuai jawaban pemilik (19 Okt 2026): gaji produksi = pcs dibagi rata, anggota tarif Jahit & PJ tarif **Gaji PJ** (tanpa 70:30), kolom Potong Kain di Config Harga diganti Gaji PJ, PJ wajib di form. Tanpa migration baru. Lihat §20 "Revisi V.1.9".
 - **V.1.8** — Bagian 5: Config Harga, Gaji & Upah (produksi PJ+tim, pool QC, bonus admin, tandai lunas, slip cetak), PJ di form pesanan, salinan PJ/tim di pesanan, migration `007`, tes `tests/salary.test.ts`.
@@ -619,7 +622,7 @@ timnya (konveksi punya tim sendiri-sendiri: tim jahit kaos, tim jahit seragam, d
 - **Config Harga** (`apps/ConfigPriceView.tsx`, tab `config_harga`, ikon `Tags`): matriks jenis produksi × rate (Gaji PJ, Jahit/Produksi | QC, Packing; non-utama hanya Gaji PJ, Jahit & QC), 3 parameter bonus admin, tanggal "Berlaku mulai", riwayat 80 baris terakhir. Simpan = INSERT baris baru hanya untuk sel yang berubah; tanggal mundur meminta konfirmasi.
 - **Gaji & Upah** (`apps/SalaryView.tsx`, tab `salary`, ikon `Wallet`): pilih bulan/tahun; kartu ringkasan; panel peringatan; tiga tab (Produksi · Tim QC · Admin) berisi daftar penerima + rincian per pesanan; tandai/batalkan lunas; cetak slip satu atau banyak (`lib/salaryPrint.tsx` + `SalaryPrintSlip.tsx`, dialog cetak → Simpan sebagai PDF, nama file `SLIP-GAJI-OKTOBER-2026-NAMA`).
 - **PJ di form pesanan** (`orders/PJPicker.tsx`): Pesanan Baru, Edit Pesanan, Detail Pesanan, log "PJ: A → B".
-- **Logika murni** `lib/salary.ts` (rate berhistori, kelayakan, pembagian, laporan bulanan, pesan galat) + **81 uji** `tests/salary.test.ts` (lulus di Asia/Jakarta, UTC, America/New_York, Pacific/Auckland).
+- **Logika murni** `lib/salary.ts` (rate berhistori, kelayakan, pembagian, laporan bulanan, pesan galat) + **81 uji (+15 uji keuangan)** `tests/salary.test.ts` (lulus di Asia/Jakarta, UTC, America/New_York, Pacific/Auckland).
 - **Migration `007`:** lihat §5 dan §10.
 
 **Rumus (jawaban sementara atas §17):**
@@ -647,7 +650,7 @@ timnya (konveksi punya tim sendiri-sendiri: tim jahit kaos, tim jahit seragam, d
 - Tanpa notifikasi gaji, tanpa filter gaji per tim, tanpa chip PJ di kartu daftar/Kanban.
 
 **Verifikasi (lingkungan pengerjaan tanpa internet & tanpa Postgres, 19 Okt 2026):**
-- `npx tsx tests/salary.test.ts`: **81 uji lulus** ×4 zona waktu; `tests/teams.test.ts`: 15 uji lulus.
+- `npx tsx tests/salary.test.ts`: **81 uji (+15 uji keuangan) lulus** ×4 zona waktu; `tests/teams.test.ts`: 15 uji lulus.
 - Cek tipe dengan stub modul pihak ketiga: **tidak ada galat nyata** di `lib/`, `types/`, `hooks/`, `SalaryView`, `ConfigPriceView`, `PJPicker`, `useOrders`, `page.tsx` (galat tersisa hanya artefak stub). **`npm install && npx tsc --noEmit && npm run build && npm run lint` wajib dijalankan di komputer Anda.** Ikon baru `Wallet`, `Tags`, `Printer`, `CheckSquare`, `Square`, `Undo2`, `ChevronLeft` belum diperiksa terhadap paket asli.
 - **Migration `007` TIDAK dijalankan di mana pun** — hanya dibaca ulang manual (tidak ada parser SQL maupun Postgres). Risiko terbesar proyek ini ada di sini; jalankan dulu di database uji / di luar jam kerja (bagian 9 migration mengisi ulang `crew_snapshot` pesanan lama).
 
@@ -698,3 +701,77 @@ Permintaan pemilik: gaji admin dibuat **sama seperti di Sablon** — semua user 
 **Migration `008_admin_salary.sql`** (belum dijalankan/diuji di Supabase): 3 tabel + RLS (`salary.view` baca, `salary.edit` tambah/hapus; gaji tetap tanpa update/delete). Kode: `lib/salary.ts` (`buildAdminSalary`, `fixedSalaryAt`, `closingCandidates`), `hooks/useAdminSalary.ts`, `AdminSalaryDetail.tsx`.
 
 **Catatan:** perubahan gaji tetap/closing/bonus **setelah** ditandai lunas tidak diblokir; sistem menampilkan banner selisih. Ubah/hapus tidak masuk `salary_audit_log` (hanya tandai/batal lunas yang tercatat) — tambahkan bila pemilik ingin jejak audit.
+
+## 21. Bagian 6 — Keuangan, dibangun BERTAHAP (mulai V.1.11)
+
+Modul Keuangan Sablon sekitar **8.300 baris** (31 komponen, 25 API route, ~20 tabel/view/fungsi), terlalu besar untuk satu giliran. Maka dibagi **8 langkah**; tiap langkah harus selesai penuh (kode + `npx tsc --noEmit` + tes + changelog + tabel ini) dan **dijalankan/diuji pemilik** sebelum langkah berikutnya. Jangan loncat langkah.
+
+### 21.1 Keadaan bahan dari Sablon (baca dulu)
+- Zip Sablon terbaru berisi kode lengkap `app/components/finance/*`, `app/api/finance/*`, `lib/finance/*`, `hooks/useFinanceApi.ts`, tetapi **DDL-nya tetap tidak ada**: hanya `supabase/migrations/010_finance_salary_posting.sql` (+ `011`, `012` yang bukan keuangan). Definisi tabel `finance_*`, view `v_*`, fungsi `fin_*` (kecuali `fin_post_salary`/`fin_unpost_salary` di `010`), trigger penjaga, dan data seed **tidak ada**.
+- Karena itu skema Konveksi **dirancang sendiri** dari: (a) tipe TypeScript `lib/finance/types.ts` Sablon, (b) nama & parameter pemanggilan `.rpc('fin_*')` di API route Sablon, (c) fungsi `010`. Nama tabel/kolom/fungsi sengaja dibuat **sama** dengan Sablon agar kode UI Sablon bisa disalin. Detail perilaku fungsi (mis. aturan verifikasi, kelebihan bayar, nomor `EXP-YYMM-nnnnn`) ditulis ulang oleh kita — bila perilaku Sablon berbeda, itu perbedaan sah yang perlu dikonfirmasi pemilik.
+- **Seed (akun, kategori, pengaturan) = ASUMSI BAWAAN**, bukan salinan Sablon. Pemilik perlu menyesuaikan di Supabase.
+
+### 21.2 Perbedaan Konveksi vs Sablon (berlaku semua langkah)
+| Hal | Sablon | Konveksi |
+|---|---|---|
+| Role penuh | `super_admin` | `supervisor` (`resolveFinanceCaps`) |
+| Dasar tagihan | harga dasar + biaya ukuran besar + biaya lengan panjang (`detail_ukuran`) | **baris item** `orders.items` (jenis × jumlah × harga per pcs) + diskon; rincian disimpan di `pricing_snapshot` (jsonb) |
+| Jenis gaji ke Keuangan | `manual`, `qc`, `tetap` | `produksi`, `qc`, `admin` (kategori `salary_payments`) — dikerjakan di 6.8 |
+| Schema database | `monitoring_sablon` | `monitoring_konveksi` |
+| Akses tabel uang | service role lewat API | sama: **tanpa grant & policy untuk browser** |
+
+### 21.3 Rencana langkah
+| Langkah | Isi | Acuan Sablon | Status |
+|---|---|---|---|
+| **6.1** Fondasi | `finance_settings`, `finance_accounts`, `finance_categories`, `finance_audit_log` (append-only), `fin_audit()`, seed; `lib/finance/{caps,validate,server,types}.ts`, `GET /api/finance/meta`, `hooks/useFinanceApi.ts`, menu Keuangan versi awal; migration `009` | `lib/finance/caps.ts`, `server.ts`, `types.ts` | ✅ kode selesai, SQL diuji lokal; **belum dijalankan di Supabase** |
+| **6.2** Tagihan | `order_invoices` (versi: terbit/revisi, `superseded`), `fin_issue_invoice`, view `v_order_finance` (status DIHITUNG database: Belum Ditagih/Belum Bayar/DP/Lunas/Kelebihan Bayar), `lib/finance/pricing.ts` versi item konveksi, `GET/POST /api/finance/invoices`, `GET /api/finance/orders/[orderId]`, tes hitung tagihan | `app/api/finance/invoices`, `orders/[orderId]`, `lib/finance/pricing.ts` | ✅ kode selesai, SQL diuji lokal; **belum dijalankan di Supabase** — rincian §21.5 |
+| **6.3** Pembayaran | `order_payments` (DP/cicilan/pelunasan/refund; pending→verified/rejected/void), `fin_record_payment`, `fin_verify_payment`, `fin_void_payment`, bucket bukti `finance-proofs`, API `payments/*`, aturan pencatat ≠ pemverifikasi, kelebihan bayar, kunci kolom pembayaran di `orders` | `app/api/finance/payments/*`, `lib/finance/imageUtil.ts` | ✅ kode selesai (database & API), SQL diuji lokal; **belum dijalankan di Supabase** — rincian §21.6. `imageUtil.ts` (kompres gambar di browser) ikut 6.4 bersama form |
+| **6.4** Layar Tagihan & Pembayaran | `FinanceModule` bertab, `InvoicesTab`, `PaymentsTab`, `OrderFinancePanel`, `RecordPaymentModal`, `InvoiceModal`, komponen UI bersama | `app/components/finance/*` (bagian ini) | ⬜ |
+| **6.5** Pengeluaran | `finance_vendors`, `finance_expenses` (+ `finance_expense_seq`, unik `source,source_ref`), `fin_record_expense`, `fin_decide_expense`, `fin_void_expense`, API, `ExpensesTab`, form pengeluaran | `app/api/finance/expenses/*`, `vendors`, `expense-meta`, `ExpensesTab`, `RecordExpenseModal` | ⬜ |
+| **6.6** Ringkasan, Laporan, Audit, Panduan | view `v_receivable_aging` / `v_cashbook` / `v_account_balances`, `overview`, `report`, `audit` API, `OverviewTab`, `ReportTab`, `AuditTab`, `GuideTab` + `todo` | `overview`, `report`, `audit`, `todo` routes + tab terkait | ⬜ |
+| **6.7** Dokumen invoice | `invoice_settings`, `InvoiceDocument` (cetak/PDF), `InvoiceShareModal`, ekspor Excel + `export-log` | `invoiceDoc.ts`, `invoiceSettings.ts`, `InvoiceDocument/Modal/ShareModal`, `SettingsTab` | ⬜ |
+| **6.8** Sambungan & penutup | `fin_post_salary`/`fin_unpost_salary` versi Konveksi + sambung tombol "Tandai lunas" di Gaji (PRD §20 butir 7), `finance_transfers`, `finance_periods` (tutup/buka periode), `fin_purge_order`, layar Pengaturan Keuangan (ubah `finance_settings`, akun, kategori) | `010_finance_salary_posting.sql`, `salary/post|unpost`, `lib/finance/salaryClient.ts`, `salaryGuard.ts`, `purge` | ⬜ |
+
+### 21.4 Hasil langkah 6.1 (V.1.11)
+- **Migration `009_finance_foundation.sql`** — 4 tabel + `fin_audit()` + seed. Browser (`anon`/`authenticated`) **tanpa akses apa pun** ke tabel ini; hanya `service_role` (server). Log audit: server hanya boleh `select`/`insert`; trigger menolak `update`/`delete`/`truncate` bahkan untuk pemilik tabel. `fin_audit()` hanya bisa dipanggil `service_role`. Aman dijalankan ulang.
+- **Diuji di Postgres 16 lokal** (stub Supabase minimal: role `anon/authenticated/service_role`, `auth.uid()`), migration `001`–`009` berurutan tanpa galat, `009` dijalankan dua kali; juga **perilaku `008`** (belum pernah diuji sebelumnya): gaji tetap tak bisa diubah/dihapus, `created_by` tak bisa dipalsukan, user tanpa izin tak bisa menulis, closing unik per pesanan, hapus pesanan ikut menghapus closing. **Belum diuji di Supabase asli dan browser pemilik.**
+- **Kode:** `lib/finance/validate.ts` (fungsi murni: `isUuid/isMoney/isDate/todayWib/sniffProof/parseSettings/finError`), `caps.ts` (`resolveFinanceCaps`, supervisor = penuh), `server.ts` (`requireFinance`, `finFail` — galat berawalan `FIN:` diteruskan 422, lainnya disamarkan 500, tabel hilang → 503 `MIGRATION_MISSING`), `types.ts`, `GET /api/finance/meta`, `hooks/useFinanceApi.ts`, `FinanceModule.tsx` (versi awal: daftar langkah, akun, kategori, pengaturan), menu **Keuangan** (muncul bila `keuangan.view`), `tests/finance.test.ts` (15 uji).
+- **Yang perlu dilakukan pemilik sebelum 6.2:** (1) jalankan `009` di SQL Editor Supabase; (2) beri diri sendiri/staf izin **Keuangan → Lihat** di Pengaturan → Pengguna (supervisor otomatis); (3) buka menu Keuangan — harus muncul 2 akun, 6 kategori, 7 pengaturan; (4) sesuaikan akun/kategori/pengaturan (SQL Editor: tabel `finance_accounts`, `finance_categories`, `finance_settings`) — terutama **nama akun kas/bank yang sebenarnya**.
+- **Pertanyaan untuk pemilik (jawab sebelum 6.2/6.3):** (a) apakah tagihan konveksi harga per pcs per jenis item, atau ada harga tetap per paket/seragam? (b) apakah DP wajib sebelum produksi dimulai, atau hanya dicatat? (c) apakah pencatat pembayaran dan pemverifikasi harus orang berbeda (`require_separate_verifier`)? (d) apakah ada lebih dari satu rekening/e-wallet?
+
+### 21.5 Hasil langkah 6.2 (V.1.12) — Tagihan
+
+**Asumsi bawaan yang dipakai** (empat pertanyaan di §21.4 belum dijawab pemilik; ubah bila jawabannya berbeda):
+(a) tagihan = **harga per pcs untuk tiap baris item** (`orders.items`) − diskon, tanpa harga paket; (b) DP **tidak** wajib sebelum produksi (hanya dicatat di 6.3); (c) `require_separate_verifier` = `false`; (d) dua akun (KAS, BANK).
+
+**Migration `010_finance_invoices.sql`** (butuh `009`):
+- `order_invoices` — satu baris per versi tagihan. `pricing_snapshot` membekukan rincian `[{item_id, jenis_produksi, nama, jumlah, harga_per_pcs, subtotal}]`. Satu pesanan hanya boleh punya **satu** tagihan `active` (indeks unik parsial); `check (total = subtotal − discount)`. Trigger menolak hapus/truncate dan semua ubah kecuali `active → superseded` (tidak ada kolom lain yang boleh ikut berubah). Browser tanpa akses; server (`service_role`) hanya `select` — tulis hanya lewat fungsi.
+- `fin_issue_invoice(p_order, p_actor, p_actor_name, p_prices jsonb, p_discount, p_reason, p_due_date)` — **total dihitung di database** dari `orders.items` (jumlah dibaca dari pesanan, bukan dari browser) × `p_prices` (`{id item: harga}`). Menolak: harga tidak ada/nol/pecahan/berupa teks; harga untuk item yang tidak ada (rincian pesanan berubah); diskon negatif atau ≥ subtotal; jatuh tempo sebelum tanggal masuk; pesanan tanpa item; **revisi tanpa alasan**. Revisi menaikkan `version`, menandai versi lama `superseded`, dan menulis audit `invoice.issue` / `invoice.revise` (sebelum/sesudah + alasan) dalam transaksi yang sama. Pesanan dikunci (`for update`) agar dua penerbitan bersamaan tidak menghasilkan dua tagihan aktif.
+- `v_order_finance` — posisi keuangan per pesanan (tanpa pesanan di Sampah). `payment_status`: `Belum Ditagih` (tanpa tagihan aktif) / `Belum Bayar`. Kolom `paid_verified`, `paid_pending`, `overpaid` **sementara 0**; **langkah 6.3 menggantinya dengan `create or replace view`** (kolom, urutan, dan tipe harus tetap sama) supaya `DP`/`Lunas`/`Kelebihan Bayar` dihitung dari pembayaran.
+- Penjaga hapus: trigger `trg_fin_block_order_delete` membuat **hapus permanen pesanan yang sudah ber-tagihan ditolak** dengan pesan yang bisa dibaca (Sampah tetap boleh). Pembersihan data keuangan pesanan (`fin_purge_order`) baru ada di 6.8.
+- ~~Untuk 6.3: `fin_issue_invoice` perlu diganti…~~ **Sudah dikerjakan di `011`.**
+
+**Kode:** `lib/finance/pricing.ts` (`calcInvoice`, `invoiceIsStale` — aturan sama dengan fungsi SQL; dipakai pratinjau form di 6.4 dan pemeriksaan awal API), tipe tagihan di `types.ts`, `GET/POST /api/finance/invoices` (POST: izin `keuangan.create`; ada pemeriksaan awal + konfirmasi `PCS_MISMATCH` bila jumlah pesanan ≠ Σ item; total yang dikembalikan = angka tersimpan di database), `GET /api/finance/orders/[orderId]` (posisi keuangan, riwayat tagihan, `invoice_stale`, `payments: []` sampai 6.3).
+
+**Diuji di Postgres 16 lokal** (stub Supabase): `010` berjalan setelah `001`–`009` dan aman diulang; terbit (total Rp11.000.000 dari 100×85.000 + 50×60.000 − 500.000, cocok dengan `calcInvoice`); 12 jenis penolakan menghasilkan pesan `FIN:` yang benar; revisi menghasilkan versi 2 dan hanya satu tagihan aktif; audit mencatat sebelum/sesudah dan alasan; ubah/hapus/truncate tagihan ditolak; `authenticated` ditolak pada tabel, view, dan fungsi; hapus permanen pesanan ber-tagihan ditolak, tanpa tagihan lolos. `tests/finance.test.ts` = 24 uji. **Belum diuji di Supabase asli dan browser pemilik; layar belum ada (6.4).**
+
+**Yang perlu dilakukan pemilik:** jalankan `010` di SQL Editor (setelah `009`). Layar baru muncul di 6.4, jadi pemeriksaan sementara lewat SQL Editor: `select * from monitoring_konveksi.v_order_finance limit 5;` — harus terbaca, semua `Belum Ditagih`.
+
+### 21.6 Hasil langkah 6.3 (V.1.13) — Pembayaran
+
+**Migration `011_finance_payments.sql`** (butuh `010`; aman diulang; diuji dua kali berturut-turut):
+- `order_payments` — satu baris per transaksi: `kind` (`dp`/`cicilan`/`pelunasan`/`refund`), `amount`, `paid_at`, `method` (`transfer`/`tunai`/`qris`/`lainnya`), `account_id`, referensi, nama pembayar, catatan, `proof_path`, `status` (`pending`→`verified`/`rejected`, lalu `pending`/`verified`→`void`) beserta siapa/kapan/mengapa tiap perubahan. `check` memastikan status `verified`/`rejected`/`void` selalu punya bukti prosesnya. **Trigger penjaga:** tidak bisa dihapus/truncate; yang boleh berubah hanya kolom proses dan hanya lewat alur status yang sah; transaksi `rejected`/`void` sudah final. Browser tanpa akses; server hanya `select`.
+- `fin_record_payment` — aturan: pesanan harus **sudah punya tagihan aktif**; nominal 1…Rp100 miliar; akun harus aktif; tanggal bayar tidak boleh di masa depan (WIB); **bukti wajib untuk non-tunai** bila `require_proof_non_cash`; path bukti harus berawalan id pesanan itu; **tidak boleh melebihi sisa tagihan** (terverifikasi + menunggu) kecuali `allow_overpayment`; **jenis ditentukan database** dari sisa tagihan (DP bila pertama, cicilan, pelunasan bila menutup sisa) — klien hanya boleh mengirim `refund`; **refund ≤ uang terverifikasi yang tersisa** dan **tidak pernah auto-verifikasi**. Pesanan dikunci (`for update`) sehingga dua pencatatan bersamaan tak bisa sama-sama lolos cek kelebihan.
+- `fin_verify_payment` — hanya dari `pending`; tolak **wajib beralasan**; bila `require_separate_verifier` aktif, pencatat tidak boleh memverifikasi miliknya sendiri (**supervisor dikecualikan**, mengikuti parameter `p_is_super_admin` di Sablon — konfirmasi ke pemilik bila ingin tanpa pengecualian); **pemeriksaan ulang saat verifikasi** (tagihan mungkin sudah direvisi turun atau pembayaran lain sudah terverifikasi) sehingga total terverifikasi tak pernah melewati tagihan.
+- `fin_void_payment` — alasan wajib (≥ 3 karakter); hanya `pending`/`verified`.
+- `v_order_finance` **diganti** (kolom/urutan/tipe sama dengan `010`): `paid_verified` = Σ terverifikasi (refund mengurangi), `paid_pending`, `balance`, `overpaid`, dan status `Belum Bayar` / `DP` / `Lunas` / `Kelebihan Bayar` dihitung di sini.
+- `fin_issue_invoice` **diganti**: revisi tagihan **tidak boleh menurunkan total di bawah uang terverifikasi** (kecuali `allow_overpayment`).
+- Pembantu `fin_setting_bool`, `fin_rp`; bucket privat **`finance-proofs`** (4 MB; JPG/PNG/WEBP/PDF; tanpa policy → hanya server) — dibuat otomatis bila skema `storage` ada.
+
+**Kode:** `lib/finance/payments.ts` (`parsePaymentFields`, `toPaymentRow` — **path bukti tak pernah dikirim ke browser**, hanya `has_proof`), `paymentsDb.ts` (nama akun & pesanan tanpa embed PostgREST), API `GET/POST /api/finance/payments` (POST multipart + unggah bukti; file dibersihkan bila pencatatan ditolak; sniff tipe file dari isinya, bukan ekstensi), `POST …/[id]/verify` (izin `edit`), `POST …/[id]/void` (izin `delete`), `GET …/[id]/proof` (signed URL 60 detik), dan `GET /api/finance/orders/[orderId]` kini menyertakan `payments`.
+
+**Diuji di Postgres 16 lokal** (stub Supabase + stub `storage.buckets`): 16 kelompok skenario — catat tunai (jenis `dp`), 10 jenis penolakan catat dengan pesan `FIN:` yang benar, transfer + bukti, verifikasi/tolak/ulang, pencatat ≠ pemverifikasi (non-supervisor ditolak, supervisor lolos), pelunasan → `Lunas`, refund (melebihi ditolak, tak pernah auto-verifikasi, status kembali `DP`), revisi tagihan di bawah uang terverifikasi ditolak (naik boleh), void (alasan wajib, ulang & void-yang-ditolak ditolak), penjaga tabel (ubah nominal/status mundur/catatan/hapus/truncate ditolak), auto-verifikasi (hanya bila pengaturan menyala dan tanpa separate-verifier), pemeriksaan ulang saat verifikasi, `authenticated` ditolak di tabel dan semua fungsi, jejak audit lengkap (`payment.record/verify/reject/void`), hapus pesanan ber-pembayaran ditolak, akun nonaktif ditolak. `tests/finance.test.ts` = 31 uji. **Belum diuji di Supabase asli (termasuk unggah ke storage dan signed URL) dan browser pemilik; layar belum ada (6.4).**
+
+**Belum ada (sengaja):** penguncian periode (tidak bisa verifikasi/void di bulan yang sudah ditutup) → 6.8; daftar antrean verifikasi & layar → 6.4–6.6.
+
+**Yang perlu dilakukan pemilik:** jalankan `011` di SQL Editor (setelah `010`), lalu cek bucket **Storage → `finance-proofs`** ada dan berstatus *private*. Pemeriksaan sementara lewat SQL Editor: `select payment_status, count(*) from monitoring_konveksi.v_order_finance group by 1;`.
