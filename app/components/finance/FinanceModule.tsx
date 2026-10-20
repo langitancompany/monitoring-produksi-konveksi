@@ -1,140 +1,149 @@
 // app/components/finance/FinanceModule.tsx
 //
-// Halaman Keuangan. LANGKAH 6.1 (fondasi): baru menampilkan akun kas/bank, kategori, dan pengaturan
-// hasil migration 009 sebagai bukti fondasi terpasang. Tab Tagihan, Pembayaran, Pengeluaran,
-// Laporan, dan Audit ditambahkan bertahap (docs/PRD.md §21).
+// Halaman Keuangan. LANGKAH 6.4: tab Tagihan, Transaksi, Verifikasi (hanya yang berhak memverifikasi),
+// dan Akun & Pengaturan (hanya baca). Tab Pengeluaran, Ringkasan, Laporan, Audit, dan Panduan
+// ditambahkan bertahap (docs/PRD.md §21). Hak akses dihitung SERVER (meta.caps); di sini hanya untuk
+// menampilkan/menyembunyikan tombol — penegakan ada di API dan database.
 "use client";
 
-import React from "react";
-import { CheckCircle2, Circle, Loader2, RefreshCw } from "lucide-react";
+import React, { useCallback, useState } from "react";
+import { FileText, ArrowDownToLine, ShieldCheck, Settings, Loader2, RefreshCw } from "lucide-react";
 import { useFinanceMeta } from "@/hooks/useFinanceApi";
-import { ACCOUNT_TYPE_LABEL } from "@/lib/finance/types";
-import { rupiah } from "@/lib/salary";
+import type { ProductionTypeData } from "@/types/order";
+import InvoicesTab from "./tabs/InvoicesTab";
+import PaymentsTab from "./tabs/PaymentsTab";
+import InfoTab from "./tabs/InfoTab";
 
-const STEPS: { id: string; label: string; done: boolean }[] = [
-  { id: "6.1", label: "Fondasi: akun, kategori, pengaturan, log audit", done: true },
-  { id: "6.2", label: "Tagihan (invoice) per pesanan — database & API", done: true },
-  { id: "6.3", label: "Pembayaran: catat, verifikasi, void — database & API", done: true },
-  { id: "6.4", label: "Layar Keuangan: Tagihan & Pembayaran", done: false },
-  { id: "6.5", label: "Pengeluaran: kategori, vendor, persetujuan", done: false },
-  { id: "6.6", label: "Ringkasan, Laporan, Audit, Panduan", done: false },
-  { id: "6.7", label: "Dokumen invoice (cetak/PDF) & bagikan", done: false },
-  { id: "6.8", label: "Gaji → Keuangan, tutup periode, transfer akun", done: false },
-];
+type TabId = "invoices" | "payments" | "verify" | "info";
 
-const card = "rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4";
-const title = "text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400 mb-3";
-
-const yesNo = (v: boolean) => (v ? "Ya" : "Tidak");
-
-export default function FinanceModule() {
+export default function FinanceModule({ productionTypes }: { productionTypes: ProductionTypeData[] }) {
   const { meta, error, loading, reload } = useFinanceMeta();
+  const [tab, setTab] = useState<TabId>("invoices");
+  const [version, setVersion] = useState(0);
+
+  // Tiap perubahan data: muat ulang tab aktif + angka antrean verifikasi.
+  const changed = useCallback(() => {
+    setVersion((v) => v + 1);
+    void reload();
+  }, [reload]);
+
+  if (!meta) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-3 py-8">
+        {error ? (
+          <>
+            <div className="rounded-md border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+              {error}
+            </div>
+            <button
+              onClick={() => void reload()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-150"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Coba lagi
+            </button>
+          </>
+        ) : (
+          <p className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+            <Loader2 className="w-4 h-4 animate-spin" /> Memuat Keuangan…
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  const caps = meta.caps;
+  const tabs: { id: TabId; label: string; icon: React.ReactNode; show: boolean; badge?: number }[] = [
+    { id: "invoices", label: "Tagihan", icon: <FileText size={14} className="shrink-0" />, show: true },
+    { id: "payments", label: "Transaksi", icon: <ArrowDownToLine size={14} className="shrink-0" />, show: true },
+    {
+      id: "verify",
+      label: "Verifikasi",
+      icon: <ShieldCheck size={14} className="shrink-0" />,
+      show: caps.edit,
+      badge: meta.pending_count,
+    },
+    { id: "info", label: "Akun & Pengaturan", icon: <Settings size={14} className="shrink-0" />, show: true },
+  ];
+  const visible = tabs.filter((t) => t.show);
+  // Bila hak berubah dan tab aktif tak lagi tampil, kembali ke tab pertama.
+  const active: TabId = visible.some((t) => t.id === tab) ? tab : "invoices";
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const i = visible.findIndex((t) => t.id === active);
+    const next = e.key === "ArrowRight" ? visible[(i + 1) % visible.length] : visible[(i - 1 + visible.length) % visible.length];
+    setTab(next.id);
+  };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="space-y-5 pb-24">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Keuangan</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Sedang dibangun bertahap. Saat ini baru fondasi, tagihan, dan pembayaran (langkah 6.1–6.3) di database dan API; layarnya menyusul di 6.4.
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Keuangan</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+            Tagihan, pembayaran masuk, dan verifikasi. Semua perubahan tercatat di log audit.
           </p>
         </div>
         <button
-          onClick={() => void reload()}
+          onClick={changed}
           disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 disabled:opacity-50 transition-colors duration-150"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 disabled:opacity-50 transition-colors duration-150 shrink-0"
         >
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
           Muat ulang
         </button>
       </div>
 
-      {error && (
-        <div className="rounded-md border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-300">
-          {error}
-        </div>
-      )}
-
-      <div className={card}>
-        <p className={title}>Rencana pembangunan</p>
-        <ul className="space-y-1.5">
-          {STEPS.map((s) => (
-            <li key={s.id} className="flex items-center gap-2 text-sm">
-              {s.done ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              ) : (
-                <Circle className="w-4 h-4 text-zinc-300 dark:text-zinc-700 shrink-0" />
+      <div
+        role="tablist"
+        aria-label="Menu keuangan"
+        onKeyDown={onKeyDown}
+        className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-1.5 flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {visible.map((t) => {
+          const isActive = active === t.id;
+          return (
+            <button
+              key={t.id}
+              id={`fin-tab-${t.id}`}
+              role="tab"
+              type="button"
+              aria-selected={isActive}
+              aria-controls={`fin-panel-${t.id}`}
+              tabIndex={isActive ? 0 : -1}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold rounded-md whitespace-nowrap shrink-0 transition-colors duration-150 ${
+                isActive
+                  ? "bg-[#124540] text-white"
+                  : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-zinc-700 dark:hover:text-zinc-200"
+              }`}
+            >
+              {t.icon}
+              {t.label}
+              {!!t.badge && (
+                <span
+                  className={`text-[10px] font-semibold rounded-full px-1.5 min-w-[18px] text-center ${
+                    isActive ? "bg-white text-[#124540]" : "bg-amber-500 text-white"
+                  }`}
+                >
+                  {t.badge}
+                </span>
               )}
-              <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400 w-8">{s.id}</span>
-              <span className={s.done ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-500 dark:text-zinc-400"}>
-                {s.label}
-              </span>
-            </li>
-          ))}
-        </ul>
+            </button>
+          );
+        })}
       </div>
 
-      {meta && (
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className={card}>
-            <p className={title}>Akun kas / bank</p>
-            {meta.accounts.length === 0 ? (
-              <p className="text-xs text-zinc-400">Belum ada akun aktif.</p>
-            ) : (
-              <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
-                {meta.accounts.map((a) => (
-                  <li key={a.id} className="py-2 flex items-center justify-between text-sm">
-                    <span className="text-zinc-900 dark:text-zinc-100">
-                      {a.name} <span className="font-mono text-[11px] text-zinc-400">{a.code}</span>
-                    </span>
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">{ACCOUNT_TYPE_LABEL[a.type]}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className={card}>
-            <p className={title}>Kategori pengeluaran</p>
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
-              {meta.categories.map((c) => (
-                <li key={c.id} className="py-2 text-sm text-zinc-900 dark:text-zinc-100">
-                  {c.name} <span className="font-mono text-[11px] text-zinc-400">{c.code}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className={`${card} md:col-span-2`}>
-            <p className={title}>Pengaturan saat ini</p>
-            <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-              {[
-                ["Transfer/QRIS wajib bukti", yesNo(meta.settings.require_proof_non_cash)],
-                ["Pencatat ≠ pemverifikasi", yesNo(meta.settings.require_separate_verifier)],
-                ["Boleh bayar melebihi tagihan", yesNo(meta.settings.allow_overpayment)],
-                ["Pembayaran sendiri langsung terverifikasi", yesNo(meta.settings.auto_verify_own_payment)],
-                ["Pengeluaran sendiri langsung disetujui", yesNo(meta.settings.auto_approve_own_expense)],
-                [
-                  "Bukti pengeluaran wajib di atas",
-                  meta.settings.expense_proof_required_above > 0
-                    ? rupiah(meta.settings.expense_proof_required_above)
-                    : "Tidak wajib",
-                ],
-                ["Akun pembayaran gaji", meta.settings.salary_default_account_code],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between gap-3 border-b border-zinc-100 dark:border-zinc-900 pb-1.5">
-                  <dt className="text-zinc-500 dark:text-zinc-400">{k}</dt>
-                  <dd className="font-medium text-zinc-900 dark:text-zinc-100 text-right">{v}</dd>
-                </div>
-              ))}
-            </dl>
-            <p className="text-[11px] text-zinc-400 dark:text-zinc-600 mt-3">
-              Nilai awal adalah asumsi bawaan. Layar untuk mengubahnya menyusul di langkah 6.8; sementara itu ubah lewat
-              SQL Editor (tabel finance_settings).
-            </p>
-          </div>
-        </div>
-      )}
+      <div role="tabpanel" id={`fin-panel-${active}`} aria-labelledby={`fin-tab-${active}`}>
+        {active === "invoices" && (
+          <InvoicesTab meta={meta} productionTypes={productionTypes} version={version} onChanged={changed} />
+        )}
+        {active === "payments" && <PaymentsTab mode="all" caps={caps} version={version} onChanged={changed} />}
+        {active === "verify" && caps.edit && (
+          <PaymentsTab mode="pending" caps={caps} version={version} onChanged={changed} />
+        )}
+        {active === "info" && <InfoTab meta={meta} />}
+      </div>
     </div>
   );
 }

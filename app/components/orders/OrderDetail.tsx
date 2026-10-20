@@ -24,6 +24,7 @@ import type { StepCtx } from "./detail/stepUi";
 import StepApproval from "./detail/StepApproval";
 import StepProduksi from "./detail/StepProduksi";
 import StepFinishing from "./detail/StepFinishing";
+import OrderFinanceSection from "@/app/components/finance/OrderFinanceSection";
 
 interface Props {
   /** client Supabase dari kerangka (dipakai untuk catatan produksi) */
@@ -245,6 +246,11 @@ export default function OrderDetail(props: Props) {
 
       {/* 03 QC & Packing, 04 Pengiriman */}
       <StepFinishing ctx={ctx} onQC={detail.submitQC} notes={notes} />
+
+      {/* Harga & Pembayaran — hanya untuk yang punya izin Keuangan (Bagian 6, langkah 6.4) */}
+      {can(currentUser, "keuangan", "view") && (
+        <OrderFinanceSection orderId={order.id} productionTypes={productionTypes} />
+      )}
     </div>
   );
 }

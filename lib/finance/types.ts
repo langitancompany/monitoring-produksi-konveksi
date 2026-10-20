@@ -28,6 +28,8 @@ export interface FinanceMeta {
   settings: FinanceSettings;
   /** hak pengguna yang sedang login (hasil hitung server) */
   caps: { view: boolean; create: boolean; edit: boolean; delete: boolean; isSupervisor: boolean };
+  /** jumlah pembayaran yang menunggu verifikasi (lencana tab Verifikasi) */
+  pending_count: number;
 }
 
 export const ACCOUNT_TYPE_LABEL: Record<FinanceAccount["type"], string> = {

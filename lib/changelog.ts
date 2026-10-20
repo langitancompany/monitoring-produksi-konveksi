@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.13",
+  version: "V.1.14",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Config Harga & Gaji: rate per jenis produksi, gaji PJ/tim/QC/admin, slip gaji",
+  notes: "Keuangan: tagihan per pesanan, pencatatan & verifikasi pembayaran",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.14",
+    date: "2026-10-20",
+    changes: [
+      "Keuangan langkah 6.4: layar Tagihan dan Pembayaran sudah bisa dipakai. Tab Tagihan menampilkan tagihan, terbayar, dan sisa tiap pesanan (filter status, cari kode/pemesan, penanda lewat jatuh tempo); dari sini tagihan diterbitkan atau direvisi dengan harga per item.",
+      "Tab Transaksi (buku pembayaran dengan filter tanggal & status) dan tab Verifikasi (antrean pembayaran yang menunggu, untuk yang berhak memverifikasi): catat pembayaran + bukti, verifikasi, tolak, void (wajib alasan), dan lihat bukti.",
+      "Detail Pesanan kini punya kartu Harga & Pembayaran bagi user yang punya izin Keuangan → Lihat. Menu Keuangan juga memuat tab Akun & Pengaturan (hanya baca).",
+      "Tidak ada migration baru. Ekspor Excel dan invoice cetak menyusul di langkah 6.7.",
+    ],
+  },
   {
     version: "1.13",
     date: "2026-10-19",

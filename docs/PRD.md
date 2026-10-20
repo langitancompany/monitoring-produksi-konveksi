@@ -4,7 +4,7 @@
 > **baca dokumen ini dulu**, lalu kerjakan bagian berikutnya di tabel *Status*.
 > Perbarui tabel Status dan changelog setiap selesai satu bagian.
 
-Terakhir diperbarui: 19 Oktober 2026 · Versi aplikasi: V.1.8 (Bagian 5 — Config Harga & Gaji — selesai di kode: logika murni teruji 81 uji (+15 uji keuangan), tetapi **migration `007` BELUM pernah dijalankan di database mana pun** (tidak ada Postgres di lingkungan pengerjaan) dan layar baru belum dilihat di browser; rincian & daftar uji di §20. Sebelumnya V.1.7 (Bagian 8 — Tim Produksi — selesai di kode; migration `006` sudah diuji di PostgreSQL 16 lokal tetapi **belum dijalankan di Supabase pemilik** dan tampilannya belum dilihat pemilik di browser. Bagian 7 juga masih **belum diuji pemilik** — migration `005` belum dijalankan di Supabase pemilik, Dashboard baru belum dilihat. Bagian 0–4 sudah diuji pemilik di database sungguhan)
+Terakhir diperbarui: 20 Oktober 2026 · Versi aplikasi: V.1.14 (Bagian 6 langkah 6.4 — layar Tagihan & Pembayaran — selesai di kode: 44 uji keuangan lulus dan cek tipe bersih dengan stub modul pihak ketiga (`npm install` tidak bisa dijalankan di lingkungan pengerjaan), tetapi **layar belum pernah dilihat di browser** dan migration `009`–`011` **belum dijalankan di Supabase pemilik**; rincian & daftar uji di §21.7. Bagian lain: lihat tabel Status dan §14–§21 — Bagian 5, 7, 8 juga masih menunggu uji pemilik.)
 
 ---
 
@@ -40,11 +40,11 @@ dan **Pesanan Non-Utama**.
 | 3 | Arsip & pemantauan | Pesanan Selesai, Sampah (pulihkan / hapus permanen + file), Log Aktivitas, Kalender + migration `003` | ✅ selesai, sudah diuji pemilik di database sungguhan (18 Okt 2026) |
 | 4 | Catatan Rapat | Catatan per pesanan di kartu 02/03/04 + menu rekap mingguan (ikuti Sablon) + migration `004` | ✅ selesai, sudah diuji pemilik di database & browser (18 Okt 2026) |
 | 5 | Config Harga & Gaji | Menu Config Harga (rate per jenis × tahap, parameter PJ/bonus admin, riwayat), menu Gaji & Upah (produksi PJ+tim, pool QC, bonus admin, tandai lunas, slip cetak), PJ di form pesanan, salinan PJ/tim di pesanan, migration `007` | ✅ selesai di kode, logika teruji; **migration `007` & semua layar belum diuji** di Supabase/browser pemilik. Jawaban §17 diganti **asumsi bawaan yang bisa diubah di Config Harga** — rincian di §20 |
-| 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon). **Dibangun bertahap, 8 langkah (6.1–6.8)** — rencana & status tiap langkah di §21 | 🟡 **6.1–6.3 selesai di kode** (migration `009`–`011` diuji di Postgres lokal, belum di Supabase/browser pemilik); 6.4–6.8 belum |
+| 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon). **Dibangun bertahap, 8 langkah (6.1–6.8)** — rencana & status tiap langkah di §21 | 🟡 **6.1–6.4 selesai di kode** (migration `009`–`011` diuji di Postgres lokal; layar 6.4 belum dilihat di browser; belum ada yang diuji di Supabase pemilik); 6.5–6.8 belum |
 | 7 | Dashboard & finishing | Dashboard ringkasan, tampilan Kanban, pengetatan RLS, rapikan lint | ✅ selesai di kode, **belum diuji** (migration `005`, Dashboard di browser) — rincian & sisa pekerjaan di §18 |
 | 8 | Tim Produksi | Pengaturan → Tim (kartu + avatar anggota), pilihan Tim di Pesanan Baru/Edit, tampil di Detail Pesanan, migration `006` | ✅ selesai di kode, migration diuji di Postgres lokal, **belum diuji** di Supabase & browser pemilik — rincian di §19 |
 
-Urutan berikutnya: **Bagian 6 (Keuangan), langkah 6.4 (layar Tagihan & Pembayaran)** — lihat §21. (Sempat terblokir karena DDL Sablon `001`–`009` tidak ada; diatasi dengan merancang skema Konveksi sendiri dari tipe TypeScript & pemanggilan API Sablon — rincian di §21.) Pekerjaan dibagi per bagian **sengaja** (batas token). Selesaikan satu bagian
+Urutan berikutnya: **Bagian 6 (Keuangan), langkah 6.5 (Pengeluaran)** — lihat §21. Sebelum itu, uji dulu layar 6.4 di browser (§21.7). (Sempat terblokir karena DDL Sablon `001`–`009` tidak ada; diatasi dengan merancang skema Konveksi sendiri dari tipe TypeScript & pemanggilan API Sablon — rincian di §21.) Pekerjaan dibagi per bagian **sengaja** (batas token). Selesaikan satu bagian
 penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 
 ---
@@ -88,7 +88,7 @@ penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 ### Struktur folder (inti)
 ```
 app/page.tsx                      kerangka & routing tab
-app/components/{auth,layout,ui,misc,dashboard,orders,settings}
+app/components/{auth,layout,ui,misc,dashboard,orders,settings,apps,finance}
 app/api/                          users (kelola user) · notify (broadcast per role/semua) · send-notification (1 user) · backup · health · version
 hooks/   useAuth useUsers useNotifications useOrders useOrderDetail useOrderNotes useUpload useProductionTypes useTeams usePricing useSalaryPayments useUnitAccess useUpdateCheck
 lib/     config steps access orderItems utils orderLogic orderArchive meetingNotes dashboardStats teams salary salaryPrint notificationHelper pushServer roles changelog tabs apiAuth supabaseAdmin userAdmin
@@ -230,6 +230,8 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 
 **Gaji & harga (V.1.8):** menu Gaji & Upah = `salary.view`; cetak slip = `salary.create` (kebiasaan Sablon: kolom "Buat" dipakai untuk cetak); tandai/batalkan lunas = `salary.edit`; buka Edit Pesanan dari peringatan gaji = `orders.edit`. Menu Config Harga = `config_harga.view`; simpan harga = `config_harga.edit`. User selain supervisor **tidak otomatis** punya izin ini — atur di Pengaturan → Pengguna. Memilih PJ di pesanan = `orders.create` / `orders.edit`. Peringatan: user non-admin hanya bisa membaca baris `users` miliknya sendiri (RLS 001), jadi di menu Gaji nama orang lain tampil "Pengguna tidak ditemukan" kecuali yang melihat ber-role admin/supervisor — beri izin Gaji hanya ke admin/supervisor.
 
+**Keuangan (V.1.14):** modul `keuangan` — `view` = melihat tab Tagihan/Transaksi/Akun & kartu Harga & Pembayaran di Detail Pesanan; `create` = terbit/revisi tagihan + catat pembayaran; `edit` = verifikasi/tolak pembayaran + mencatat refund + melihat tab Verifikasi; `delete` = void. Hak dihitung **server** (`meta.caps`, supervisor = penuh); tombol di UI hanya mengikutinya. Seperti Gaji, user non-admin tidak otomatis punya izin ini.
+
 **Tim produksi tidak punya modul izin sendiri:** kelola tim (tambah/ubah/nonaktifkan/hapus) memakai izin `settings` (`create`/`edit`/`delete`, sama seperti Jenis Produksi); **melihat** daftar tim boleh semua staf (supaya form pesanan bisa menampilkan pilihan tim); memilih/mengganti tim di pesanan = `orders.create` / `orders.edit`.
 
 ---
@@ -295,6 +297,7 @@ Role bawaan: supervisor, manager, admin, produksi, qc, designer (`lib/roles.ts`;
 
 ## 12. Riwayat
 
+- **V.1.14** — Bagian 6 langkah 6.4: layar Keuangan (tab Tagihan, Transaksi, Verifikasi, Akun & Pengaturan), form tagihan per item, form pembayaran + bukti, kartu Harga & Pembayaran di Detail Pesanan, `lib/finance/view.ts`, `pending_count` di `/api/finance/meta`. Tanpa migration baru. Lihat §21.7.
 - **V.1.13** — Bagian 6 langkah 6.3: pembayaran (migration `011`, `payments.ts`, `/api/finance/payments/*`, bucket `finance-proofs`). Lihat §21.6.
 - **V.1.12** — Bagian 6 langkah 6.2: tagihan (migration `010`, `pricing.ts`, `/api/finance/invoices`, `/api/finance/orders/[orderId]`). Lihat §21.5.
 - **V.1.11** — Bagian 6 langkah 6.1: fondasi Keuangan (migration `009`, `lib/finance/*`, `/api/finance/meta`, menu Keuangan versi awal, `tests/finance.test.ts`). Lihat §21.
@@ -725,8 +728,8 @@ Modul Keuangan Sablon sekitar **8.300 baris** (31 komponen, 25 API route, ~20 ta
 |---|---|---|---|
 | **6.1** Fondasi | `finance_settings`, `finance_accounts`, `finance_categories`, `finance_audit_log` (append-only), `fin_audit()`, seed; `lib/finance/{caps,validate,server,types}.ts`, `GET /api/finance/meta`, `hooks/useFinanceApi.ts`, menu Keuangan versi awal; migration `009` | `lib/finance/caps.ts`, `server.ts`, `types.ts` | ✅ kode selesai, SQL diuji lokal; **belum dijalankan di Supabase** |
 | **6.2** Tagihan | `order_invoices` (versi: terbit/revisi, `superseded`), `fin_issue_invoice`, view `v_order_finance` (status DIHITUNG database: Belum Ditagih/Belum Bayar/DP/Lunas/Kelebihan Bayar), `lib/finance/pricing.ts` versi item konveksi, `GET/POST /api/finance/invoices`, `GET /api/finance/orders/[orderId]`, tes hitung tagihan | `app/api/finance/invoices`, `orders/[orderId]`, `lib/finance/pricing.ts` | ✅ kode selesai, SQL diuji lokal; **belum dijalankan di Supabase** — rincian §21.5 |
-| **6.3** Pembayaran | `order_payments` (DP/cicilan/pelunasan/refund; pending→verified/rejected/void), `fin_record_payment`, `fin_verify_payment`, `fin_void_payment`, bucket bukti `finance-proofs`, API `payments/*`, aturan pencatat ≠ pemverifikasi, kelebihan bayar, kunci kolom pembayaran di `orders` | `app/api/finance/payments/*`, `lib/finance/imageUtil.ts` | ✅ kode selesai (database & API), SQL diuji lokal; **belum dijalankan di Supabase** — rincian §21.6. `imageUtil.ts` (kompres gambar di browser) ikut 6.4 bersama form |
-| **6.4** Layar Tagihan & Pembayaran | `FinanceModule` bertab, `InvoicesTab`, `PaymentsTab`, `OrderFinancePanel`, `RecordPaymentModal`, `InvoiceModal`, komponen UI bersama | `app/components/finance/*` (bagian ini) | ⬜ |
+| **6.3** Pembayaran | `order_payments` (DP/cicilan/pelunasan/refund; pending→verified/rejected/void), `fin_record_payment`, `fin_verify_payment`, `fin_void_payment`, bucket bukti `finance-proofs`, API `payments/*`, aturan pencatat ≠ pemverifikasi, kelebihan bayar, kunci kolom pembayaran di `orders` | `app/api/finance/payments/*`, `lib/finance/imageUtil.ts` | ✅ kode selesai (database & API), SQL diuji lokal; **belum dijalankan di Supabase** — rincian §21.6. `imageUtil.ts` Sablon ternyata hanya untuk gambar header/TTD invoice → ikut 6.7; kompres foto bukti memakai `browser-image-compression` langsung (§21.7) |
+| **6.4** Layar Tagihan & Pembayaran | `FinanceModule` bertab, `InvoicesTab`, `PaymentsTab`, `OrderFinancePanel`, `RecordPaymentModal`, `InvoiceModal`, komponen UI bersama | `app/components/finance/*` (bagian ini) | ✅ kode selesai, **belum dilihat di browser / belum diuji di Supabase** — rincian §21.7 |
 | **6.5** Pengeluaran | `finance_vendors`, `finance_expenses` (+ `finance_expense_seq`, unik `source,source_ref`), `fin_record_expense`, `fin_decide_expense`, `fin_void_expense`, API, `ExpensesTab`, form pengeluaran | `app/api/finance/expenses/*`, `vendors`, `expense-meta`, `ExpensesTab`, `RecordExpenseModal` | ⬜ |
 | **6.6** Ringkasan, Laporan, Audit, Panduan | view `v_receivable_aging` / `v_cashbook` / `v_account_balances`, `overview`, `report`, `audit` API, `OverviewTab`, `ReportTab`, `AuditTab`, `GuideTab` + `todo` | `overview`, `report`, `audit`, `todo` routes + tab terkait | ⬜ |
 | **6.7** Dokumen invoice | `invoice_settings`, `InvoiceDocument` (cetak/PDF), `InvoiceShareModal`, ekspor Excel + `export-log` | `invoiceDoc.ts`, `invoiceSettings.ts`, `InvoiceDocument/Modal/ShareModal`, `SettingsTab` | ⬜ |
@@ -775,3 +778,52 @@ Modul Keuangan Sablon sekitar **8.300 baris** (31 komponen, 25 API route, ~20 ta
 **Belum ada (sengaja):** penguncian periode (tidak bisa verifikasi/void di bulan yang sudah ditutup) → 6.8; daftar antrean verifikasi & layar → 6.4–6.6.
 
 **Yang perlu dilakukan pemilik:** jalankan `011` di SQL Editor (setelah `010`), lalu cek bucket **Storage → `finance-proofs`** ada dan berstatus *private*. Pemeriksaan sementara lewat SQL Editor: `select payment_status, count(*) from monitoring_konveksi.v_order_finance group by 1;`.
+
+### 21.7 Hasil langkah 6.4 (V.1.14) — Layar Tagihan & Pembayaran
+
+**Yang ada** (semua di `app/components/finance/`, kecuali dicatat lain):
+- **`FinanceModule`** (diganti total) — tab: **Tagihan**, **Transaksi**, **Verifikasi** (hanya `keuangan.edit`, lencana = jumlah pembayaran menunggu), **Akun & Pengaturan** (isi lama 6.1, hanya baca, pindah ke `tabs/InfoTab.tsx`). Menerima prop `productionTypes` dari `app/page.tsx`. Hak diambil dari `meta.caps` (server). Tombol "Muat ulang" + panah kiri/kanan antar-tab.
+- **`tabs/InvoicesTab`** — daftar `v_order_finance`: tagihan · terbayar · sisa · status, filter status (dengan hitungan), cari kode/pemesan, total di atas daftar, penanda **Lewat jatuh tempo**, tampil bertahap 30 baris (`usePagedList`). Tombol: *Rincian* (modal `OrderFinancePanel`), *Terbitkan* (pesanan belum ditagih; langsung membuka form tagihan), *Catat bayar* (ada tagihan dan sisa − menunggu > 0).
+- **`tabs/PaymentsTab`** — satu komponen, dua mode: `all` (buku transaksi, filter status + tanggal, default awal bulan–hari ini, total kas masuk bersih) dan `pending` (antrean verifikasi, yang paling lama menunggu di atas).
+- **`OrderFinancePanel`** — posisi keuangan satu pesanan: tiga angka, bar progres, rincian tagihan aktif per item, banner bila tagihan **sudah tidak sesuai item pesanan** (`invoice_stale`), riwayat versi tagihan, riwayat pembayaran. Juga **disematkan di Detail Pesanan** lewat `OrderFinanceSection.tsx` (hanya dirender bila `can(user, "keuangan", "view")`, jadi staf lain tidak memicu request).
+- **`InvoiceModal`** — beda dengan Sablon: satu baris per **item pesanan** (jenis · pcs · harga per pcs · subtotal) + diskon + jatuh tempo (opsional, tidak boleh sebelum tanggal masuk); revisi wajib alasan; pratinjau total memakai `calcInvoice()` yang sama dengan SQL. Revisi mengisi otomatis harga lama untuk item yang masih ada; item baru harus diisi. Konfirmasi `PCS_MISMATCH` seperti Sablon. Pesanan tanpa item (utama belum Approval) → pesan "belum bisa ditagih", tanpa form.
+- **`RecordPaymentModal`** — nominal bawaan = sisa − menunggu verifikasi; metode; akun (bawaan: tunai → akun kas, selain itu → bank/e-wallet); tanggal (tidak boleh di masa depan); referensi; pengirim; bukti (foto dikompres di browser, PDF apa adanya, maks 4 MB); catatan. **Jenis DP/cicilan/pelunasan tidak dipilih** (ditentukan database; ada keterangannya). Kotak refund hanya untuk `keuangan.edit`.
+- **`PaymentRow` + `PaymentActions`** — satu baris transaksi (status, siapa mencatat/memverifikasi, referensi, alasan tolak/void), tombol Lihat bukti (signed URL 60 detik; tab dibuka dulu agar tidak diblokir popup blocker), Verifikasi, Tolak, Void; dialog alasan minimal 3 karakter.
+- **Bersama:** `ui.tsx` (modal, field, tombol, filter), `StatusBadge`, `CurrencyInput` (maks 12 digit), `utils.ts` (rupiah & tanggal lokal — tanpa `new Date("YYYY-MM-DD")`, ikut aturan §18).
+- **`lib/finance/view.ts`** (baru, murni, teruji) — `filterFinanceRows`, `countByFilter`, `totalsOf`, `isOverdue`, `initialPrices`, `netVerified`, `paymentFormState`. Hanya bantuan tampilan; **angka resmi & aturan uang tetap di database**.
+- **API:** satu perubahan — `GET /api/finance/meta` kini mengembalikan `pending_count` (hitungan `order_payments` berstatus `pending`; `FinanceMeta.pending_count` di `types.ts`). Tidak ada migration baru.
+
+**Keputusan yang saya ambil (ubah bila pemilik tidak setuju):**
+1. **Tab "Transaksi" dan "Verifikasi" memakai satu komponen** (`PaymentsTab mode=...`), mengikuti Sablon. Tab Verifikasi hanya tampil bagi `keuangan.edit`.
+2. **Batas nominal di form = sisa tagihan − pembayaran yang menunggu verifikasi** (database menghitung keduanya sebagai "sudah terikat"). Bila sisa sudah tertutup oleh yang menunggu, form menjelaskan dan tombol Simpan mati. **Refund dibatasi uang terverifikasi, tidak ikut pengaturan "boleh kelebihan bayar"** (sama dengan `fin_record_payment`). Refund yang masih menunggu juga mengurangi batas di database tetapi tidak terlihat di UI — database yang menolak bila lewat.
+3. **Jatuh tempo opsional; kosong = tanpa jatuh tempo** (Sablon: bawaan 14 hari dari pengaturan). Lencana "Lewat jatuh tempo" hanya muncul bila tanggal diisi.
+4. **Alasan tolak/void minimal 3 karakter** (Sablon 5) karena batas di database `fin_void_payment` memang 3.
+5. **Ekspor Excel, tombol Invoice/Bagikan, dan `export-log` TIDAK dibawa** — itu langkah 6.7. Tab Ringkasan, Pengeluaran, Laporan, Audit, Panduan, Pengaturan belum ada (6.5–6.8).
+6. **Kompres foto bukti memakai `browser-image-compression` langsung** (paket sudah ada di `package.json`), bukan `imageUtil.ts` — lihat koreksi di §21.3.
+7. **Tab Akun & Pengaturan terlihat oleh semua yang punya `keuangan.view`** (sama dengan perilaku 6.1). Bila pengaturan sebaiknya hanya untuk supervisor, tambahkan `show: caps.isSupervisor` di `FinanceModule`.
+8. **Kartu Harga & Pembayaran di Detail Pesanan** menambah dua request (`/api/finance/meta`, `/api/finance/orders/[id]`) untuk user ber-izin Keuangan. Menunggu keputusan pemilik apakah perlu di sana (mudah dicabut: hapus impor dan blok `OrderFinanceSection` di `OrderDetail.tsx`).
+
+**Keterbatasan diketahui:**
+- Daftar Tagihan memuat maksimal 2000 pesanan (batas API 6.2), Transaksi maksimal 1000 (pemberitahuan muncul bila tercapai). Cukup untuk skala sekarang; pindah ke paginasi server bila membesar.
+- Tombol Esc menutup **semua** modal yang bertumpuk (mis. Rincian + form tagihan) sekaligus — sama dengan Sablon.
+- Antrean Verifikasi dan lencana tidak otomatis menyegarkan diri; tombol "Muat ulang" atau perubahan data dari layar ini yang menyegarkan.
+- Layar tidak menampilkan ringkasan per akun/saldo (6.6).
+
+**Verifikasi (lingkungan pengerjaan tanpa internet, 20 Okt 2026):**
+- `npx tsx tests/finance.test.ts`: **44 uji lulus** (31 lama + 13 baru: filter/hitung/total/jatuh tempo, harga awal revisi, aturan form pembayaran, kas masuk bersih) di **Asia/Jakarta, UTC, America/New_York, Pacific/Auckland**.
+- Cek tipe dengan **stub** untuk `react`, `lucide-react`, `next/server`, `next/dynamic`, `@supabase/supabase-js`, `browser-image-compression`: **tidak ada galat** di `app/components/finance/*`, `lib/finance/*`, `hooks/useFinanceApi.ts`, `app/api/finance/*`, dan prop `FinanceModule` di `app/page.tsx`. Stub tidak memeriksa tipe DOM/React sungguhan (mis. tipe event handler) dan tidak menjangkau `OrderDetail.tsx` sepenuhnya. Semua ikon lucide yang dipakai juga dipakai Sablon (versi `lucide-react` sama), tetapi **`npx tsc --noEmit && npm run build && npm run lint` wajib dijalankan di komputer Anda**.
+- **Tidak ada layar yang pernah dirender**, tidak ada request nyata ke API, dan **migration `009`–`011` belum dijalankan di Supabase pemilik** (hanya di Postgres lokal, §21.4–21.6).
+
+**Belum diuji — uji ini sebelum lanjut ke 6.5:**
+1. Jalankan `009`, `010`, `011` di SQL Editor Supabase (berurutan) bila belum. Cek bucket **Storage → `finance-proofs`** ada dan *private*.
+2. Beri akun admin izin **Keuangan** (lihat + buat + edit; hapus untuk void) di Pengaturan → Pengguna. Menu Keuangan muncul; user tanpa izin tidak melihatnya. Tab **Verifikasi** hanya muncul bila ada `keuangan.edit`.
+3. **Tagihan:** pesanan utama yang **belum Approval** → "Terbitkan" menampilkan pesan belum bisa ditagih. Pesanan yang sudah ber-item → isi harga tiap item → total di pratinjau **sama** dengan yang muncul setelah simpan. Coba diskon ≥ subtotal (ditolak), jatuh tempo sebelum tanggal masuk (ditolak), jumlah item ≠ jumlah pesanan (muncul konfirmasi).
+4. **Revisi:** ubah item pesanan (Edit Pesanan) → buka Rincian → banner "tidak sesuai lagi" → Revisi: harga item lama terisi, item baru kosong; tanpa alasan tidak bisa disimpan; riwayat tagihan menampilkan v1 & v2.
+5. **Pembayaran:** catat tunai (tanpa bukti), transfer **tanpa bukti** (harus tertahan), transfer dengan foto, dan PDF. Nominal melebihi sisa → tertahan. Cek status berubah sesuai: Belum Bayar → DP → Lunas; jenis DP/cicilan/pelunasan terisi otomatis.
+6. **Verifikasi:** tab Verifikasi (lencana cocok) → verifikasi, tolak (tanpa alasan tidak bisa), void. Sisa & status di tab Tagihan ikut berubah. Dengan `require_separate_verifier` menyala (ubah di `finance_settings`): akun non-supervisor tidak bisa memverifikasi catatannya sendiri.
+7. **Bukti:** "Lihat bukti" membuka foto/PDF di tab baru (dan **tidak** gagal diblokir popup di HP).
+8. **Refund** (akun `keuangan.edit`): hanya muncul bila ada uang terverifikasi; melebihi → ditolak; tidak pernah langsung terverifikasi.
+9. **Revisi tagihan di bawah uang terverifikasi** → ditolak dengan pesan database.
+10. **Detail Pesanan:** kartu Harga & Pembayaran muncul hanya untuk user ber-izin Keuangan; sama dengan isi modal Rincian.
+11. **Tampilan:** mode gelap, HP (modal naik dari bawah, daftar tidak melebar, tabel harga di form tagihan bisa dipakai di layar sempit), filter status bisa digeser.
+12. Tutup dialog alasan dengan Esc saat form lain terbuka — pastikan perilaku bertumpuk bisa diterima.

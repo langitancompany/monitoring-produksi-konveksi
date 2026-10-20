@@ -636,7 +636,9 @@ export default function KonveksiApp() {
               />
             )}
 
-            {activeTab === "keuangan" && p?.keuangan?.view && <FinanceModule />}
+            {activeTab === "keuangan" && p?.keuangan?.view && (
+              <FinanceModule productionTypes={productionTypes} />
+            )}
 
             {activeTab === "logs" && p?.logs?.view && (
               <ActivityLogView
