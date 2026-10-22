@@ -1,20 +1,21 @@
 // app/components/finance/FinanceModule.tsx
 //
 // Halaman Keuangan. LANGKAH 6.4: tab Tagihan, Transaksi, Verifikasi (hanya yang berhak memverifikasi),
-// dan Akun & Pengaturan (hanya baca). Tab Pengeluaran, Ringkasan, Laporan, Audit, dan Panduan
-// ditambahkan bertahap (docs/PRD.md §21). Hak akses dihitung SERVER (meta.caps); di sini hanya untuk
+// dan Akun & Pengaturan (hanya baca). LANGKAH 6.5: tab Pengeluaran. Tab Ringkasan, Laporan, Audit, dan
+// Panduan ditambahkan bertahap (docs/PRD.md §21). Hak akses dihitung SERVER (meta.caps); di sini hanya untuk
 // menampilkan/menyembunyikan tombol — penegakan ada di API dan database.
 "use client";
 
 import React, { useCallback, useState } from "react";
-import { FileText, ArrowDownToLine, ShieldCheck, Settings, Loader2, RefreshCw } from "lucide-react";
+import { FileText, ArrowDownToLine, ArrowUpFromLine, ShieldCheck, Settings, Loader2, RefreshCw } from "lucide-react";
 import { useFinanceMeta } from "@/hooks/useFinanceApi";
 import type { ProductionTypeData } from "@/types/order";
 import InvoicesTab from "./tabs/InvoicesTab";
 import PaymentsTab from "./tabs/PaymentsTab";
+import ExpensesTab from "./tabs/ExpensesTab";
 import InfoTab from "./tabs/InfoTab";
 
-type TabId = "invoices" | "payments" | "verify" | "info";
+type TabId = "invoices" | "payments" | "verify" | "expenses" | "info";
 
 export default function FinanceModule({ productionTypes }: { productionTypes: ProductionTypeData[] }) {
   const { meta, error, loading, reload } = useFinanceMeta();
@@ -62,6 +63,14 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
       show: caps.edit,
       badge: meta.pending_count,
     },
+    {
+      id: "expenses",
+      label: "Pengeluaran",
+      icon: <ArrowUpFromLine size={14} className="shrink-0" />,
+      show: true,
+      // lencana hanya untuk yang berhak menyetujui
+      badge: caps.edit ? meta.pending_expense_count : 0,
+    },
     { id: "info", label: "Akun & Pengaturan", icon: <Settings size={14} className="shrink-0" />, show: true },
   ];
   const visible = tabs.filter((t) => t.show);
@@ -81,7 +90,7 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Keuangan</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Tagihan, pembayaran masuk, dan verifikasi. Semua perubahan tercatat di log audit.
+            Tagihan, pembayaran masuk, pengeluaran, dan verifikasi. Semua perubahan tercatat di log audit.
           </p>
         </div>
         <button
@@ -142,6 +151,7 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
         {active === "verify" && caps.edit && (
           <PaymentsTab mode="pending" caps={caps} version={version} onChanged={changed} />
         )}
+        {active === "expenses" && <ExpensesTab meta={meta} version={version} onChanged={changed} />}
         {active === "info" && <InfoTab meta={meta} />}
       </div>
     </div>

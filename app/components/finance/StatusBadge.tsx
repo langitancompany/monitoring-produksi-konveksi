@@ -4,7 +4,13 @@
 
 import React from "react";
 import { Clock, CheckCircle2, AlertCircle, Ban, XCircle, FileQuestion, ArrowUpRight } from "lucide-react";
-import { PAYMENT_STATE_LABEL, type OrderPaymentStatus, type PaymentStatus } from "@/lib/finance/types";
+import {
+  EXPENSE_STATE_LABEL,
+  PAYMENT_STATE_LABEL,
+  type ExpenseStatus,
+  type OrderPaymentStatus,
+  type PaymentStatus,
+} from "@/lib/finance/types";
 
 const BASE = "inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap";
 
@@ -49,6 +55,17 @@ export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
     <span className={`${BASE} ${cfg.cls}`}>
       {cfg.icon}
       {PAYMENT_STATE_LABEL[status]}
+    </span>
+  );
+}
+
+/** Status satu pengeluaran (Menunggu persetujuan / Disetujui / Ditolak / Dibatalkan). Warna sama dengan transaksi pembayaran. */
+export function ExpenseStatusBadge({ status }: { status: ExpenseStatus }) {
+  const cfg = PAY_STATUS[status === "approved" ? "verified" : status];
+  return (
+    <span className={`${BASE} ${cfg.cls}`}>
+      {cfg.icon}
+      {EXPENSE_STATE_LABEL[status]}
     </span>
   );
 }

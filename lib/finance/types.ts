@@ -30,6 +30,8 @@ export interface FinanceMeta {
   caps: { view: boolean; create: boolean; edit: boolean; delete: boolean; isSupervisor: boolean };
   /** jumlah pembayaran yang menunggu verifikasi (lencana tab Verifikasi) */
   pending_count: number;
+  /** jumlah pengeluaran yang menunggu persetujuan (lencana tab Pengeluaran) */
+  pending_expense_count: number;
 }
 
 export const ACCOUNT_TYPE_LABEL: Record<FinanceAccount["type"], string> = {
@@ -159,6 +161,62 @@ export const PAYMENT_KIND_LABEL: Record<PaymentKind, string> = {
 export const PAYMENT_STATE_LABEL: Record<PaymentStatus, string> = {
   pending: "Menunggu verifikasi",
   verified: "Terverifikasi",
+  rejected: "Ditolak",
+  void: "Dibatalkan (void)",
+};
+
+// ─── Pengeluaran (langkah 6.5) ──────────────────────────────────────────────────
+
+export type ExpenseStatus = "pending" | "approved" | "rejected" | "void";
+export type ExpenseSource = "manual" | "salary" | "purchase";
+
+export interface FinanceVendor {
+  id: string;
+  name: string;
+  phone: string | null;
+}
+
+export interface ExpenseRow {
+  id: string;
+  expense_no: string | null;
+  category_id: string;
+  account_id: string;
+  vendor_id: string | null;
+  order_id: string | null;
+  source: ExpenseSource;
+  source_ref: string | null;
+  description: string;
+  amount: number;
+  spent_at: string;
+  note: string | null;
+  status: ExpenseStatus;
+  /** true bila ada file bukti (path asli tidak pernah dikirim ke browser) */
+  has_proof: boolean;
+  recorded_by_name: string | null;
+  recorded_at: string;
+  approved_by_name: string | null;
+  approved_at: string | null;
+  reject_reason: string | null;
+  void_by_name: string | null;
+  void_at: string | null;
+  void_reason: string | null;
+  category_name: string | null;
+  account_name: string | null;
+  vendor_name: string | null;
+  order_kode: string | null;
+  order_nama: string | null;
+}
+
+/** Hasil pencarian pesanan untuk menautkan biaya langsung. */
+export interface OrderLookupRow {
+  id: string;
+  kode_produksi: string;
+  nama_pemesan: string;
+}
+
+export const EXPENSE_STATE_LABEL: Record<ExpenseStatus, string> = {
+  pending: "Menunggu persetujuan",
+  approved: "Disetujui",
   rejected: "Ditolak",
   void: "Dibatalkan (void)",
 };

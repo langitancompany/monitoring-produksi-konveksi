@@ -7,7 +7,7 @@
 
 import type { OrderItem } from "@/types/order";
 import type { InvoiceLine } from "./pricing";
-import type { OrderFinanceRow, PaymentMethod, PaymentRow } from "./types";
+import type { ExpenseRow, OrderFinanceRow, PaymentMethod, PaymentRow } from "./types";
 import { daysUntil } from "../utils";
 
 export const INVOICE_FILTERS = ["Semua", "Belum Ditagih", "Belum Bayar", "DP", "Lunas", "Kelebihan Bayar"] as const;
@@ -121,4 +121,69 @@ export function paymentFormState(i: PaymentFormInput): PaymentFormState {
     (!needProof || i.hasFile) &&
     !overLimit;
   return { needProof, maxAmount, overLimit, canSubmit };
+}
+
+// ─── Pengeluaran (langkah 6.5) ──────────────────────────────────────────────────
+
+/** Bukti pengeluaran wajib bila ambang > 0 dan nominal mencapai ambang (sama dengan fin_record_expense, 012). */
+export function expenseProofRequired(amount: number, threshold: number): boolean {
+  return threshold > 0 && amount >= threshold;
+}
+
+export interface ExpenseFormInput {
+  amount: number;
+  /** pengaturan expense_proof_required_above (0 = tidak wajib) */
+  threshold: number;
+  hasCategory: boolean;
+  hasAccount: boolean;
+  hasDate: boolean;
+  description: string;
+  hasFile: boolean;
+}
+
+/** Aturan tombol "Simpan" form pengeluaran — mencerminkan fin_record_expense; database memeriksa ulang. */
+export function expenseFormState(i: ExpenseFormInput): { needProof: boolean; canSubmit: boolean } {
+  const needProof = expenseProofRequired(i.amount, i.threshold);
+  const canSubmit =
+    Number.isSafeInteger(i.amount) &&
+    i.amount > 0 &&
+    i.hasCategory &&
+    i.hasAccount &&
+    i.hasDate &&
+    i.description.trim().length >= 3 &&
+    (!needProof || i.hasFile);
+  return { needProof, canSubmit };
+}
+
+export interface ExpenseTotals {
+  approved: number;
+  pending: number;
+  pendingCount: number;
+}
+
+/** Jumlah uang keluar DISETUJUI dan yang masih menunggu persetujuan (ditolak/void tidak dihitung). */
+export function expenseTotals(rows: Pick<ExpenseRow, "status" | "amount">[]): ExpenseTotals {
+  const t: ExpenseTotals = { approved: 0, pending: 0, pendingCount: 0 };
+  for (const r of rows) {
+    if (r.status === "approved") t.approved += r.amount;
+    else if (r.status === "pending") {
+      t.pending += r.amount;
+      t.pendingCount += 1;
+    }
+  }
+  return t;
+}
+
+/** Total per kategori (hanya yang DISETUJUI), terbesar dulu, dibatasi `top`. */
+export function expensesByCategory(
+  rows: Pick<ExpenseRow, "status" | "amount" | "category_name">[],
+  top = 6,
+): [string, number][] {
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    if (r.status !== "approved") continue;
+    const k = r.category_name ?? "Tanpa kategori";
+    m.set(k, (m.get(k) ?? 0) + r.amount);
+  }
+  return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, top);
 }

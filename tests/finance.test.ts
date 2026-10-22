@@ -7,9 +7,11 @@ import { calcInvoice, invoiceIsStale, MAX_PRICE } from "../lib/finance/pricing";
 import type { OrderItem } from "../types/order";
 import type { OrderFinanceRow } from "../lib/finance/types";
 import {
-  countByFilter, filterFinanceRows, initialPrices, isOverdue, netVerified, paymentFormState, totalsOf,
+  countByFilter, expenseFormState, expenseProofRequired, expensesByCategory, expenseTotals, filterFinanceRows,
+  initialPrices, isOverdue, netVerified, paymentFormState, totalsOf,
   type PaymentFormInput,
 } from "../lib/finance/view";
+import { parseExpenseFields, sanitizeLookupQuery, toExpenseRow } from "../lib/finance/expenses";
 import { finError, isDate, isMoney, isUuid, parseSettings, sniffProof, todayWib } from "../lib/finance/validate";
 
 let passed = 0;
@@ -428,6 +430,153 @@ test("kas masuk bersih: hanya terverifikasi, refund mengurangi", () => {
     700_000,
   );
   assert.equal(netVerified([]), 0);
+});
+
+// ─── Pengeluaran (langkah 6.5) ─────────────────────────────────────────────────
+const CID = "323e4567-e89b-12d3-a456-426614174000";
+const VID = "423e4567-e89b-12d3-a456-426614174000";
+const expForm = (over: Record<string, string> = {}) => {
+  const base: Record<string, string> = {
+    category_id: CID, account_id: AID, spent_at: "2026-10-19", amount: "150000",
+    description: "Benang jahit 10 cone", vendor_id: VID, order_id: OID, note: "nota menyusul",
+  };
+  const all = { ...base, ...over };
+  return (k: string) => all[k] ?? "";
+};
+
+console.log("isian pengeluaran (parseExpenseFields)");
+test("isian lengkap → diterima dan dirapikan", () => {
+  const r = parseExpenseFields(expForm({ description: "  Benang   jahit \n 10 cone " }));
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.deepEqual(r.value, {
+    categoryId: CID, accountId: AID, vendorId: VID, orderId: OID, description: "Benang jahit 10 cone",
+    amount: 150_000, spentAt: "2026-10-19", note: "nota menyusul",
+  });
+});
+test("vendor, pesanan, dan catatan opsional → null; teks panjang dipotong", () => {
+  const r = parseExpenseFields(expForm({ vendor_id: "", order_id: "", note: "x".repeat(900), description: "d".repeat(500) }));
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.value.vendorId, null);
+  assert.equal(r.value.orderId, null);
+  assert.equal(r.value.note?.length, 500);
+  assert.equal(r.value.description.length, 200);
+  const blankNote = parseExpenseFields(expForm({ note: "  " }));
+  assert.equal(blankNote.ok && blankNote.value.note, null);
+});
+test("kategori, akun, vendor, pesanan tidak valid ditolak", () => {
+  assert.equal(parseExpenseFields(expForm({ category_id: "" })).ok, false);
+  assert.equal(parseExpenseFields(expForm({ category_id: "x" })).ok, false);
+  assert.equal(parseExpenseFields(expForm({ account_id: "" })).ok, false);
+  assert.equal(parseExpenseFields(expForm({ vendor_id: "bukan-uuid" })).ok, false);
+  assert.equal(parseExpenseFields(expForm({ order_id: "' or 1=1 --" })).ok, false);
+});
+test("keterangan minimal 3 karakter (setelah dirapikan) dan tanggal harus nyata", () => {
+  assert.equal(parseExpenseFields(expForm({ description: "ab" })).ok, false);
+  assert.equal(parseExpenseFields(expForm({ description: "   " })).ok, false);
+  assert.equal(parseExpenseFields(expForm({ description: "a   " })).ok, false); // spasi di ujung tidak dihitung
+  const collapsed = parseExpenseFields(expForm({ description: "a  b" })); // dirapikan jadi "a b" (3 karakter) — sah
+  assert.equal(collapsed.ok && collapsed.value.description, "a b");
+  assert.equal(parseExpenseFields(expForm({ description: "abc" })).ok, true);
+  assert.equal(parseExpenseFields(expForm({ spent_at: "2026-02-30" })).ok, false);
+  assert.equal(parseExpenseFields(expForm({ spent_at: "" })).ok, false);
+});
+test("nominal: angka bulat > 0 tanpa titik/koma/minus/huruf, maksimal Rp100 miliar", () => {
+  for (const amount of ["", "0", "-5", "1.5", "1,000", "1e6", "abc", " ", "9999999999999", "100000000001"]) {
+    assert.equal(parseExpenseFields(expForm({ amount })).ok, false, `amount=${JSON.stringify(amount)}`);
+  }
+  assert.equal(parseExpenseFields(expForm({ amount: "100000000000" })).ok, true);
+});
+
+console.log("baris pengeluaran (toExpenseRow)");
+test("path bukti TIDAK ikut ke browser; hanya has_proof", () => {
+  const raw = { id: "x1", category_id: CID, account_id: AID, vendor_id: null, order_id: null, amount: 5, proof_path: "expenses/rahasia.jpg" };
+  const row = toExpenseRow(raw);
+  assert.equal(row.has_proof, true);
+  assert.equal("proof_path" in row, false);
+  assert.equal(JSON.stringify(row).includes("rahasia"), false);
+  assert.equal(toExpenseRow({ ...raw, proof_path: null }).has_proof, false);
+});
+test("nama kategori, akun, vendor, pesanan dari lookup; tanpa lookup → null", () => {
+  const raw = { id: "x1", category_id: CID, account_id: AID, vendor_id: VID, order_id: OID, proof_path: null };
+  const lookups = {
+    categories: new Map([[CID, "Bahan baku"]]),
+    accounts: new Map([[AID, "Kas Tunai"]]),
+    vendors: new Map([[VID, "Toko Kain Jaya"]]),
+    orders: new Map([[OID, { kode_produksi: "K-1", nama_pemesan: "SMP 1" }]]),
+  };
+  const row = toExpenseRow(raw, lookups);
+  assert.deepEqual(
+    [row.category_name, row.account_name, row.vendor_name, row.order_kode, row.order_nama],
+    ["Bahan baku", "Kas Tunai", "Toko Kain Jaya", "K-1", "SMP 1"],
+  );
+  const bare = toExpenseRow(raw);
+  assert.deepEqual([bare.category_name, bare.vendor_name, bare.order_kode], [null, null, null]);
+  // tanpa vendor/pesanan di baris → null walau lookup ada
+  const none = toExpenseRow({ ...raw, vendor_id: null, order_id: null }, lookups);
+  assert.deepEqual([none.vendor_name, none.order_kode], [null, null]);
+});
+
+console.log("pencarian pesanan (sanitizeLookupQuery)");
+test("karakter pola dibuang; terlalu pendek → kosong; dibatasi 60 karakter", () => {
+  assert.equal(sanitizeLookupQuery("K-10"), "K-10");
+  assert.equal(sanitizeLookupQuery("  smp   1  "), "smp 1");
+  assert.equal(sanitizeLookupQuery("%_*\\"), "");
+  assert.equal(sanitizeLookupQuery("a%"), "");
+  assert.equal(sanitizeLookupQuery("ab%cd"), "ab cd");
+  assert.equal(sanitizeLookupQuery(null), "");
+  assert.equal(sanitizeLookupQuery(undefined), "");
+  assert.equal(sanitizeLookupQuery("x".repeat(200)).length, 60);
+});
+
+console.log("aturan form pengeluaran (view.ts)");
+test("bukti wajib bila nominal mencapai ambang; ambang 0 = tidak pernah wajib", () => {
+  assert.equal(expenseProofRequired(499_999, 500_000), false);
+  assert.equal(expenseProofRequired(500_000, 500_000), true);
+  assert.equal(expenseProofRequired(9_000_000, 0), false);
+  assert.equal(expenseProofRequired(1, 0), false);
+});
+const ef = (over: Partial<Parameters<typeof expenseFormState>[0]> = {}) =>
+  expenseFormState({
+    amount: 150_000, threshold: 500_000, hasCategory: true, hasAccount: true, hasDate: true,
+    description: "Benang jahit", hasFile: false, ...over,
+  });
+test("Simpan menyala bila semua lengkap; mati bila kurang satu pun", () => {
+  assert.equal(ef().canSubmit, true);
+  assert.equal(ef({ amount: 0 }).canSubmit, false);
+  assert.equal(ef({ hasCategory: false }).canSubmit, false);
+  assert.equal(ef({ hasAccount: false }).canSubmit, false);
+  assert.equal(ef({ hasDate: false }).canSubmit, false);
+  assert.equal(ef({ description: "ab" }).canSubmit, false);
+  assert.equal(ef({ description: "  ab  " }).canSubmit, false);
+});
+test("di atas ambang: butuh file bukti; di bawah ambang tidak", () => {
+  assert.deepEqual(ef({ amount: 2_000_000 }), { needProof: true, canSubmit: false });
+  assert.deepEqual(ef({ amount: 2_000_000, hasFile: true }), { needProof: true, canSubmit: true });
+  assert.deepEqual(ef({ amount: 499_999 }), { needProof: false, canSubmit: true });
+  assert.deepEqual(ef({ amount: 2_000_000, threshold: 0 }), { needProof: false, canSubmit: true });
+});
+
+console.log("ringkasan pengeluaran (expenseTotals / expensesByCategory)");
+const xs = [
+  { status: "approved" as const, amount: 1_000_000, category_name: "Bahan baku" },
+  { status: "approved" as const, amount: 500_000, category_name: "Bahan baku" },
+  { status: "approved" as const, amount: 300_000, category_name: "Operasional" },
+  { status: "pending" as const, amount: 250_000, category_name: "Bahan baku" },
+  { status: "pending" as const, amount: 50_000, category_name: "Lain-lain" },
+  { status: "rejected" as const, amount: 999_999, category_name: "Bahan baku" },
+  { status: "void" as const, amount: 888_888, category_name: "Operasional" },
+];
+test("total disetujui & menunggu; ditolak dan void tidak dihitung", () => {
+  assert.deepEqual(expenseTotals(xs), { approved: 1_800_000, pending: 300_000, pendingCount: 2 });
+  assert.deepEqual(expenseTotals([]), { approved: 0, pending: 0, pendingCount: 0 });
+});
+test("per kategori: hanya yang disetujui, terbesar dulu, dibatasi top", () => {
+  assert.deepEqual(expensesByCategory(xs), [["Bahan baku", 1_500_000], ["Operasional", 300_000]]);
+  assert.deepEqual(expensesByCategory(xs, 1), [["Bahan baku", 1_500_000]]);
+  assert.deepEqual(expensesByCategory([{ status: "approved", amount: 5, category_name: null }]), [["Tanpa kategori", 5]]);
+  assert.deepEqual(expensesByCategory([]), []);
 });
 
 console.log(`\n${passed} uji lulus`);

@@ -2,7 +2,7 @@
 // Pemanggil API keuangan. Semua operasi uang lewat /api/finance/* (server), tidak langsung ke Supabase.
 
 import { useCallback, useEffect, useState } from "react";
-import type { FinanceMeta } from "@/lib/finance/types";
+import type { FinanceMeta, FinanceVendor } from "@/lib/finance/types";
 
 export class FinanceApiError extends Error {
   status: number;
@@ -57,4 +57,32 @@ export function useFinanceMeta() {
   }, [reload]);
 
   return { meta, error, loading, reload };
+}
+
+/** Vendor/pemasok aktif (GET /api/finance/vendors) + `addVendor` untuk menambah hasil POST tanpa muat ulang. */
+export function useVendors() {
+  const [vendors, setVendors] = useState<FinanceVendor[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    finFetch<{ vendors: FinanceVendor[] }>("/api/finance/vendors")
+      .then((r) => {
+        if (!cancelled) setVendors(r.vendors);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(errMsg(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const addVendor = useCallback(
+    (v: FinanceVendor) =>
+      setVendors((list) => (list.some((x) => x.id === v.id) ? list : [...list, v].sort((a, b) => a.name.localeCompare(b.name)))),
+    [],
+  );
+
+  return { vendors, error, addVendor };
 }

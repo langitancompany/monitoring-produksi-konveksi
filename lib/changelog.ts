@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.14",
+  version: "V.1.15",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Keuangan: tagihan per pesanan, pencatatan & verifikasi pembayaran",
+  notes: "Keuangan: tagihan, pembayaran, dan pengeluaran dengan persetujuan",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.15",
+    date: "2026-10-20",
+    changes: [
+      "Keuangan langkah 6.5: tab Pengeluaran. Catat uang keluar (kategori, dibayar dari kas/bank, vendor, keterangan, nota/bukti), lalu disetujui atau ditolak oleh yang berhak; yang salah dibatalkan (void) dengan alasan, tidak dihapus. Bukti nota wajib untuk pengeluaran di atas ambang yang diatur (bawaan Rp500.000).",
+      "Pengeluaran bisa ditautkan ke satu pesanan sebagai biaya langsung (dasar laba per pesanan di laporan nanti) dan vendor baru bisa ditambah langsung dari form. Ada ringkasan total disetujui, menunggu persetujuan, dan per kategori, serta lencana jumlah yang menunggu di tab Pengeluaran.",
+      "Pengetatan keamanan: server tidak lagi bisa menulis langsung ke tabel tagihan, pembayaran, pengeluaran, dan log audit — semua harus lewat fungsi yang memeriksa aturan dan mencatat audit. Pesanan yang punya biaya langsung tidak bisa dihapus permanen.",
+      "Butuh migration 012_finance_expenses.sql di Supabase (setelah 011).",
+    ],
+  },
   {
     version: "1.14",
     date: "2026-10-20",
