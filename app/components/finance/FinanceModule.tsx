@@ -1,25 +1,35 @@
 // app/components/finance/FinanceModule.tsx
 //
 // Halaman Keuangan. LANGKAH 6.4: tab Tagihan, Transaksi, Verifikasi (hanya yang berhak memverifikasi),
-// dan Akun & Pengaturan (hanya baca). LANGKAH 6.5: tab Pengeluaran. Tab Ringkasan, Laporan, Audit, dan
-// Panduan ditambahkan bertahap (docs/PRD.md §21). Hak akses dihitung SERVER (meta.caps); di sini hanya untuk
+// dan Akun & Pengaturan (hanya baca). LANGKAH 6.5: tab Pengeluaran. LANGKAH 6.6: tab Ringkasan (awal),
+// Laporan (berhak menyetujui), Audit (supervisor), dan Panduan (docs/PRD.md §21). Hak akses dihitung SERVER (meta.caps); di sini hanya untuk
 // menampilkan/menyembunyikan tombol — penegakan ada di API dan database.
 "use client";
 
 import React, { useCallback, useState } from "react";
-import { FileText, ArrowDownToLine, ArrowUpFromLine, ShieldCheck, Settings, Loader2, RefreshCw } from "lucide-react";
+import {
+  FileText, ArrowDownToLine, ArrowUpFromLine, ShieldCheck, Settings, Loader2, RefreshCw,
+  LayoutDashboard, BarChart3, ScrollText, BookOpen,
+} from "lucide-react";
 import { useFinanceMeta } from "@/hooks/useFinanceApi";
 import type { ProductionTypeData } from "@/types/order";
 import InvoicesTab from "./tabs/InvoicesTab";
 import PaymentsTab from "./tabs/PaymentsTab";
 import ExpensesTab from "./tabs/ExpensesTab";
 import InfoTab from "./tabs/InfoTab";
+import OverviewTab from "./tabs/OverviewTab";
+import ReportTab from "./tabs/ReportTab";
+import AuditTab from "./tabs/AuditTab";
+import GuideTab from "./tabs/GuideTab";
+import type { GuideTarget } from "@/lib/finance/guideTasks";
 
-type TabId = "invoices" | "payments" | "verify" | "expenses" | "info";
+type TabId = "overview" | "invoices" | "payments" | "verify" | "expenses" | "report" | "audit" | "guide" | "info";
 
 export default function FinanceModule({ productionTypes }: { productionTypes: ProductionTypeData[] }) {
   const { meta, error, loading, reload } = useFinanceMeta();
-  const [tab, setTab] = useState<TabId>("invoices");
+  const [tab, setTab] = useState<TabId>("overview");
+  // Dibuka dari Ringkasan/Panduan ke antrean pengeluaran: tab dimount ulang (key) dengan filter "Menunggu persetujuan".
+  const [expenseNav, setExpenseNav] = useState<{ key: number; pending: boolean }>({ key: 0, pending: false });
   const [version, setVersion] = useState(0);
 
   // Tiap perubahan data: muat ulang tab aktif + angka antrean verifikasi.
@@ -53,7 +63,12 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
   }
 
   const caps = meta.caps;
+  const goTo = (target: GuideTarget, opts?: { pending?: boolean }) => {
+    if (target === "expenses") setExpenseNav((n) => ({ key: n.key + 1, pending: !!opts?.pending }));
+    setTab(target === "info" ? "info" : target);
+  };
   const tabs: { id: TabId; label: string; icon: React.ReactNode; show: boolean; badge?: number }[] = [
+    { id: "overview", label: "Ringkasan", icon: <LayoutDashboard size={14} className="shrink-0" />, show: true },
     { id: "invoices", label: "Tagihan", icon: <FileText size={14} className="shrink-0" />, show: true },
     { id: "payments", label: "Transaksi", icon: <ArrowDownToLine size={14} className="shrink-0" />, show: true },
     {
@@ -71,11 +86,15 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
       // lencana hanya untuk yang berhak menyetujui
       badge: caps.edit ? meta.pending_expense_count : 0,
     },
+    // laporan & audit memuat data manajemen: hanya yang berhak menyetujui (laporan) / supervisor (audit)
+    { id: "report", label: "Laporan", icon: <BarChart3 size={14} className="shrink-0" />, show: caps.edit },
+    { id: "audit", label: "Audit", icon: <ScrollText size={14} className="shrink-0" />, show: caps.isSupervisor },
+    { id: "guide", label: "Panduan", icon: <BookOpen size={14} className="shrink-0" />, show: true },
     { id: "info", label: "Akun & Pengaturan", icon: <Settings size={14} className="shrink-0" />, show: true },
   ];
   const visible = tabs.filter((t) => t.show);
   // Bila hak berubah dan tab aktif tak lagi tampil, kembali ke tab pertama.
-  const active: TabId = visible.some((t) => t.id === tab) ? tab : "invoices";
+  const active: TabId = visible.some((t) => t.id === tab) ? tab : "overview";
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
@@ -90,7 +109,7 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Keuangan</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Tagihan, pembayaran masuk, pengeluaran, dan verifikasi. Semua perubahan tercatat di log audit.
+            Ringkasan, tagihan, pembayaran masuk, pengeluaran, verifikasi, dan laporan. Semua perubahan tercatat di log audit.
           </p>
         </div>
         <button
@@ -151,7 +170,26 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
         {active === "verify" && caps.edit && (
           <PaymentsTab mode="pending" caps={caps} version={version} onChanged={changed} />
         )}
-        {active === "expenses" && <ExpensesTab meta={meta} version={version} onChanged={changed} />}
+        {active === "overview" && (
+          <OverviewTab
+            version={version}
+            canVerify={caps.edit}
+            onGoVerify={() => goTo("verify")}
+            onGoExpenses={() => goTo("expenses", { pending: true })}
+          />
+        )}
+        {active === "expenses" && (
+          <ExpensesTab
+            key={expenseNav.key}
+            meta={meta}
+            version={version}
+            onChanged={changed}
+            initialStatus={expenseNav.pending ? "pending" : ""}
+          />
+        )}
+        {active === "report" && caps.edit && <ReportTab version={version} />}
+        {active === "audit" && caps.isSupervisor && <AuditTab version={version} />}
+        {active === "guide" && <GuideTab caps={caps} version={version} userKey={meta.user_id} onGo={goTo} />}
         {active === "info" && <InfoTab meta={meta} />}
       </div>
     </div>

@@ -17,7 +17,7 @@ const STEPS: { id: string; label: string; done: boolean }[] = [
   { id: "6.3", label: "Pembayaran: catat, verifikasi, void — database & API", done: true },
   { id: "6.4", label: "Layar Keuangan: Tagihan & Pembayaran", done: true },
   { id: "6.5", label: "Pengeluaran: vendor, catat, persetujuan", done: true },
-  { id: "6.6", label: "Ringkasan, Laporan, Audit, Panduan", done: false },
+  { id: "6.6", label: "Ringkasan, Laporan, Audit, Panduan", done: true },
   { id: "6.7", label: "Dokumen invoice (cetak/PDF) & bagikan, ekspor Excel", done: false },
   { id: "6.8", label: "Gaji → Keuangan, tutup periode, transfer akun", done: false },
 ];

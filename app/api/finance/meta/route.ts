@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     caps: guard.actor.caps,
     pending_count: pend.count ?? 0,
     pending_expense_count: pendExp.count ?? 0,
+    user_id: guard.actor.userId,
   };
   return NextResponse.json(body);
 }

@@ -20,16 +20,19 @@ export default function ExpensesTab({
   meta,
   version,
   onChanged,
+  initialStatus = "",
 }: {
   meta: FinanceMeta;
   version: number;
   onChanged: () => void;
+  /** filter status awal (mis. "pending" saat dibuka dari Ringkasan/Panduan) */
+  initialStatus?: "" | ExpenseStatus;
 }) {
   const caps = meta.caps;
   const { vendors, addVendor } = useVendors();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<"" | ExpenseStatus>("");
+  const [status, setStatus] = useState<"" | ExpenseStatus>(initialStatus);
   const [categoryId, setCategoryId] = useState("");
   const [from, setFrom] = useState(monthStartYmd());
   const [to, setTo] = useState(todayYmd());

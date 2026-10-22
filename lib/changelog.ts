@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.15",
+  version: "V.1.16",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Keuangan: tagihan, pembayaran, dan pengeluaran dengan persetujuan",
+  notes: "Keuangan: tagihan, pembayaran, pengeluaran, ringkasan, laporan, dan audit",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.16",
+    date: "2026-10-22",
+    changes: [
+      "Keuangan langkah 6.6: tab Ringkasan (kas masuk, tagihan terbit, piutang beserta umurnya, pengeluaran, arus kas bersih, dan saldo per akun) kini menjadi tab pertama. Tab Laporan menampilkan laba (berdasarkan tagihan) dan arus kas (berdasarkan uang) per bulan, biaya per kategori, dan laba kotor per pesanan, lengkap dengan peringatan bila biaya belum lengkap.",
+      "Tab Audit (khusus supervisor) menampilkan jejak semua perubahan keuangan. Tab Panduan berisi angka \"perlu tindakan\" langsung dari data, tugas harian/mingguan/bulanan yang bisa dicentang, aturan penting, tanya jawab, dan daftar fitur yang belum tersedia.",
+      "Semua angka Ringkasan dan Laporan dihitung langsung oleh database sehingga tidak terpotong batas jumlah baris. Piutang tanpa jatuh tempo ditampilkan terpisah, tidak dihitung telat.",
+      "Butuh migration 013_finance_reports.sql di Supabase (setelah 012). Saldo awal tiap akun diisi lewat kolom opening_balance di database.",
+    ],
+  },
   {
     version: "1.15",
     date: "2026-10-20",

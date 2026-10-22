@@ -32,6 +32,8 @@ export interface FinanceMeta {
   pending_count: number;
   /** jumlah pengeluaran yang menunggu persetujuan (lencana tab Pengeluaran) */
   pending_expense_count: number;
+  /** id pengguna yang sedang login (kunci centang tab Panduan agar tak tercampur antar pengguna) */
+  user_id: string;
 }
 
 export const ACCOUNT_TYPE_LABEL: Record<FinanceAccount["type"], string> = {
@@ -220,3 +222,130 @@ export const EXPENSE_STATE_LABEL: Record<ExpenseStatus, string> = {
   rejected: "Ditolak",
   void: "Dibatalkan (void)",
 };
+
+// ─── Ringkasan, Laporan, Audit, Panduan (langkah 6.6) ───────────────────────────
+
+export type AgingBucket = "belum_jatuh_tempo" | "telat_1_7" | "telat_8_30" | "telat_30_plus" | "tanpa_jatuh_tempo";
+
+/** Respons GET /api/finance/overview (dihitung database oleh fin_overview). */
+export interface OverviewData {
+  period: { from: string; to: string };
+  /** pembayaran terverifikasi pada rentang, sudah dikurangi refund */
+  cash_in: number;
+  /** nilai tagihan aktif pesanan yang masuk pada rentang (tanggal masuk pesanan) */
+  tagihan_terbit: number;
+  /** piutang = sisa tagihan aktif SAAT INI (tidak mengikuti rentang) */
+  piutang_total: number;
+  piutang_count: number;
+  /** bagian piutang yang sudah lewat jatuh tempo (bucket telat_*) */
+  piutang_overdue: number;
+  /** pembayaran uang MASUK yang menunggu verifikasi (refund tidak dihitung) */
+  pending_count: number;
+  pending_amount: number;
+  /** pengeluaran disetujui pada rentang */
+  cash_out: number;
+  expense_pending_count: number;
+  expense_pending_amount: number;
+  aging: { bucket: AgingBucket; count: number; amount: number }[];
+  top_debtors: { order_id: string; kode_produksi: string; nama_pemesan: string; balance: number; days_overdue: number }[];
+  /** saldo akun aktif SAAT INI */
+  accounts: { id: string; code: string; name: string; type: FinanceAccount["type"]; balance: number }[];
+}
+
+export interface ReportMonth {
+  /** "YYYY-MM" */
+  month: string;
+  /** Pendapatan = nilai tagihan pesanan yang masuk pada bulan itu (tanggal masuk pesanan) */
+  revenue: number;
+  /** pengeluaran disetujui pada bulan itu */
+  expenses: number;
+  /** revenue − expenses */
+  profit: number;
+  /** pembayaran terverifikasi bersih refund */
+  cash_in: number;
+  cash_out: number;
+  cash_net: number;
+}
+
+export interface ReportOrder {
+  order_id: string;
+  kode_produksi: string;
+  nama_pemesan: string;
+  tanggal_masuk: string | null;
+  total: number;
+  paid: number;
+  /** semua pengeluaran disetujui yang ditautkan ke pesanan ini (seluruh waktu) */
+  direct_cost: number;
+  /** total − direct_cost */
+  gross: number;
+}
+
+/** Respons GET /api/finance/report (dihitung database oleh fin_report). */
+export interface ReportData {
+  period: { from: string; to: string };
+  totals: {
+    revenue: number;
+    expenses: number;
+    profit: number;
+    cash_in: number;
+    cash_out: number;
+    cash_net: number;
+    /** sisa tagihan dari pesanan yang masuk pada periode ini */
+    unpaid_billed: number;
+    expenses_linked: number;
+    expenses_unlinked: number;
+  };
+  months: ReportMonth[];
+  by_category: { name: string; amount: number }[];
+  /** maksimal 300 pesanan terbaru; jumlah seluruhnya di orders_total */
+  orders: ReportOrder[];
+  orders_total: number;
+}
+
+export interface AuditRow {
+  id: number;
+  at: string;
+  actor_name: string | null;
+  action: string;
+  entity: string;
+  entity_id: string | null;
+  order_id: string | null;
+  order_kode: string | null;
+  before: unknown;
+  after: unknown;
+  reason: string | null;
+}
+
+/** Jenis catatan yang saat ini ditulis fungsi database (bertambah di langkah 6.7–6.8). */
+export const AUDIT_ENTITIES = ["payment", "invoice", "expense", "vendor"] as const;
+
+export const AUDIT_ENTITY_LABEL: Record<string, string> = {
+  payment: "Pembayaran",
+  invoice: "Tagihan",
+  expense: "Pengeluaran",
+  vendor: "Vendor",
+};
+
+export const AUDIT_ACTION_LABEL: Record<string, string> = {
+  "invoice.issue": "Terbitkan tagihan",
+  "invoice.revise": "Revisi tagihan",
+  "payment.record": "Catat pembayaran",
+  "payment.verify": "Verifikasi pembayaran",
+  "payment.reject": "Tolak pembayaran",
+  "payment.void": "Void pembayaran",
+  "expense.record": "Catat pengeluaran",
+  "expense.approve": "Setujui pengeluaran",
+  "expense.reject": "Tolak pengeluaran",
+  "expense.void": "Void pengeluaran",
+  "vendor.create": "Tambah vendor",
+};
+
+/** Respons GET /api/finance/todo (dihitung database oleh fin_todo). */
+export interface TodoData {
+  pending_payments: { count: number; amount: number; oldest_days: number | null };
+  pending_expenses: { count: number; amount: number; oldest_days: number | null };
+  /** tagihan yang sudah lewat jatuh tempo dan masih ada sisa */
+  overdue: { count: number; amount: number };
+  /** pesanan masuk 30 hari terakhir yang sudah punya rincian item tetapi belum ditagih */
+  unbilled_recent: { count: number; since: string };
+}

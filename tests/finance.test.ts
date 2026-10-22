@@ -12,6 +12,14 @@ import {
   type PaymentFormInput,
 } from "../lib/finance/view";
 import { parseExpenseFields, sanitizeLookupQuery, toExpenseRow } from "../lib/finance/expenses";
+import {
+  AGING_ORDER, BUCKET_LABEL, bucketTone, datePreset, isValidRange, lossOrders, monthLabel, pct, reportWarnings,
+  sortReportOrders,
+} from "../lib/finance/report";
+import { COMING_SOON, FAQ, RULES, TASKS, canDo, periodKey, pruneDone, taskKey, tasksFor } from "../lib/finance/guideTasks";
+import { AUDIT_ACTION_LABEL, AUDIT_ENTITIES, type ReportData, type ReportOrder } from "../lib/finance/types";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { finError, isDate, isMoney, isUuid, parseSettings, sniffProof, todayWib } from "../lib/finance/validate";
 
 let passed = 0;
@@ -577,6 +585,124 @@ test("per kategori: hanya yang disetujui, terbesar dulu, dibatasi top", () => {
   assert.deepEqual(expensesByCategory(xs, 1), [["Bahan baku", 1_500_000]]);
   assert.deepEqual(expensesByCategory([{ status: "approved", amount: 5, category_name: null }]), [["Tanpa kategori", 5]]);
   assert.deepEqual(expensesByCategory([]), []);
+});
+
+// ─── Ringkasan, Laporan, Panduan, Audit (langkah 6.6) ───────────────────────────
+console.log("laporan (report.ts)");
+test("semua bucket umur piutang punya label dan urutan; nada: telat lama merah, baru telat kuning", () => {
+  assert.equal(AGING_ORDER.length, 5);
+  for (const b of AGING_ORDER) assert.ok(BUCKET_LABEL[b].length > 3, b);
+  assert.deepEqual(AGING_ORDER.map(bucketTone), ["neutral", "amber", "red", "red", "neutral"]);
+});
+test("monthLabel & pct", () => {
+  assert.match(monthLabel("2026-10"), /Okt\s2026/);
+  assert.equal(monthLabel("bukan-bulan"), "bukan-bulan");
+  assert.equal(pct(25, 100), "25.0%");
+  assert.equal(pct(1, 3), "33.3%");
+  assert.equal(pct(5, 0), "-");
+  assert.equal(pct(-10, 100), "-10.0%");
+});
+const ro = (kode: string, total: number, dc: number): ReportOrder => ({
+  order_id: kode, kode_produksi: kode, nama_pemesan: "x", tanggal_masuk: "2026-10-01", total, paid: 0, direct_cost: dc, gross: total - dc,
+});
+test("sortReportOrders: terendah/tertinggi, seri berdasar kode, masukan tidak berubah", () => {
+  const list = [ro("K-2", 100, 10), ro("K-1", 100, 10), ro("K-3", 50, 80), ro("K-4", 200, 0)];
+  const before = list.map((o) => o.kode_produksi).join();
+  assert.deepEqual(sortReportOrders(list, "lowest").map((o) => o.kode_produksi), ["K-3", "K-1", "K-2", "K-4"]);
+  assert.deepEqual(sortReportOrders(list, "highest").map((o) => o.kode_produksi), ["K-4", "K-1", "K-2", "K-3"]);
+  assert.deepEqual(sortReportOrders(list, "newest").map((o) => o.kode_produksi), ["K-2", "K-1", "K-3", "K-4"]);
+  assert.equal(list.map((o) => o.kode_produksi).join(), before);
+  assert.equal(lossOrders(list), 1);
+  assert.equal(lossOrders([]), 0);
+});
+test("datePreset: bulan ini, 3 bulan (melewati pergantian tahun), tahun ini", () => {
+  const now = new Date(2026, 9, 22); // 22 Okt 2026
+  assert.deepEqual(datePreset("month", now), { from: "2026-10-01", to: "2026-10-22" });
+  assert.deepEqual(datePreset("3m", now), { from: "2026-08-01", to: "2026-10-22" });
+  assert.deepEqual(datePreset("year", now), { from: "2026-01-01", to: "2026-10-22" });
+  assert.deepEqual(datePreset("3m", new Date(2026, 0, 15)), { from: "2025-11-01", to: "2026-01-15" });
+});
+test("isValidRange", () => {
+  assert.equal(isValidRange("2026-10-01", "2026-10-31"), true);
+  assert.equal(isValidRange("2026-10-01", "2026-10-01"), true);
+  assert.equal(isValidRange("2026-10-31", "2026-10-01"), false);
+  assert.equal(isValidRange("", "2026-10-01"), false);
+});
+const tot = (over: Partial<ReportData["totals"]> = {}): ReportData["totals"] => ({
+  revenue: 10_000_000, expenses: 4_000_000, profit: 6_000_000, cash_in: 0, cash_out: 4_000_000, cash_net: 0,
+  unpaid_billed: 0, expenses_linked: 4_000_000, expenses_unlinked: 0, ...over,
+});
+test("peringatan kelengkapan: tanpa biaya, biaya belum ditautkan, rugi, dan normal tanpa peringatan", () => {
+  assert.deepEqual(reportWarnings(tot()), []);
+  const noExp = reportWarnings(tot({ expenses: 0, profit: 10_000_000, expenses_linked: 0 }));
+  assert.equal(noExp.length, 1);
+  assert.match(noExp[0], /Belum ada pengeluaran disetujui/);
+  const unlinked = reportWarnings(tot({ expenses_linked: 1_000_000, expenses_unlinked: 3_000_000 }));
+  assert.equal(unlinked.length, 1);
+  assert.match(unlinked[0], /Rp3\.000\.000 \(75\.0%\) pengeluaran belum ditautkan/);
+  const loss = reportWarnings(tot({ expenses: 12_000_000, profit: -2_000_000, expenses_linked: 12_000_000 }));
+  assert.deepEqual(loss, ["Biaya melebihi pendapatan pada periode ini."]);
+  assert.equal(reportWarnings(tot({ revenue: 0, expenses: 0, profit: 0, expenses_linked: 0 })).length, 0);
+});
+
+console.log("panduan (guideTasks.ts)");
+const capsOf = (c: Partial<Record<"view" | "create" | "edit" | "delete", boolean>>, isSupervisor = false) => ({
+  view: true, create: false, edit: false, delete: false, ...c, isSupervisor,
+});
+test("tugas disaring menurut hak: lihat saja, hanya-create, hanya-edit, supervisor", () => {
+  const ids = (c: ReturnType<typeof capsOf>) => tasksFor(c).map((t) => t.id).sort();
+  assert.deepEqual(ids(capsOf({})), ["w-aging"]);
+  assert.deepEqual(ids(capsOf({ create: true })), ["d-expense", "d-invoice", "d-payment", "w-aging", "w-complete", "w-unbilled"]);
+  assert.deepEqual(ids(capsOf({ edit: true })), ["d-approve", "d-verify", "m-reconcile", "m-report", "w-aging"]);
+  assert.equal(ids(capsOf({ create: true, edit: true, delete: true }, true)).length, TASKS.length);
+  assert.equal(canDo(TASKS.find((t) => t.id === "m-audit")!, capsOf({ create: true, edit: true, delete: true })), false);
+  assert.equal(canDo(TASKS.find((t) => t.id === "m-audit")!, capsOf({}, true)), true);
+});
+test("isi panduan konsisten: id unik, langkah ada, tab tujuan sah, FAQ/aturan/belum-tersedia terisi", () => {
+  assert.equal(new Set(TASKS.map((t) => t.id)).size, TASKS.length);
+  const targets = ["overview", "invoices", "payments", "verify", "expenses", "report", "audit", "info"];
+  for (const t of TASKS) {
+    assert.ok(t.steps.length >= 2, t.id);
+    assert.ok(t.title && t.why, t.id);
+    if (t.go) assert.ok(targets.includes(t.go.tab), `${t.id} -> ${t.go.tab}`);
+  }
+  assert.ok(RULES.length >= 3 && FAQ.length >= 5 && COMING_SOON.length >= 2);
+  for (const f of FAQ) assert.ok(f.q.endsWith("?") || f.q.endsWith("."), f.q);
+});
+test("periodKey: harian = tanggal, mingguan = Senin minggu itu (juga lintas tahun), bulanan = YYYY-MM", () => {
+  assert.equal(periodKey("daily", new Date(2026, 9, 22)), "2026-10-22");
+  assert.equal(periodKey("monthly", new Date(2026, 9, 22)), "2026-10");
+  assert.equal(periodKey("weekly", new Date(2026, 9, 22)), "2026-10-19"); // Kamis → Senin
+  assert.equal(periodKey("weekly", new Date(2026, 9, 25)), "2026-10-19"); // Minggu → Senin sebelumnya
+  assert.equal(periodKey("weekly", new Date(2026, 9, 26)), "2026-10-26"); // Senin → dirinya
+  assert.equal(periodKey("weekly", new Date(2026, 0, 1)), "2025-12-29"); // 1 Jan 2026 (Kamis)
+});
+test("pruneDone: centang periode berjalan dipertahankan; periode lama & tugas yang tak berlaku dibuang", () => {
+  const caps = capsOf({ create: true, edit: true });
+  const tasks = tasksFor(caps);
+  const now = new Date(2026, 9, 22);
+  const t = tasks.find((x) => x.id === "d-payment")!;
+  const done = {
+    [taskKey(t, now)]: true as const,
+    "d-payment|2026-10-21": true as const, // kemarin
+    "w-aging|2026-10-12": true as const, // minggu lalu
+    "tugas-hilang|2026-10-22": true as const,
+  };
+  assert.deepEqual(pruneDone(done, tasks, now), { [taskKey(t, now)]: true });
+  assert.deepEqual(pruneDone({}, tasks, now), {});
+});
+
+console.log("kontrak audit: label harus mencakup semua aksi yang ditulis database");
+test("setiap aksi di migration & API punya label, dan jenisnya terdaftar di AUDIT_ENTITIES", () => {
+  const dir = join(process.cwd(), "supabase", "migrations");
+  const sql = readdirSync(dir).filter((f) => f.endsWith(".sql")).map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
+  const found = new Set([...sql.matchAll(/'((?:invoice|payment|expense|vendor)\.[a-z_]+)'/g)].map((m) => m[1]));
+  found.add("vendor.create"); // ditulis oleh app/api/finance/vendors/route.ts lewat fin_audit
+  assert.ok(found.size >= 10, `hanya ${found.size} aksi ditemukan`);
+  for (const a of found) assert.ok(AUDIT_ACTION_LABEL[a], `label untuk ${a} belum ada`);
+  for (const a of Object.keys(AUDIT_ACTION_LABEL)) {
+    assert.ok((AUDIT_ENTITIES as readonly string[]).includes(a.split(".")[0]), `jenis untuk ${a}`);
+  }
 });
 
 console.log(`\n${passed} uji lulus`);

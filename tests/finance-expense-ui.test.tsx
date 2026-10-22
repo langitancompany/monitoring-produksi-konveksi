@@ -41,6 +41,7 @@ const meta = (over: Partial<FinanceMeta> = {}, createCap = true): FinanceMeta =>
   caps: { view: true, create: createCap, edit: true, delete: true, isSupervisor: false },
   pending_count: 0,
   pending_expense_count: 0,
+  user_id: "u1",
   ...over,
 });
 
