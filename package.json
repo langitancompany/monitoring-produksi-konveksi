@@ -15,13 +15,16 @@
     "browser-image-compression": "^2.0.2",
     "firebase": "^12.7.0",
     "firebase-admin": "^13.6.0",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.554.0",
     "next": "^16.0.7",
     "next-themes": "^0.4.6",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-easy-crop": "^5.5.6",
-    "recharts": "^3.10.1"
+    "recharts": "^3.10.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

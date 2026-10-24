@@ -2,7 +2,8 @@
 //
 // Daftar posisi keuangan semua pesanan (tagihan · terbayar · sisa · status). Status dihitung database
 // (view v_order_finance). Dari sini: lihat rincian (modal OrderFinancePanel), terbitkan tagihan,
-// atau catat pembayaran. Ekspor Excel & invoice cetak menyusul di langkah 6.7.
+// atau catat pembayaran. Langkah 6.7: tombol Invoice (PDF/cetak/WhatsApp) per pesanan dan Ekspor Excel
+// (sesuai pencarian & filter yang sedang tampil).
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,8 +16,11 @@ import { usePagedList } from "@/hooks/usePagedList";
 import { StatusBadge } from "../StatusBadge";
 import OrderFinancePanel from "../OrderFinancePanel";
 import RecordPaymentModal from "../RecordPaymentModal";
+import InvoiceShareModal from "../InvoiceShareModal";
+import ExportButton from "../ExportButton";
+import { exportFileName, invoicesSheet } from "@/lib/finance/excel";
 import { ModalShell, SearchInput, sectionLabelCls, smallGhostBtnCls, smallPrimaryBtnCls, toolbarCls } from "../ui";
-import { formatDateShort, formatRupiah } from "../utils";
+import { formatDateShort, formatRupiah, todayYmd } from "../utils";
 
 export default function InvoicesTab({
   meta,
@@ -37,6 +41,8 @@ export default function InvoicesTab({
   /** pesanan yang rinciannya dibuka; `issue` = langsung buka form tagihan */
   const [detail, setDetail] = useState<{ id: string; issue: boolean } | null>(null);
   const [recordRow, setRecordRow] = useState<OrderFinanceRow | null>(null);
+  /** pesanan yang invoice pelanggannya dibuka */
+  const [invoiceDocId, setInvoiceDocId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -75,6 +81,16 @@ export default function InvoicesTab({
               <span className="ml-1.5 text-[10px] opacity-70 font-mono tabular-nums">({counts[f]})</span>
             </button>
           ))}
+        </div>
+        <div className="flex justify-end">
+          <ExportButton
+            scope={`Tagihan (${filter})`}
+            build={() => ({
+              filename: exportFileName("Tagihan", todayYmd()),
+              sheets: [invoicesSheet(filtered)],
+              rowCount: filtered.length,
+            })}
+          />
         </div>
       </div>
 
@@ -146,6 +162,11 @@ export default function InvoicesTab({
                       <button onClick={() => setDetail({ id: r.order_id, issue: false })} className={smallGhostBtnCls}>
                         Rincian
                       </button>
+                      {r.invoice_id && (
+                        <button onClick={() => setInvoiceDocId(r.order_id)} className={smallGhostBtnCls}>
+                          Invoice
+                        </button>
+                      )}
                       {caps.create && !r.invoice_id && (
                         <button onClick={() => setDetail({ id: r.order_id, issue: true })} className={smallPrimaryBtnCls}>
                           Terbitkan
@@ -186,6 +207,7 @@ export default function InvoicesTab({
           />
         </ModalShell>
       )}
+      {invoiceDocId && <InvoiceShareModal orderId={invoiceDocId} onClose={() => setInvoiceDocId(null)} />}
       {recordRow && (
         <RecordPaymentModal target={recordRow} meta={meta} onClose={() => setRecordRow(null)} onDone={onChanged} />
       )}

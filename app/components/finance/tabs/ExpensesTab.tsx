@@ -13,6 +13,8 @@ import { expensesByCategory, expenseTotals } from "@/lib/finance/view";
 import { ExpenseRow } from "../ExpenseRow";
 import { useExpenseActions } from "../ExpenseActions";
 import RecordExpenseModal from "../RecordExpenseModal";
+import ExportButton from "../ExportButton";
+import { exportFileName, expensesSheet } from "@/lib/finance/excel";
 import { FilterField, filterInputCls, toolbarCls, cardCls, sectionLabelCls, PrimaryButton } from "../ui";
 import { formatRupiah, monthStartYmd, todayYmd } from "../utils";
 
@@ -114,13 +116,22 @@ export default function ExpensesTab({
               className={filterInputCls}
             />
           </FilterField>
-          {caps.create && (
-            <div className="col-span-2 sm:col-span-1 sm:ml-auto">
-              <PrimaryButton onClick={() => setShowRecord(true)} className="w-full sm:w-auto h-10">
+          <div className="col-span-2 sm:col-span-1 sm:ml-auto flex items-center gap-2">
+            <ExportButton
+              scope="Pengeluaran"
+              build={() => ({
+                filename: exportFileName("Pengeluaran", todayYmd()),
+                sheets: [expensesSheet(rows ?? [])],
+                rowCount: rows?.length ?? 0,
+              })}
+              disabled={!rows}
+            />
+            {caps.create && (
+              <PrimaryButton onClick={() => setShowRecord(true)} className="flex-1 sm:flex-none h-10">
                 <Plus className="w-4 h-4" /> Catat pengeluaran
               </PrimaryButton>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

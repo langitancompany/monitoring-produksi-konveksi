@@ -317,13 +317,15 @@ export interface AuditRow {
 }
 
 /** Jenis catatan yang saat ini ditulis fungsi database (bertambah di langkah 6.7–6.8). */
-export const AUDIT_ENTITIES = ["payment", "invoice", "expense", "vendor"] as const;
+export const AUDIT_ENTITIES = ["payment", "invoice", "expense", "vendor", "export", "settings"] as const;
 
 export const AUDIT_ENTITY_LABEL: Record<string, string> = {
   payment: "Pembayaran",
   invoice: "Tagihan",
   expense: "Pengeluaran",
   vendor: "Vendor",
+  export: "Ekspor data",
+  settings: "Pengaturan",
 };
 
 export const AUDIT_ACTION_LABEL: Record<string, string> = {
@@ -338,6 +340,8 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "expense.reject": "Tolak pengeluaran",
   "expense.void": "Void pengeluaran",
   "vendor.create": "Tambah vendor",
+  "export.excel": "Ekspor Excel",
+  "settings.invoice": "Ubah pengaturan invoice",
 };
 
 /** Respons GET /api/finance/todo (dihitung database oleh fin_todo). */

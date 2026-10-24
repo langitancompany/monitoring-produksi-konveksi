@@ -10,6 +10,7 @@ import { CheckCircle2, Circle } from "lucide-react";
 import { ACCOUNT_TYPE_LABEL, type FinanceMeta } from "@/lib/finance/types";
 import { rupiah } from "@/lib/salary";
 import { cardCls, sectionLabelCls } from "../ui";
+import InvoiceSettingsCard from "../InvoiceSettingsCard";
 
 const STEPS: { id: string; label: string; done: boolean }[] = [
   { id: "6.1", label: "Fondasi: akun, kategori, pengaturan, log audit", done: true },
@@ -18,7 +19,7 @@ const STEPS: { id: string; label: string; done: boolean }[] = [
   { id: "6.4", label: "Layar Keuangan: Tagihan & Pembayaran", done: true },
   { id: "6.5", label: "Pengeluaran: vendor, catat, persetujuan", done: true },
   { id: "6.6", label: "Ringkasan, Laporan, Audit, Panduan", done: true },
-  { id: "6.7", label: "Dokumen invoice (cetak/PDF) & bagikan, ekspor Excel", done: false },
+  { id: "6.7", label: "Dokumen invoice (cetak/PDF) & bagikan, ekspor Excel", done: true },
   { id: "6.8", label: "Gaji → Keuangan, tutup periode, transfer akun", done: false },
 ];
 
@@ -84,6 +85,8 @@ export default function InfoTab({ meta }: { meta: FinanceMeta }) {
           Editor (tabel finance_settings).
         </p>
       </div>
+
+      {meta.caps.isSupervisor && <InvoiceSettingsCard />}
 
       <div className={`${cardCls} p-4 md:col-span-2`}>
         <p className={`${sectionLabelCls} mb-3`}>Rencana pembangunan</p>

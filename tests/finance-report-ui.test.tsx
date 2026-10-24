@@ -51,11 +51,12 @@ test("SummaryCard menampilkan label, nilai, dan petunjuk", () => {
 });
 
 console.log("Panduan");
-test("semua bagian tampil dan fitur yang belum ada dinyatakan terus terang", () => {
+test("semua bagian tampil; invoice & Excel sudah tidak disebut belum tersedia, gaji otomatis masih", () => {
   const out = html(<GuideTab caps={caps({ create: true, edit: true, delete: true }, true)} version={0} userKey="u1" onGo={noop} />);
-  for (const t of ["Perlu tindakan sekarang", "Tugas rutin", "Aturan penting", "Tanya jawab", "Belum tersedia", "Invoice dalam bentuk PDF", "Gaji yang otomatis"]) {
+  for (const t of ["Perlu tindakan sekarang", "Tugas rutin", "Aturan penting", "Tanya jawab", "Belum tersedia", "Gaji yang otomatis", "Bagaimana mengirim invoice", "Bagaimana mengekspor data ke Excel"]) {
     assert.match(out, new RegExp(t));
   }
+  assert.doesNotMatch(out, /Invoice dalam bentuk PDF\/cetak dan kirim/);
 });
 test("tugas harian mengikuti hak: admin pencatat tidak melihat tugas verifikasi", () => {
   const creator = html(<GuideTab caps={caps({ create: true })} version={0} userKey="u1" onGo={noop} />);

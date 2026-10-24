@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.16",
+  version: "V.1.17",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Keuangan: tagihan, pembayaran, pengeluaran, ringkasan, laporan, dan audit",
+  notes: "Keuangan: invoice pelanggan (PDF/cetak/WhatsApp) dan ekspor Excel",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.17",
+    date: "2026-10-22",
+    changes: [
+      "Keuangan langkah 6.7: invoice untuk pelanggan. Tombol Invoice di rincian pesanan dan daftar Tagihan membuka invoice A5 yang bisa diunduh sebagai PDF, dibagikan sebagai file (di HP), dicetak, atau dikirim lewat WhatsApp dengan pesan siap kirim. Invoice otomatis berstatus LUNAS begitu pembayaran terverifikasi menutup tagihan, dan memuat rincian item, diskon, pembayaran yang sudah diterima, serta cara pembayaran.",
+      "Supervisor dapat mengatur kop (gambar atau teks), rekening pembayaran, catatan, dan tanda tangan invoice di Akun & Pengaturan → Tampilan invoice, lengkap dengan pratinjau. Perubahan tercatat di log audit.",
+      "Tombol Ekspor Excel di tab Tagihan, Transaksi, Pengeluaran, dan Laporan (4 lembar) sesuai filter yang sedang tampil. Setiap ekspor tercatat di log audit lebih dulu; bila pencatatan gagal, file tidak dibuat.",
+      "Tidak ada migration baru. Perlu `npm install` karena ada tiga paket baru (xlsx, jspdf, html-to-image).",
+    ],
+  },
   {
     version: "1.16",
     date: "2026-10-22",

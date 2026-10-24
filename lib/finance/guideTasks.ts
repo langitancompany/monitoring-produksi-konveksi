@@ -175,13 +175,18 @@ export const FAQ: { q: string; a: string }[] = [
     a: "Biasanya biaya belum lengkap dicatat atau belum disetujui. Lengkapi pengeluaran dan proses antreannya, lalu tautkan biaya khusus ke pesanannya." },
   { q: "Pesanan tidak bisa ditagih.",
     a: "Pesanan harus punya rincian item. Pesanan utama baru punya item setelah tahap Approval; selesaikan dulu di Detail Pesanan." },
+  { q: "Bagaimana mengirim invoice ke pelanggan?",
+    a: "Buka Rincian pesanan (atau tombol Invoice di daftar Tagihan), lalu klik Invoice pelanggan. Dari sana Anda bisa mengunduh PDF, membagikan file (di HP), mencetak ukuran A5, atau membuka WhatsApp dengan pesan siap kirim — file PDF dilampirkan sendiri. Invoice otomatis berstatus LUNAS begitu pembayaran terverifikasi menutup tagihan." },
+  { q: "Rekening atau tanda tangan di invoice salah atau belum ada.",
+    a: "Supervisor mengaturnya di Akun & Pengaturan → Tampilan invoice (kop, rekening, tanda tangan, pratinjau langsung). Invoice yang belum lunas tanpa rekening tidak memuat cara pembayaran." },
+  { q: "Bagaimana mengekspor data ke Excel?",
+    a: "Tombol Ekspor Excel ada di tab Tagihan, Transaksi, Pengeluaran, dan Laporan. File memuat data sesuai filter yang sedang tampil, dan setiap ekspor tercatat di log audit (siapa, kapan, berapa baris)." },
   { q: "Pesanan tidak bisa dihapus permanen dari Sampah.",
     a: "Pesanan yang sudah punya tagihan atau biaya langsung dilindungi. Biarkan di Sampah." },
 ];
 
 /** Fitur yang direncanakan tetapi BELUM ada — supaya pengguna tidak mencarinya. */
 export const COMING_SOON: string[] = [
-  "Invoice dalam bentuk PDF/cetak dan kirim ke pelanggan, serta ekspor laporan ke Excel (langkah 6.7).",
   "Gaji yang otomatis tercatat sebagai pengeluaran, tutup periode, transfer antar akun, dan layar pengaturan keuangan (langkah 6.8). Sampai saat itu biaya gaji belum masuk laporan kecuali dicatat manual sebagai pengeluaran kategori Gaji & upah (untuk bulan yang sudah lewat, dengan keterangan jelas, agar tidak dobel saat fitur otomatisnya aktif).",
 ];
 

@@ -6,7 +6,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Plus, History } from "lucide-react";
+import { FileText, Plus, History, Send } from "lucide-react";
 import { finFetch, errMsg } from "@/hooks/useFinanceApi";
 import type { FinanceMeta, OrderFinanceDetail } from "@/lib/finance/types";
 import type { ProductionTypeData } from "@/types/order";
@@ -15,6 +15,7 @@ import { PaymentRow } from "./PaymentRow";
 import { usePaymentActions } from "./PaymentActions";
 import RecordPaymentModal from "./RecordPaymentModal";
 import InvoiceModal from "./InvoiceModal";
+import InvoiceShareModal from "./InvoiceShareModal";
 import { sectionLabelCls, smallPrimaryBtnCls } from "./ui";
 import { formatDateShort, formatDateTime, formatRupiah } from "./utils";
 
@@ -40,6 +41,7 @@ export default function OrderFinancePanel({
   const [error, setError] = useState<string | null>(null);
   const [showRecord, setShowRecord] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
+  const [showInvoiceDoc, setShowInvoiceDoc] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const autoOpened = useRef(false);
 
@@ -182,6 +184,14 @@ export default function OrderFinancePanel({
             <Plus className="w-3.5 h-3.5" /> Catat pembayaran
           </button>
         )}
+        {hasInvoice && (
+          <button
+            onClick={() => setShowInvoiceDoc(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-150"
+          >
+            <Send className="w-3.5 h-3.5" /> Invoice pelanggan
+          </button>
+        )}
         {detail.invoices.length > 1 && (
           <button
             onClick={() => setShowHistory((v) => !v)}
@@ -227,6 +237,7 @@ export default function OrderFinancePanel({
       {showRecord && hasInvoice && (
         <RecordPaymentModal target={f} meta={meta} onClose={() => setShowRecord(false)} onDone={changed} />
       )}
+      {showInvoiceDoc && <InvoiceShareModal orderId={detail.order.id} onClose={() => setShowInvoiceDoc(false)} />}
       {showInvoice && (
         <InvoiceModal
           detail={detail}

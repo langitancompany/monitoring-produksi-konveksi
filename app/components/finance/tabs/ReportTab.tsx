@@ -4,7 +4,7 @@
 //   Pendapatan = nilai tagihan pesanan yang masuk pada periode (tanggal masuk pesanan)
 //   Biaya      = pengeluaran DISETUJUI pada periode
 //   Laba       = Pendapatan − Biaya  (perkiraan manajemen, bukan laba pembukuan)
-// Ekspor Excel menyusul di langkah 6.7. Hanya untuk yang berhak menyetujui (keuangan.edit) atau supervisor.
+// Ekspor Excel (4 lembar) sesuai rentang yang sedang tampil. Hanya untuk yang berhak menyetujui (keuangan.edit) atau supervisor.
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -17,6 +17,8 @@ import {
 } from "@/lib/finance/report";
 import { SummaryCard } from "../SummaryCard";
 import { FilterField, filterInputCls, toolbarCls, cardCls, sectionLabelCls, smallGhostBtnCls } from "../ui";
+import ExportButton from "../ExportButton";
+import { exportFileName, reportSheets } from "@/lib/finance/excel";
 import { formatRupiah, todayYmd } from "../utils";
 
 const PRESETS: { id: RangePreset; label: string }[] = [
@@ -75,6 +77,15 @@ export default function ReportTab({ version }: { version: number }) {
                 {p.label}
               </button>
             ))}
+            <ExportButton
+              scope={`Laporan ${from} s/d ${to}`}
+              build={() =>
+                data
+                  ? { filename: exportFileName(`Laporan ${data.period.from} sd ${data.period.to}`, todayYmd()), sheets: reportSheets(data), rowCount: data.months.length + data.orders.length }
+                  : null
+              }
+              disabled={!data}
+            />
           </div>
         </div>
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800">

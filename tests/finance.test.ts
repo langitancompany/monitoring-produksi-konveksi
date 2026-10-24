@@ -18,8 +18,21 @@ import {
 } from "../lib/finance/report";
 import { COMING_SOON, FAQ, RULES, TASKS, canDo, periodKey, pruneDone, taskKey, tasksFor } from "../lib/finance/guideTasks";
 import { AUDIT_ACTION_LABEL, AUDIT_ENTITIES, type ReportData, type ReportOrder } from "../lib/finance/types";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import * as XLSX from "xlsx";
+import {
+  DEFAULT_INVOICE_SETTINGS, MAX_ACCOUNTS, MAX_HEADER_DATAURL, formatAccountsText, readInvoiceSettings,
+  sanitizeInvoiceSettings, summarizeInvoiceSettings,
+} from "../lib/finance/invoiceSettings";
+import {
+  buildInvoiceModel, buildSampleInvoiceModel, buildWaText, invoiceDateLong, normalizeWaNumber,
+} from "../lib/finance/invoiceDoc";
+import { escapeHtml } from "../lib/finance/printFrame";
+import {
+  buildWorkbook, exportFileName, expensesSheet, invoicesSheet, paymentsSheet, reportSheets, sanitizeSheetName,
+} from "../lib/finance/excel";
+import type { ExpenseRow, InvoiceRow, OrderFinanceDetail, PaymentRow } from "../lib/finance/types";
 import { finError, isDate, isMoney, isUuid, parseSettings, sniffProof, todayWib } from "../lib/finance/validate";
 
 let passed = 0;
@@ -666,7 +679,7 @@ test("isi panduan konsisten: id unik, langkah ada, tab tujuan sah, FAQ/aturan/be
     assert.ok(t.title && t.why, t.id);
     if (t.go) assert.ok(targets.includes(t.go.tab), `${t.id} -> ${t.go.tab}`);
   }
-  assert.ok(RULES.length >= 3 && FAQ.length >= 5 && COMING_SOON.length >= 2);
+  assert.ok(RULES.length >= 3 && FAQ.length >= 8 && COMING_SOON.length >= 1);
   for (const f of FAQ) assert.ok(f.q.endsWith("?") || f.q.endsWith("."), f.q);
 });
 test("periodKey: harian = tanggal, mingguan = Senin minggu itu (juga lintas tahun), bulanan = YYYY-MM", () => {
@@ -696,13 +709,274 @@ console.log("kontrak audit: label harus mencakup semua aksi yang ditulis databas
 test("setiap aksi di migration & API punya label, dan jenisnya terdaftar di AUDIT_ENTITIES", () => {
   const dir = join(process.cwd(), "supabase", "migrations");
   const sql = readdirSync(dir).filter((f) => f.endsWith(".sql")).map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
-  const found = new Set([...sql.matchAll(/'((?:invoice|payment|expense|vendor)\.[a-z_]+)'/g)].map((m) => m[1]));
-  found.add("vendor.create"); // ditulis oleh app/api/finance/vendors/route.ts lewat fin_audit
-  assert.ok(found.size >= 10, `hanya ${found.size} aksi ditemukan`);
+  const found = new Set([...sql.matchAll(/'((?:invoice|payment|expense|vendor|export|settings)\.[a-z_]+)'/g)].map((m) => m[1]));
+  // Aksi yang ditulis route API lewat fin_audit (p_action: "x.y") — dipindai otomatis supaya tak ada yang terlewat.
+  const walk = (d: string): string[] =>
+    readdirSync(d).flatMap((f) => {
+      const full = join(d, f);
+      return statSync(full).isDirectory() ? walk(full) : full.endsWith("route.ts") ? [full] : [];
+    });
+  const apiActions = walk(join(process.cwd(), "app", "api", "finance"))
+    .flatMap((f) => [...readFileSync(f, "utf8").matchAll(/p_action:\s*"([a-z]+\.[a-z_]+)"/g)].map((m) => m[1]));
+  for (const a of apiActions) found.add(a);
+  assert.ok(apiActions.includes("vendor.create") && apiActions.includes("export.excel") && apiActions.includes("settings.invoice"), `aksi API: ${apiActions}`);
+  assert.ok(found.size >= 13, `hanya ${found.size} aksi ditemukan`);
   for (const a of found) assert.ok(AUDIT_ACTION_LABEL[a], `label untuk ${a} belum ada`);
   for (const a of Object.keys(AUDIT_ACTION_LABEL)) {
     assert.ok((AUDIT_ENTITIES as readonly string[]).includes(a.split(".")[0]), `jenis untuk ${a}`);
   }
+});
+
+// ─── Invoice, pengaturan invoice, dan ekspor Excel (langkah 6.7) ──────────────────
+console.log("pengaturan invoice (invoiceSettings.ts)");
+const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+test("masukan valid diterima dan dirapikan; nama kosong jatuh ke bawaan; rekening kosong diabaikan", () => {
+  const r = sanitizeInvoiceSettings({
+    store_name: "  Langitan Konveksi  ", store_address: "Widang, Tuban", header_image: PNG,
+    accounts: [{ bank: " BCA ", number: "123 456", holder: "PT Contoh" }, { bank: "", number: "", holder: "" }],
+    payment_note: "Transfer lalu kirim bukti", show_signature: true, signature_image: PNG, signature_name: "Majid", signature_title: "Direktur",
+  });
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.value.store_name, "Langitan Konveksi");
+  assert.deepEqual(r.value.accounts, [{ bank: "BCA", number: "123 456", holder: "PT Contoh" }]);
+  assert.equal(r.value.show_signature, true);
+  const blank = sanitizeInvoiceSettings({ store_name: "   " });
+  assert.equal(blank.ok && blank.value.store_name, DEFAULT_INVOICE_SETTINGS.store_name);
+  assert.equal(blank.ok && blank.value.header_image, null);
+});
+test("gambar: hanya data URL png/jpeg/webp; SVG, URL luar, skrip, dan yang terlalu besar ditolak", () => {
+  const bad = [
+    "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=",
+    "https://evil.example/x.png",
+    "javascript:alert(1)",
+    "data:image/png;base64,AAAA<script>",
+    "data:text/html;base64,PHNjcmlwdD4=",
+    `data:image/png;base64,${"A".repeat(MAX_HEADER_DATAURL)}`,
+    123,
+  ];
+  for (const header_image of bad) assert.equal(sanitizeInvoiceSettings({ header_image }).ok, false, String(header_image).slice(0, 30));
+  assert.equal(sanitizeInvoiceSettings({ signature_image: bad[0] }).ok, false);
+  assert.equal(sanitizeInvoiceSettings({ header_image: null }).ok, true);
+  assert.equal(sanitizeInvoiceSettings({ header_image: "" }).ok, true);
+});
+test("rekening: maksimal 4, bank & nomor wajib berpasangan, bukan array ditolak", () => {
+  const acc = (i: number) => ({ bank: `B${i}`, number: `${i}`.repeat(5), holder: "" });
+  assert.equal(sanitizeInvoiceSettings({ accounts: Array.from({ length: MAX_ACCOUNTS }, (_, i) => acc(i)) }).ok, true);
+  assert.equal(sanitizeInvoiceSettings({ accounts: Array.from({ length: MAX_ACCOUNTS + 1 }, (_, i) => acc(i)) }).ok, false);
+  assert.equal(sanitizeInvoiceSettings({ accounts: [{ bank: "BCA", number: "", holder: "x" }] }).ok, false);
+  assert.equal(sanitizeInvoiceSettings({ accounts: [{ bank: "", number: "123", holder: "" }] }).ok, false);
+  assert.equal(sanitizeInvoiceSettings({ accounts: "BCA 123" }).ok, false);
+  assert.equal(sanitizeInvoiceSettings(null).ok, false);
+  assert.equal(sanitizeInvoiceSettings("x").ok, false);
+});
+test("show_signature hanya true bila benar-benar boolean true; teks panjang dipotong", () => {
+  const r = sanitizeInvoiceSettings({ show_signature: "true", payment_note: "x".repeat(900), store_address: "y".repeat(900) });
+  assert.equal(r.ok && r.value.show_signature, false);
+  assert.equal(r.ok && r.value.payment_note.length, 300);
+  assert.equal(r.ok && r.value.store_address.length, 250);
+});
+test("readInvoiceSettings: data rusak → bawaan lengkap; metadata ikut terbaca", () => {
+  assert.deepEqual(readInvoiceSettings(undefined).accounts, []);
+  assert.equal(readInvoiceSettings({ header_image: "bukan-gambar" }).header_image, DEFAULT_INVOICE_SETTINGS.header_image);
+  const r = readInvoiceSettings({ store_name: "X", updated_by: "Sup", updated_at: "2026-10-22T00:00:00Z" });
+  assert.deepEqual([r.store_name, r.updated_by, r.updated_at], ["X", "Sup", "2026-10-22T00:00:00Z"]);
+});
+test("log audit pengaturan tidak memuat data gambar", () => {
+  const sum = summarizeInvoiceSettings({ ...DEFAULT_INVOICE_SETTINGS, header_image: PNG, signature_image: PNG, accounts: [{ bank: "BCA", number: "123", holder: "x" }] });
+  const json = JSON.stringify(sum);
+  assert.equal(json.includes("base64"), false);
+  assert.match(String(sum.header_image), /^ada \(\d+ KB\)$/);
+  assert.deepEqual(sum.accounts, ["BCA 123"]);
+  assert.equal(formatAccountsText([{ bank: "BCA", number: "123", holder: "PT X" }, { bank: "BRI", number: "9", holder: "" }]), "BCA 123 a.n. PT X\nBRI 9");
+});
+
+console.log("model invoice (invoiceDoc.ts)");
+const snap = [
+  { item_id: "a", jenis_produksi: "seragam_sekolah", nama: "Seragam Sekolah", jumlah: 100, harga_per_pcs: 85_000, subtotal: 8_500_000 },
+  { item_id: "b", jenis_produksi: "kaos_polo", nama: "Kaos Polo", jumlah: 50, harga_per_pcs: 60_000, subtotal: 3_000_000 },
+];
+const invRow = (over: Partial<InvoiceRow> = {}): InvoiceRow => ({
+  id: "i1", order_id: "o1", version: 1, status: "active", pricing_snapshot: snap, total_pcs: 150, subtotal: 11_500_000,
+  discount: 500_000, total: 11_000_000, reason: null, due_date: "2026-10-24", issued_by_name: "Sup", issued_at: "2026-10-10T03:00:00Z", ...over,
+});
+const payRow = (over: Partial<PaymentRow> = {}): PaymentRow => ({
+  id: "p1", order_id: "o1", invoice_id: "i1", kind: "dp", amount: 4_000_000, paid_at: "2026-10-11", method: "transfer", account_id: "a1",
+  reference_no: null, payer_name: null, note: null, status: "verified", has_proof: true, recorded_by_name: "K", recorded_at: "2026-10-11T03:00:00Z",
+  verified_by_name: "S", verified_at: "2026-10-11T04:00:00Z", reject_reason: null, void_by_name: null, void_at: null, void_reason: null,
+  account_name: "Bank BCA", orders: null, ...over,
+});
+const finRow = (over: Partial<OrderFinanceRow> = {}): OrderFinanceRow => ({
+  order_id: "o1", kode_produksi: "K-10", nama_pemesan: "SMP 1", jenis_produksi: null, jumlah: 150, tanggal_masuk: "2026-10-01", deadline: "2026-11-01",
+  order_status: "Produksi", invoice_id: "i1", invoice_version: 1, due_date: "2026-10-24", total: 11_000_000, paid_verified: 4_000_000, paid_pending: 0,
+  balance: 7_000_000, overpaid: 0, payment_status: "DP", kategori: "utama", ...over,
+});
+const det = (over: Partial<OrderFinanceDetail> = {}): OrderFinanceDetail => ({
+  finance: finRow(),
+  order: { id: "o1", kode_produksi: "K-10", nama_pemesan: "SMP 1", no_hp: " 0812-3456-7890 ", alamat_pemesan: "Tuban", jumlah: 150, jenis_produksi: null, tanggal_masuk: "2026-10-01", kategori: "utama", items: [] },
+  invoices: [invRow()], payments: [payRow()], invoice_stale: false, ...over,
+});
+test("DP: baris dari snapshot beku, angka dari server, hanya pembayaran TERVERIFIKASI yang tampil", () => {
+  const m = buildInvoiceModel(det({ payments: [payRow(), payRow({ id: "p2", status: "pending", amount: 1_000_000 }), payRow({ id: "p3", status: "void", amount: 9 })] }))!;
+  assert.equal(m.number, "INV-K-10");
+  assert.equal(m.revisionNote, null);
+  assert.equal(m.lines.length, 2);
+  assert.match(m.lines[0].detail, /100 pcs × Rp\s?85\.000/);
+  assert.deepEqual([m.subtotal, m.discount, m.total, m.paid, m.balance, m.overpaid], [11_500_000, 500_000, 11_000_000, 4_000_000, 7_000_000, 0]);
+  assert.equal(m.payments.length, 1);
+  assert.match(m.payments[0].label, /DP · Transfer · Bank BCA/);
+  assert.equal(m.isLunas, false);
+  assert.equal(m.dueDate, "2026-10-24");
+  assert.equal(m.customerPhone, "0812-3456-7890"); // dirapikan
+});
+test("lunas / kelebihan bayar berstatus LUNAS; refund tampil sebagai pembayaran keluar; revisi ditandai", () => {
+  const lunas = buildInvoiceModel(det({ finance: finRow({ payment_status: "Lunas", paid_verified: 11_000_000, balance: 0 }), payments: [payRow({ amount: 11_000_000 })] }))!;
+  assert.equal(lunas.isLunas, true);
+  assert.equal(lunas.lastPaidAt, "2026-10-11");
+  assert.equal(buildInvoiceModel(det({ finance: finRow({ payment_status: "Kelebihan Bayar", overpaid: 500 }) }))!.isLunas, true);
+  const refund = buildInvoiceModel(det({ payments: [payRow(), payRow({ id: "r", kind: "refund", amount: 100_000, paid_at: "2026-10-12" })] }))!;
+  assert.equal(refund.payments[1].isRefund, true);
+  assert.equal(refund.lastPaidAt, "2026-10-12");
+  assert.equal(buildInvoiceModel(det({ invoices: [invRow({ version: 3 })] }))!.revisionNote, "Revisi ke-2");
+});
+test("pembayaran diurutkan menurut tanggal; versi lama (superseded) diabaikan", () => {
+  const m = buildInvoiceModel(det({
+    payments: [payRow({ id: "b", paid_at: "2026-10-20" }), payRow({ id: "a", paid_at: "2026-10-05" })],
+    invoices: [invRow({ id: "lama", version: 1, status: "superseded", total: 1 }), invRow({ id: "baru", version: 2 })],
+  }))!;
+  assert.deepEqual(m.payments.map((p) => p.date), ["2026-10-05", "2026-10-20"]);
+  assert.equal(m.revisionNote, "Revisi ke-1");
+});
+test("snapshot tidak cocok subtotal / kosong → satu baris ringkas; dokumen tak pernah menampilkan angka beda dari tagihan", () => {
+  const wrong = buildInvoiceModel(det({ invoices: [invRow({ pricing_snapshot: [{ ...snap[0], subtotal: 1 }] })] }))!;
+  assert.equal(wrong.lines.length, 1);
+  assert.equal(wrong.lines[0].subtotal, 11_500_000);
+  assert.match(wrong.lines[0].label, /K-10/);
+  assert.equal(buildInvoiceModel(det({ invoices: [invRow({ pricing_snapshot: [] })] }))!.lines.length, 1);
+  const ok = buildInvoiceModel(det())!;
+  assert.equal(ok.lines.reduce((n, l) => n + l.subtotal, 0), ok.subtotal);
+});
+test("tanpa tagihan aktif → null", () => {
+  assert.equal(buildInvoiceModel(det({ invoices: [] })), null);
+  assert.equal(buildInvoiceModel(det({ invoices: [invRow({ status: "superseded" })] })), null);
+});
+test("normalizeWaNumber: 08… / +62 / 62… / 8… → 62…; terlalu pendek atau kosong → null", () => {
+  assert.equal(normalizeWaNumber("0812-3456-7890"), "6281234567890");
+  assert.equal(normalizeWaNumber("+62 812 3456 7890"), "6281234567890");
+  assert.equal(normalizeWaNumber("6281234567890"), "6281234567890");
+  assert.equal(normalizeWaNumber("81234567890"), "6281234567890");
+  assert.equal(normalizeWaNumber("0812"), null);
+  assert.equal(normalizeWaNumber(""), null);
+  assert.equal(normalizeWaNumber(null), null);
+  assert.equal(normalizeWaNumber("abc"), null);
+  assert.equal(normalizeWaNumber("1".repeat(20)), null);
+});
+test("pesan WhatsApp: belum lunas memuat sisa, jatuh tempo, rekening; lunas berterima kasih tanpa rekening", () => {
+  const dp = buildInvoiceModel(det())!;
+  const t = buildWaText(dp, "Langitan", "BCA 123 a.n. PT X");
+  for (const re of [/Halo SMP 1/, /INV-K-10/, /Total tagihan: Rp\s?11\.000\.000/, /Sudah dibayar: Rp\s?4\.000\.000/, /Sisa yang harus dibayar: Rp\s?7\.000\.000/, /Jatuh tempo/, /BCA 123 a\.n\. PT X/, /bukti transfer/]) assert.match(t, re);
+  const lunas = buildInvoiceModel(det({ finance: finRow({ payment_status: "Lunas", paid_verified: 11_000_000, balance: 0 }), payments: [payRow({ amount: 11_000_000 })] }))!;
+  const l = buildWaText(lunas, "Langitan", "BCA 123");
+  assert.match(l, /LUNAS/);
+  assert.doesNotMatch(l, /BCA 123/);
+  assert.doesNotMatch(l, /Sisa yang harus dibayar/);
+  assert.doesNotMatch(buildWaText(dp, "Langitan", "   "), /Pembayaran ke/);
+});
+test("tanggal panjang & data contoh pratinjau", () => {
+  assert.match(invoiceDateLong("2026-10-22"), /22 Oktober 2026/);
+  assert.equal(invoiceDateLong(null), "-");
+  assert.equal(invoiceDateLong("bukan"), "-");
+  const dp = buildSampleInvoiceModel(false);
+  const lunas = buildSampleInvoiceModel(true);
+  assert.equal(dp.balance, dp.total - dp.paid);
+  assert.equal(lunas.balance, 0);
+  assert.equal(lunas.payments.reduce((n, p) => n + p.amount, 0), lunas.total);
+  assert.equal(dp.lines.reduce((n, l) => n + l.subtotal, 0), dp.subtotal);
+  assert.equal(dp.subtotal - dp.discount, dp.total);
+});
+test("escapeHtml menetralkan tag dan tanda kutip (judul dokumen cetak)", () => {
+  assert.equal(escapeHtml(`</title><script>alert("x")</script>&'`), "&lt;/title&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;&#39;");
+  assert.equal(escapeHtml("Invoice INV-K-1"), "Invoice INV-K-1");
+});
+
+console.log("ekspor Excel (excel.ts)");
+test("nama lembar & nama file aman", () => {
+  assert.equal(sanitizeSheetName("Laba/Rugi: [Okt]*?"), "Laba Rugi Okt");
+  assert.equal(sanitizeSheetName("x".repeat(60)).length, 31);
+  assert.equal(sanitizeSheetName("///"), "Data");
+  assert.equal(exportFileName("Laporan 2026-01-01 sd 2026-10-22", "2026-10-22"), "Keuangan-Laporan-2026-01-01-sd-2026-10-22-2026-10-22.xlsx");
+  assert.equal(exportFileName("../../etc/passwd", "2026-10-22"), "Keuangan-etc-passwd-2026-10-22.xlsx");
+  assert.equal(exportFileName("???", "2026-10-22"), "Keuangan-Data-2026-10-22.xlsx");
+});
+test("lembar tagihan/pembayaran/pengeluaran: kolom sesuai header, angka tetap angka, alasan sesuai status", () => {
+  const inv = invoicesSheet([finRow()]);
+  assert.equal(inv.rows[0].length, inv.header.length);
+  assert.equal(inv.rows[0][6], 11_000_000);
+  assert.equal(typeof inv.rows[0][6], "number");
+  const pay = paymentsSheet([payRow({ status: "rejected", reject_reason: "Bukti buram", orders: { kode_produksi: "K-10", nama_pemesan: "SMP 1" } }), payRow({ kind: "refund", status: "void", void_reason: "salah" })]);
+  assert.equal(pay.rows[0].length, pay.header.length);
+  assert.equal(pay.rows[0][13], "Bukti buram");
+  assert.equal(pay.rows[1][13], "salah");
+  assert.equal(pay.rows[1][4], "Keluar (refund)");
+  assert.equal(pay.rows[0][4], "Masuk");
+  const x: ExpenseRow = {
+    id: "x", expense_no: "EXP-2610-00001", category_id: "c", account_id: "a", vendor_id: null, order_id: null, source: "salary", source_ref: null,
+    description: "Gaji", amount: 5_000_000, spent_at: "2026-10-10", note: null, status: "approved", has_proof: false, recorded_by_name: "S", recorded_at: "2026-10-10T00:00:00Z",
+    approved_by_name: "S", approved_at: "2026-10-10T00:00:00Z", reject_reason: null, void_by_name: null, void_at: null, void_reason: null,
+    category_name: "Gaji & upah", account_name: "Kas", vendor_name: null, order_kode: null, order_nama: null,
+  };
+  const ex = expensesSheet([x]);
+  assert.equal(ex.rows[0].length, ex.header.length);
+  assert.equal(ex.rows[0][13], "Gaji");
+  assert.equal(ex.rows[0][7], 5_000_000);
+});
+const rpt: ReportData = {
+  period: { from: "2026-09-01", to: "2026-10-31" },
+  totals: { revenue: 28_000_000, expenses: 2_000_000, profit: 26_000_000, cash_in: 12_300_000, cash_out: 2_000_000, cash_net: 10_300_000, unpaid_billed: 15_700_000, expenses_linked: 600_000, expenses_unlinked: 1_400_000 },
+  months: [{ month: "2026-09", revenue: 10_000_000, expenses: 1_000_000, profit: 9_000_000, cash_in: 8_500_000, cash_out: 1_000_000, cash_net: 7_500_000 }],
+  by_category: [{ name: "Bahan baku", amount: 1_600_000 }],
+  orders: [{ order_id: "o", kode_produksi: "K-A", nama_pemesan: "A", tanggal_masuk: "2026-10-05", total: 10_000_000, paid: 4_000_000, direct_cost: 600_000, gross: 9_400_000 }],
+  orders_total: 412,
+};
+test("laporan: 4 lembar; lembar pesanan memberi catatan bila daftar terpotong", () => {
+  const sheets = reportSheets(rpt);
+  assert.deepEqual(sheets.map((s) => s.name), ["Ringkasan", "Per bulan", "Per kategori", "Per pesanan"]);
+  assert.match(sheets[3].note ?? "", /Menampilkan 1 pesanan terbaru dari 412/);
+  assert.equal(reportSheets({ ...rpt, orders_total: 1 })[3].note, undefined);
+  assert.equal(sheets[0].rows[0][1], "2026-09-01 s/d 2026-10-31");
+  for (const sh of sheets) for (const r of sh.rows) assert.equal(r.length, sh.header.length, sh.name);
+});
+test("file .xlsx sungguhan: angka bisa dijumlah (format #,##0), teks tetap teks, rumus TIDAK dievaluasi, lembar & lebar benar", () => {
+  const evil = "=HYPERLINK(\"http://evil\",\"klik\")";
+  const sheets = [
+    { ...invoicesSheet([finRow({ nama_pemesan: evil }), finRow({ order_id: "o2", kode_produksi: "K-11", total: 1_000, paid_verified: 0, balance: 1_000 })]), name: "Tagihan" },
+    { ...paymentsSheet([payRow()]), name: "tagihan" }, // nama kembar (beda huruf besar) harus dibuat unik
+    ...reportSheets(rpt),
+  ];
+  const wb = buildWorkbook(XLSX, sheets);
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  const back = XLSX.read(buf, { type: "buffer", cellNF: true, cellStyles: true }); // baca format angka (.z) dan lebar kolom dari file
+  assert.equal(new Set(back.SheetNames.map((n) => n.toLowerCase())).size, back.SheetNames.length);
+  assert.equal(back.SheetNames[0], "Tagihan");
+  assert.ok(back.SheetNames.includes("Ringkasan") && back.SheetNames.includes("Per pesanan"));
+
+  const ws = back.Sheets["Tagihan"];
+  assert.equal(ws["G2"].v, 11_000_000);
+  assert.equal(ws["G2"].t, "n");
+  assert.equal(ws["G2"].z, "#,##0");
+  assert.equal(ws["G3"].v, 1_000);
+  // string yang diawali "=" tetap string, tanpa rumus
+  assert.equal(ws["B2"].t, "s");
+  assert.equal(ws["B2"].f, undefined);
+  assert.equal(ws["B2"].v, evil);
+  // jumlah kolom nominal bisa dihitung
+  assert.equal(XLSX.utils.sheet_to_json<Record<string, number>>(ws).reduce((n, r) => n + Number(r["Tagihan"]), 0), 11_001_000);
+  // catatan pada lembar pesanan
+  const orders = XLSX.utils.sheet_to_json<unknown[]>(back.Sheets["Per pesanan"], { header: 1 });
+  assert.match(String(orders[orders.length - 1][0]), /Menampilkan 1 pesanan terbaru dari 412/);
+  // lebar kolom terisi dan dibatasi
+  const cols = (ws["!cols"] ?? []) as { wch: number }[];
+  assert.ok(cols.length === 11 && cols.every((c) => c.wch >= 3 && c.wch <= 48));
 });
 
 console.log(`\n${passed} uji lulus`);

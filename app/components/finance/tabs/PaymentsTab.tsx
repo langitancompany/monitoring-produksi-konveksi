@@ -12,6 +12,8 @@ import { netVerified } from "@/lib/finance/view";
 import { PaymentRow } from "../PaymentRow";
 import { usePaymentActions } from "../PaymentActions";
 import { FilterField, filterInputCls, toolbarCls } from "../ui";
+import ExportButton from "../ExportButton";
+import { exportFileName, paymentsSheet } from "@/lib/finance/excel";
 import { formatRupiah, monthStartYmd, todayYmd } from "../utils";
 
 export default function PaymentsTab({
@@ -84,6 +86,17 @@ export default function PaymentsTab({
             <FilterField label="Sampai">
               <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} className={filterInputCls} />
             </FilterField>
+            <div className="col-span-2 sm:col-span-1 sm:ml-auto">
+              <ExportButton
+                scope="Pembayaran"
+                build={() => ({
+                  filename: exportFileName("Pembayaran", todayYmd()),
+                  sheets: [paymentsSheet(rows ?? [])],
+                  rowCount: rows?.length ?? 0,
+                })}
+                disabled={!rows}
+              />
+            </div>
           </div>
         </div>
       )}
