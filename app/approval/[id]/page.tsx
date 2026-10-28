@@ -16,9 +16,9 @@ import { createClient } from "@/lib/supabase/client";
 import type { Order, ProductionTypeData } from "@/types/order";
 import ApprovalSheet, { SHEET_W, SHEET_H, approvalPageCount } from "@/app/components/orders/ApprovalSheet";
 
-// A4 landscape (mm)
-const PDF_W_MM = 297;
-const PDF_H_MM = 210;
+// A4 portrait (mm)
+const PDF_W_MM = 210;
+const PDF_H_MM = 297;
 // jarak antar halaman di layar saja (px)
 const PAGE_GAP = 16;
 
@@ -49,7 +49,7 @@ export default function ApprovalPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [canShareFile, setCanShareFile] = useState(false);
 
-  // Node ukuran asli (1123x794) yang dipotret jadi PDF. Dipisah dari wrapper
+  // Node ukuran asli (794x1123) yang dipotret jadi PDF. Dipisah dari wrapper
   // yang diskala (transform) supaya hasil PDF selalu ukuran penuh.
   const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
 
@@ -109,7 +109,7 @@ export default function ApprovalPage() {
       }.pdf`.replace(/[\\/:*?"<>|]/g, "-")
     : "Form Approval.pdf";
 
-  /** Potret tiap halaman form (1123x794) -> PDF A4 landscape, satu halaman PDF per halaman form. */
+  /** Potret tiap halaman form (794x1123) -> PDF A4 portrait, satu halaman PDF per halaman form. */
   const makePdf = useCallback(async (): Promise<Blob> => {
     const nodes = pageRefs.current.filter((n): n is HTMLDivElement => !!n);
     if (nodes.length === 0) throw new Error("Form belum siap, coba lagi sebentar lagi.");
@@ -147,7 +147,7 @@ export default function ApprovalPage() {
       height: SHEET_H,
     };
 
-    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     for (let i = 0; i < nodes.length; i++) {
       // Safari/iOS: render pertama sering melewatkan gambar. Render pemanasan
       // dulu, hasil yang dipakai adalah render kedua.
@@ -159,7 +159,7 @@ export default function ApprovalPage() {
         }
       }
       const dataUrl = await toJpeg(nodes[i], opts);
-      if (i > 0) pdf.addPage("a4", "landscape");
+      if (i > 0) pdf.addPage("a4", "portrait");
       pdf.addImage(dataUrl, "JPEG", 0, 0, PDF_W_MM, PDF_H_MM);
     }
     return pdf.output("blob");
@@ -276,13 +276,14 @@ export default function ApprovalPage() {
   return (
     <div className="min-h-screen bg-zinc-200 dark:bg-zinc-900 py-4 print:bg-white print:py-0">
       <style>{`
-        @page { size: A4 landscape; margin: 0; }
+        @page { size: A4 portrait; margin: 0; }
+        .approval-page { box-shadow: 0 1px 3px rgba(0,0,0,.14), 0 10px 30px rgba(0,0,0,.12); }
         @media print {
           html, body { background: #fff !important; }
           .no-print { display: none !important; }
           .sheet-wrap { width: ${SHEET_W}px !important; height: auto !important; margin: 0 !important; }
           .sheet-scale { transform: none !important; }
-          .approval-page { margin-bottom: 0 !important; break-after: page; page-break-after: always; }
+          .approval-page { margin-bottom: 0 !important; box-shadow: none !important; break-after: page; page-break-after: always; }
           .approval-page:last-child { break-after: auto; page-break-after: auto; }
           .approval-page, .approval-page * {
             -webkit-print-color-adjust: exact;
@@ -291,7 +292,7 @@ export default function ApprovalPage() {
         }
       `}</style>
 
-      <div className="no-print px-3 mb-3 max-w-[1123px] mx-auto">
+      <div className="no-print px-3 mb-3 max-w-[794px] mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-200 truncate">
             Form Approval · {order.kode_produksi}

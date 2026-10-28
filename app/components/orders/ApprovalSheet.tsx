@@ -1,12 +1,14 @@
 // app/components/orders/ApprovalSheet.tsx
 //
 // Form Approval otomatis untuk pesanan utama, dibentuk dari data pesanan (tanpa upload file).
-// Format: A4 landscape (1123x794 px) per halaman, jumlah halaman MENGIKUTI isi pesanan:
-//   • header (banner /Header-approval.png, sama seperti Sablon) + detail customer di halaman 1
-//   • rincian pesanan berupa KARTU dua kolom: judul + total pcs, lalu ukuran:jumlah (hanya yang
-//     terisi, mis. S: 2, XL: 5). Pesanan umum menampilkan mockup di sisi kiri kartu
-//   • kartu mengalir ke halaman berikutnya bila tidak muat; catatan + kotak TTD di halaman terakhir
-// Warna dipaksa terang (hitam di atas putih) supaya hasil cetak/PDF selalu sama.
+// Format: A4 PORTRAIT (794x1123 px) per halaman, jumlah halaman MENGIKUTI isi pesanan:
+//   • halaman 1: banner /Header-approval.png selebar halaman, judul + kode + deadline, detail customer
+//   • halaman lanjutan: header ringkas (tanpa banner) supaya ruang kartu lebih luas
+//   • rincian pesanan berupa KARTU dalam dua kolom. Tiap kartu ditaruh di kolom yang lebih pendek
+//     (susunan "masonry"), jadi tidak ada ruang kosong akibat kartu pendek bersebelahan dengan kartu
+//     tinggi. Pesanan umum menampilkan mockup di BAGIAN ATAS kartu
+//   • catatan + kotak TTD di halaman terakhir
+// Warna dipaksa terang (teks gelap di atas putih) supaya hasil cetak/PDF selalu sama.
 
 import React from "react";
 import type { Order, OrderItem, ProductionTypeData } from "@/types/order";
@@ -14,31 +16,43 @@ import { COMPANY } from "@/lib/config";
 import { isCustomType, itemTitle, itemTotal, sumItems, varianLabel } from "@/lib/orderItems";
 import { typeLabel } from "@/lib/utils";
 
-export const SHEET_W = 1123;
-export const SHEET_H = 794;
+export const SHEET_W = 794;
+export const SHEET_H = 1123;
+
+// ─── Warna ────────────────────────────────────────────────────────────────────
+const TEAL = "#124540";
+const ACCENT = "#3fb5aa";
+const TINT = "#edf6f5";
+const INK = "#16201f";
+const MUTED = "#66726f";
+const LINE = "#d9e2e0";
+const RED = "#b3261e";
+const RED_TINT = "#fdeceb";
+const FONT = "Arial, Helvetica, sans-serif";
 
 // ─── Ukuran (px) ──────────────────────────────────────────────────────────────
-const FRAME_PAD = 14; // sheet → bingkai
-const FRAME_BORDER = 3;
-const INNER_PAD = 12; // bingkai → isi
-const INNER_W = SHEET_W - 2 * (FRAME_PAD + FRAME_BORDER + INNER_PAD); // 1065
-const INNER_H = SHEET_H - 2 * (FRAME_PAD + FRAME_BORDER + INNER_PAD); // 736
-
-const BANNER_W = 520; // lebar kolom banner (sama dengan kolom kiri Form Approval Sablon)
-const BANNER_RATIO = 300 / 2129; // Header-approval.png (2129x300)
-const HEADER_H = 82; // banner + garis bawah + jarak (dibulatkan ke atas)
-const CUSTOMER_H = 86;
-const SECTION_TITLE_H = 25;
-const COL_GAP = 12;
-const COL_W = Math.floor((INNER_W - COL_GAP) / 2); // 526
-const ROW_GAP = 10;
-const CARD_HEAD_H = 22;
-const CHIP_ROW_H = 22;
-const SIGN_BOX_H = 92;
-
-const TEAL = "#124540";
-const GRAY = "#d4d4d8";
-const RED = "#c62828";
+const PAD_X = 36; // margin kiri-kanan isi
+const CONTENT_W = SHEET_W - 2 * PAD_X; // 722
+const BANNER_H = Math.round((SHEET_W * 300) / 2129); // Header-approval.png (2129x300) → 112
+const TITLE_H = 76; // judul + kode + deadline (halaman 1)
+const HEAD1_H = BANNER_H + TITLE_H;
+const HEADN_H = 44; // header ringkas halaman lanjutan
+const FOOTER_H = 34;
+const PAD_T = 18;
+const PAD_B = 12;
+const SECTION_H = 30; // judul seksi + jarak
+const CUSTOMER_H = 104;
+const BLOCK_GAP = 14; // jarak antar seksi
+const COL_GAP = 14;
+const COL_W = Math.floor((CONTENT_W - COL_GAP) / 2); // 354
+const CARD_GAP = 12;
+const CARD_HEAD_H = 34;
+const CARD_PAD = 12;
+const MOCK_H = 150;
+const CHIP_H = 22;
+const CHIP_GAP = 5;
+const LABEL_H = 18;
+const SIGN_BOX_H = 98;
 
 // ─── Helper tampilan ──────────────────────────────────────────────────────────
 
@@ -75,15 +89,15 @@ function blocksOf(it: OrderItem): Block[] {
   return [{ key: it.id, label: "", chips: [], total: itemTotal(it) }];
 }
 
-/** Perkiraan lebar satu chip "S | 2" (Arial 11px) — sengaja sedikit berlebih supaya tinggi tidak kurang. */
-const chipWidth = (c: Chip) => 6.8 * (c.ukuran.length + String(c.jumlah).length) + 28;
+/** Perkiraan lebar satu chip "S | 2" (Arial 11px bold) — sengaja sedikit berlebih supaya tinggi tidak kurang. */
+const chipWidth = (c: Chip) => 6.9 * (c.ukuran.length + String(c.jumlah).length) + 34;
 
 function chipLines(chips: Chip[], availW: number): number {
   if (chips.length === 0) return 1; // baris "Jumlah: N pcs"
   let lines = 1;
   let used = 0;
   for (const c of chips) {
-    const w = chipWidth(c);
+    const w = chipWidth(c) + CHIP_GAP;
     if (used > 0 && used + w > availW) {
       lines += 1;
       used = 0;
@@ -107,39 +121,32 @@ interface CardSpec {
   blocks: Block[];
   h: number;
 }
-interface RowSpec {
-  cards: CardSpec[];
-  h: number;
-}
 export interface PageSpec {
-  rows: RowSpec[];
+  /** dua kolom kartu (kiri, kanan) */
+  cols: [CardSpec[], CardSpec[]];
   /** halaman ini memuat catatan + kotak TTD */
   final: boolean;
 }
-
-const IMG_W = 190;
 
 function cardSpec(it: OrderItem, types: ProductionTypeData[]): CardSpec {
   const type = types.find((t) => t.value === it.jenis_produksi);
   const custom = isCustomType(type);
   const blocks = blocksOf(it);
   const note = (it.catatan ?? "").trim();
+  const availW = COL_W - 2 - 2 * CARD_PAD;
 
-  if (custom) {
-    const availW = COL_W - 2 - IMG_W - 20;
-    let content = 8;
-    for (const b of blocks) content += chipLines(b.chips, availW) * CHIP_ROW_H + 4;
-    if (note) content += textLines(note, availW) * 14 + 4;
-    return { item: it, title: itemTitle(it, types), custom, blocks, h: CARD_HEAD_H + Math.max(150, content + 8) };
-  }
+  let body = 2 * CARD_PAD;
+  blocks.forEach((b, i) => {
+    body += (i > 0 ? 8 : 0) + (b.label ? LABEL_H : 0);
+    const lines = chipLines(b.chips, availW);
+    body += b.chips.length > 0 ? lines * CHIP_H + (lines - 1) * CHIP_GAP : CHIP_H;
+  });
+  if (note) body += 8 + textLines(note, availW, 6) * 15;
+  body += 2; // cadangan pembulatan
 
-  const availW = COL_W - 2 - 16;
-  let content = 8;
-  for (const b of blocks) {
-    content += (b.label ? 16 : 0) + chipLines(b.chips, availW) * CHIP_ROW_H + 4;
-  }
-  if (note) content += textLines(note, availW) * 14 + 4;
-  return { item: it, title: typeLabel(it.jenis_produksi, types), custom, blocks, h: CARD_HEAD_H + Math.max(56, content + 6) };
+  const h = 2 + CARD_HEAD_H + (custom ? MOCK_H : 0) + Math.max(48, body);
+  const title = custom ? itemTitle(it, types) : typeLabel(it.jenis_produksi, types);
+  return { item: it, title, custom, blocks, h };
 }
 
 function noteLines(order: Order, catatanApproval?: string): string[] {
@@ -150,44 +157,65 @@ function noteLines(order: Order, catatanApproval?: string): string[] {
   return out;
 }
 
+function finalHeight(notes: string[]): number {
+  return (
+    (notes.length > 0 ? SECTION_H + textLines(notes.join("\n"), CONTENT_W - 28, 6.2) * 17 + 20 + BLOCK_GAP : 0) +
+    SECTION_H +
+    SIGN_BOX_H +
+    4
+  );
+}
+
+/** Tinggi area kartu (di bawah judul seksi) pada halaman ke-`pageIndex`. */
+function cardArea(pageIndex: number): number {
+  const head = pageIndex === 0 ? HEAD1_H : HEADN_H;
+  const customer = pageIndex === 0 ? CUSTOMER_H + SECTION_H + BLOCK_GAP : 0;
+  return SHEET_H - head - FOOTER_H - PAD_T - PAD_B - customer - SECTION_H;
+}
+
 export function buildApprovalPages(order: Order, types: ProductionTypeData[], catatanApproval?: string): PageSpec[] {
   const cards = (order.items ?? []).map((it) => cardSpec(it, types));
 
-  const rows: RowSpec[] = [];
-  for (let i = 0; i < cards.length; i += 2) {
-    const pair = cards.slice(i, i + 2);
-    rows.push({ cards: pair, h: Math.max(...pair.map((c) => c.h)) });
+  interface Work {
+    cols: [CardSpec[], CardSpec[]];
+    used: [number, number];
   }
+  const newPage = (): Work => ({ cols: [[], []], used: [0, 0] });
+  const pages: Work[] = [newPage()];
+  const addH = (pg: Work, c: 0 | 1, h: number) => (pg.cols[c].length > 0 ? CARD_GAP : 0) + h;
 
-  const notes = noteLines(order, catatanApproval);
-  const finalH =
-    (notes.length > 0 ? SECTION_TITLE_H + textLines(notes.join("\n"), INNER_W, 6.2) * 16 + 8 : 0) +
-    SECTION_TITLE_H +
-    SIGN_BOX_H +
-    6;
-
-  const cap = (pageIndex: number) =>
-    INNER_H - HEADER_H - (pageIndex === 0 ? CUSTOMER_H : 0) - SECTION_TITLE_H;
-
-  const pages: { rows: RowSpec[]; used: number }[] = [{ rows: [], used: 0 }];
-  for (const row of rows) {
+  for (const card of cards) {
     let pg = pages[pages.length - 1];
-    const add = (pg.rows.length > 0 ? ROW_GAP : 0) + row.h;
-    if (pg.rows.length > 0 && pg.used + add > cap(pages.length - 1)) {
-      pg = { rows: [], used: 0 };
-      pages.push(pg);
+    const cap = cardArea(pages.length - 1);
+    // kolom yang lebih pendek dulu (seri → kiri)
+    const order2: [0 | 1, 0 | 1] = pg.used[1] < pg.used[0] ? [1, 0] : [0, 1];
+    let col: 0 | 1 | null = null;
+    for (const c of order2) {
+      if (pg.used[c] + addH(pg, c, card.h) <= cap) {
+        col = c;
+        break;
+      }
     }
-    pg.used += (pg.rows.length > 0 ? ROW_GAP : 0) + row.h;
-    pg.rows.push(row);
+    if (col === null) {
+      const pageEmpty = pg.cols[0].length === 0 && pg.cols[1].length === 0;
+      if (!pageEmpty) {
+        pg = newPage();
+        pages.push(pg);
+      }
+      col = 0;
+    }
+    pg.used[col] += addH(pg, col, card.h);
+    pg.cols[col].push(card);
   }
 
   const last = pages[pages.length - 1];
-  const needGap = last.rows.length > 0 ? ROW_GAP : 0;
-  const result: PageSpec[] = pages.map((p) => ({ rows: p.rows, final: false }));
-  if (last.used + needGap + finalH <= cap(pages.length - 1)) {
+  const result: PageSpec[] = pages.map((p) => ({ cols: p.cols, final: false }));
+  const maxUsed = Math.max(last.used[0], last.used[1]);
+  const gap = maxUsed > 0 ? BLOCK_GAP : 0;
+  if (maxUsed + gap + finalHeight(noteLines(order, catatanApproval)) <= cardArea(pages.length - 1)) {
     result[result.length - 1].final = true;
   } else {
-    result.push({ rows: [], final: true });
+    result.push({ cols: [[], []], final: true });
   }
   return result;
 }
@@ -198,66 +226,62 @@ export function approvalPageCount(order: Order, types: ProductionTypeData[], cat
 
 // ─── Komponen kecil ───────────────────────────────────────────────────────────
 
-function SectionTitle({ n, children }: { n: number; children: React.ReactNode }) {
+function SectionTitle({ n, children, right }: { n: number; children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", height: 20, marginBottom: 5 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 9, height: 20, marginBottom: 10 }}>
       <div
         style={{
-          width: 34,
+          width: 20,
+          height: 20,
+          borderRadius: 10,
           background: TEAL,
           color: "#fff",
           fontWeight: 700,
-          fontSize: 12,
+          fontSize: 11,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          marginRight: 4,
+          flexShrink: 0,
         }}
       >
         {n}
       </div>
-      <div
-        style={{
-          flex: 1,
-          background: GRAY,
-          fontWeight: 700,
-          fontSize: 12,
-          display: "flex",
-          alignItems: "center",
-          paddingLeft: 8,
-          letterSpacing: 0.3,
-        }}
-      >
-        {children}
-      </div>
+      <div style={{ fontWeight: 700, fontSize: 12, letterSpacing: 1, color: TEAL, flexShrink: 0 }}>{children}</div>
+      <div style={{ flex: 1, height: 1, background: LINE }} />
+      {right}
     </div>
   );
 }
 
-function Field({ label, value, bold, clamp, labelWidth = 110 }: { label: string; value?: React.ReactNode; bold?: boolean; clamp?: boolean; labelWidth?: number }) {
+function Field({ label, value, bold, clamp }: { label: string; value?: React.ReactNode; bold?: boolean; clamp?: number }) {
   return (
-    <div style={{ display: "flex", fontSize: 12, minHeight: 17, lineHeight: "17px" }}>
-      <div style={{ width: labelWidth, flexShrink: 0, fontWeight: bold ? 700 : 400 }}>{label}</div>
-      <div style={{ width: 10, flexShrink: 0 }}>:</div>
+    <div style={{ display: "flex", fontSize: 12.5, lineHeight: "20px", minHeight: 20 }}>
+      <div style={{ width: 98, flexShrink: 0, color: MUTED, fontSize: 11.5 }}>{label}</div>
       <div
         style={{
           fontWeight: bold ? 700 : 400,
           minWidth: 0,
-          ...(clamp ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : { wordBreak: "break-word" }),
+          wordBreak: "break-word",
+          ...(clamp
+            ? { display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: clamp, overflow: "hidden", lineHeight: "20px" }
+            : {}),
         }}
       >
-        {value}
+        {value || "—"}
       </div>
     </div>
   );
 }
 
-function SignBox({ title, dotted }: { title: string; dotted?: boolean }) {
+function SignBox({ title, sub }: { title: string; sub: string }) {
   return (
-    <div style={{ flex: 1, border: "2px solid #000", display: "flex", flexDirection: "column" }}>
-      <div style={{ borderBottom: "2px solid #000", textAlign: "center", fontSize: 12, height: 18, lineHeight: "18px" }}>{title}</div>
-      <div style={{ flex: 1, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-        {dotted && <span style={{ fontSize: 11, paddingBottom: 3, letterSpacing: 1 }}>..................................</span>}
+    <div style={{ flex: 1, border: `1px solid ${LINE}`, borderRadius: 8, display: "flex", flexDirection: "column", overflow: "hidden", background: "#fff" }}>
+      <div style={{ background: TINT, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: TEAL, letterSpacing: 0.6 }}>
+        {title}
+      </div>
+      <div style={{ flex: 1 }} />
+      <div style={{ padding: "0 14px 8px", textAlign: "center" }}>
+        <div style={{ borderTop: `1px solid ${MUTED}`, paddingTop: 4, fontSize: 10, color: MUTED }}>{sub}</div>
       </div>
     </div>
   );
@@ -266,9 +290,20 @@ function SignBox({ title, dotted }: { title: string; dotted?: boolean }) {
 /** Satu pasangan ukuran:jumlah, mis. "XL | 2". */
 function SizeChip({ c }: { c: Chip }) {
   return (
-    <span style={{ display: "inline-flex", border: "1px solid #555", borderRadius: 3, fontSize: 11, lineHeight: "16px", overflow: "hidden" }}>
-      <span style={{ padding: "0 5px", background: "#e4e4e7", fontWeight: 700 }}>{c.ukuran}</span>
-      <span style={{ padding: "0 6px", fontWeight: 700 }}>{c.jumlah}</span>
+    <span
+      style={{
+        display: "inline-flex",
+        height: CHIP_H,
+        border: `1px solid ${ACCENT}`,
+        borderRadius: 5,
+        fontSize: 11,
+        lineHeight: `${CHIP_H - 2}px`,
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
+      <span style={{ padding: "0 7px", background: TINT, color: TEAL, fontWeight: 700 }}>{c.ukuran}</span>
+      <span style={{ padding: "0 8px", fontWeight: 700, background: "#fff", color: INK }}>{c.jumlah}</span>
     </span>
   );
 }
@@ -276,17 +311,21 @@ function SizeChip({ c }: { c: Chip }) {
 function BlockLines({ blocks, total }: { blocks: Block[]; total: number }) {
   return (
     <>
-      {blocks.map((b) => (
-        <div key={b.key} style={{ marginBottom: 4 }}>
-          {b.label && <div style={{ fontSize: 11, fontWeight: 700, lineHeight: "16px" }}>{b.label}</div>}
+      {blocks.map((b, i) => (
+        <div key={b.key} style={{ marginTop: i > 0 ? 8 : 0 }}>
+          {b.label && (
+            <div style={{ fontSize: 11, fontWeight: 700, lineHeight: `${LABEL_H}px`, color: MUTED, letterSpacing: 0.3 }}>
+              {b.label.toUpperCase()}
+            </div>
+          )}
           {b.chips.length > 0 ? (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: CHIP_GAP }}>
               {b.chips.map((c) => (
                 <SizeChip key={c.ukuran} c={c} />
               ))}
             </div>
           ) : (
-            <div style={{ fontSize: 12, lineHeight: "22px" }}>
+            <div style={{ fontSize: 12.5, lineHeight: `${CHIP_H}px` }}>
               Jumlah: <b>{b.total || total}</b> pcs
             </div>
           )}
@@ -296,12 +335,25 @@ function BlockLines({ blocks, total }: { blocks: Block[]; total: number }) {
   );
 }
 
-function Card({ card, height }: { card: CardSpec; height: number }) {
-  const { item, title, custom, blocks } = card;
+function Card({ card }: { card: CardSpec }) {
+  const { item, title, custom, blocks, h } = card;
   const total = itemTotal(item);
   const note = (item.catatan ?? "").trim();
   return (
-    <div style={{ width: COL_W, height, border: "1px solid #555", boxSizing: "border-box", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div
+      style={{
+        width: COL_W,
+        height: h,
+        border: `1px solid ${LINE}`,
+        borderRadius: 9,
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: "#fff",
+        flexShrink: 0,
+      }}
+    >
       <div
         style={{
           height: CARD_HEAD_H,
@@ -311,42 +363,57 @@ function Card({ card, height }: { card: CardSpec; height: number }) {
           alignItems: "center",
           justifyContent: "space-between",
           gap: 8,
-          padding: "0 8px",
-          fontSize: 12,
+          padding: `0 ${CARD_PAD}px`,
+          fontSize: 12.5,
           fontWeight: 700,
           flexShrink: 0,
         }}
       >
         <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
-        <span style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{total} pcs</span>
+        <span
+          style={{
+            flexShrink: 0,
+            fontVariantNumeric: "tabular-nums",
+            background: "rgba(255,255,255,0.16)",
+            borderRadius: 10,
+            padding: "0 9px",
+            height: 20,
+            lineHeight: "20px",
+            fontSize: 11.5,
+          }}
+        >
+          {total} pcs
+        </span>
       </div>
-      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-        {custom && (
-          <div
-            style={{
-              width: IMG_W,
-              flexShrink: 0,
-              borderRight: "1px solid #555",
-              background: "#f4f4f5",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 6,
-              boxSizing: "border-box",
-            }}
-          >
-            {item.mockup_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.mockup_url} alt="Mockup" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
-            ) : (
-              <span style={{ fontSize: 11, color: "#888", textAlign: "center" }}>Mockup belum diupload</span>
-            )}
+      {custom && (
+        <div
+          style={{
+            height: MOCK_H,
+            flexShrink: 0,
+            background: "#f3f6f6",
+            borderBottom: `1px solid ${LINE}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 8,
+            boxSizing: "border-box",
+          }}
+        >
+          {item.mockup_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.mockup_url} alt="Mockup" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
+          ) : (
+            <span style={{ fontSize: 11, color: MUTED, textAlign: "center" }}>Mockup belum diupload</span>
+          )}
+        </div>
+      )}
+      <div style={{ flex: 1, minHeight: 0, padding: CARD_PAD, boxSizing: "border-box" }}>
+        <BlockLines blocks={blocks} total={total} />
+        {note && (
+          <div style={{ marginTop: 8, fontSize: 11, lineHeight: "15px", color: "#3b4745", wordBreak: "break-word" }}>
+            <b>Catatan:</b> {note}
           </div>
         )}
-        <div style={{ flex: 1, minWidth: 0, padding: custom ? "8px 10px" : "8px", boxSizing: "border-box" }}>
-          <BlockLines blocks={blocks} total={total} />
-          {note && <div style={{ fontSize: 11, lineHeight: "14px", color: "#333", wordBreak: "break-word" }}>Catatan: {note}</div>}
-        </div>
       </div>
     </div>
   );
@@ -376,134 +443,202 @@ export default function ApprovalSheet({ order, productionTypes, pjName, teamName
 
   return (
     <>
-      {pages.map((page, pi) => (
-        <div
-          key={pi}
-          ref={(el) => pageRef?.(el, pi)}
-          className="approval-page"
-          style={{
-            width: SHEET_W,
-            height: SHEET_H,
-            marginBottom: pi < pages.length - 1 ? gap : 0,
-            background: "#fff",
-            color: "#000",
-            boxSizing: "border-box",
-            padding: FRAME_PAD,
-            fontFamily: "Arial, Helvetica, sans-serif",
-          }}
-        >
+      {pages.map((page, pi) => {
+        const hasCards = page.cols[0].length + page.cols[1].length > 0;
+        return (
           <div
+            key={pi}
+            ref={(el) => pageRef?.(el, pi)}
+            className="approval-page"
             style={{
-              border: `${FRAME_BORDER}px solid #000`,
-              height: "100%",
+              position: "relative",
+              width: SHEET_W,
+              height: SHEET_H,
+              marginBottom: pi < pages.length - 1 ? gap : 0,
+              background: "#fff",
+              color: INK,
               boxSizing: "border-box",
-              padding: INNER_PAD,
-              display: "flex",
-              flexDirection: "column",
+              fontFamily: FONT,
+              overflow: "hidden",
             }}
           >
-            {/* ── Header: banner sama seperti Sablon (menempel di pojok kiri-atas bingkai) ── */}
+            {/* ── Header ── */}
+            {pi === 0 ? (
+              <div style={{ height: HEAD1_H }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/Header-approval.png" alt={COMPANY.name} style={{ display: "block", width: SHEET_W, height: BANNER_H }} />
+                <div style={{ height: TITLE_H, padding: `0 ${PAD_X}px`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 23, fontWeight: 800, letterSpacing: 1.5, color: TEAL, lineHeight: "26px" }}>FORM APPROVAL</div>
+                    <div style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>Persetujuan pesanan sebelum produksi dimulai</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+                    <div style={{ background: TINT, border: `1px solid ${LINE}`, borderRadius: 8, padding: "6px 14px", textAlign: "right" }}>
+                      <div style={{ fontSize: 9.5, color: MUTED, letterSpacing: 0.8 }}>KODE PRODUKSI</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, lineHeight: "22px", color: TEAL }}>#{order.kode_produksi}</div>
+                    </div>
+                    <div style={{ background: RED_TINT, border: `1px solid ${RED}`, borderRadius: 8, padding: "6px 14px", textAlign: "right" }}>
+                      <div style={{ fontSize: 9.5, color: RED, letterSpacing: 0.8, fontWeight: 700 }}>DEADLINE</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, lineHeight: "22px", color: RED }}>{fmtDate(order.deadline) || "—"}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  height: HEADN_H,
+                  background: TEAL,
+                  borderBottom: `3px solid ${ACCENT}`,
+                  boxSizing: "border-box",
+                  padding: `0 ${PAD_X}px`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  color: "#fff",
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>FORM APPROVAL</div>
+                <div style={{ fontSize: 11.5 }}>
+                  <b>#{order.kode_produksi}</b> · {order.nama_pemesan} · Deadline {fmtDate(order.deadline) || "—"}
+                </div>
+              </div>
+            )}
+
+            {/* ── Isi ── */}
             <div
               style={{
+                height: SHEET_H - (pi === 0 ? HEAD1_H : HEADN_H) - FOOTER_H,
+                boxSizing: "border-box",
+                padding: `${PAD_T}px ${PAD_X}px ${PAD_B}px`,
                 display: "flex",
-                alignItems: "flex-end",
-                justifyContent: "space-between",
-                gap: 12,
-                borderBottom: "2px solid #000",
-                paddingBottom: 6,
-                marginBottom: 8,
-                flexShrink: 0,
+                flexDirection: "column",
               }}
             >
-              <div style={{ width: BANNER_W, flexShrink: 0 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/Header-approval.png"
-                  alt={COMPANY.name}
-                  style={{
-                    display: "block",
-                    width: `calc(100% + ${INNER_PAD}px)`,
-                    maxWidth: "none",
-                    height: "auto",
-                    aspectRatio: `${1 / BANNER_RATIO}`,
-                    margin: `-${INNER_PAD}px 0 0 -${INNER_PAD}px`,
-                  }}
-                />
-              </div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 14, minWidth: 0 }}>
-                <div style={{ textAlign: "right", minWidth: 0 }}>
-                  <div style={{ fontSize: 10, color: "#444", letterSpacing: 0.5 }}>FORM APPROVAL · HAL {pi + 1}/{pages.length}</div>
-                  <div style={{ fontSize: 11, color: "#444" }}>Code produksi</div>
-                  <div style={{ fontSize: 17, fontWeight: 800, lineHeight: "20px" }}>#{order.kode_produksi}</div>
-                </div>
-                <div style={{ textAlign: "center", flexShrink: 0 }}>
-                  <div style={{ background: RED, color: "#fff", fontWeight: 700, fontSize: 11, padding: "2px 10px", marginBottom: 2 }}>DEADLINE</div>
-                  <div style={{ border: `2px solid ${RED}`, color: RED, fontWeight: 700, fontSize: 13, padding: "1px 10px" }}>{fmtDate(order.deadline)}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Halaman 1: detail customer ── */}
-            {pi === 0 && (
-              <div style={{ height: CUSTOMER_H, flexShrink: 0 }}>
-                <SectionTitle n={1}>DETAIL CUSTOMER</SectionTitle>
-                <div style={{ display: "flex", gap: 30 }}>
-                  <div style={{ flex: 1.2, minWidth: 0 }}>
-                    <Field label="Nama Customer" value={order.nama_pemesan} bold />
-                    <Field label="WA Customer" value={order.no_hp} />
-                    <Field label="Alamat" value={alamat} clamp />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <Field label="Tanggal Masuk" value={fmtDate(order.tanggal_masuk)} />
-                    <Field label="PJ Produksi" value={pjName} />
-                    <Field label="Tim" value={teamName} />
+              {pi === 0 && (
+                <div style={{ flexShrink: 0, marginBottom: BLOCK_GAP }}>
+                  <SectionTitle n={1}>DETAIL CUSTOMER</SectionTitle>
+                  <div
+                    style={{
+                      height: CUSTOMER_H,
+                      boxSizing: "border-box",
+                      background: "#f8fbfb",
+                      border: `1px solid ${LINE}`,
+                      borderRadius: 9,
+                      padding: "12px 16px",
+                      display: "flex",
+                      gap: 28,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div style={{ flex: 1.25, minWidth: 0 }}>
+                      <Field label="Nama Customer" value={order.nama_pemesan} bold />
+                      <Field label="WA Customer" value={order.no_hp} />
+                      <Field label="Alamat" value={alamat} clamp={2} />
+                    </div>
+                    <div style={{ width: 1, background: LINE }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Field label="Tanggal Masuk" value={fmtDate(order.tanggal_masuk)} />
+                      <Field label="PJ Produksi" value={pjName} />
+                      <Field label="Tim" value={teamName} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* ── Rincian pesanan (kartu dua kolom) ── */}
-            {(pi === 0 || page.rows.length > 0) && (
-            <div style={{ flexShrink: 0 }}>
-              <SectionTitle n={2}>
-                {pi === 0 ? "RINCIAN PESANAN" : `RINCIAN PESANAN (LANJUTAN) — ${order.nama_pemesan}`}
-                {pi === 0 && <span style={{ marginLeft: "auto", paddingRight: 8, fontWeight: 700 }}>TOTAL {grand} PCS</span>}
-              </SectionTitle>
-            </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: ROW_GAP, minHeight: 0 }}>
-              {page.rows.map((row, ri) => (
-                <div key={ri} style={{ display: "flex", gap: COL_GAP, height: row.h }}>
-                  {row.cards.map((c) => (
-                    <Card key={c.item.id} card={c} height={row.h} />
+              {(pi === 0 || hasCards) && (
+                <div style={{ flexShrink: 0 }}>
+                  <SectionTitle
+                    n={2}
+                    right={
+                      pi === 0 ? (
+                        <span style={{ background: TEAL, color: "#fff", borderRadius: 10, padding: "0 10px", height: 20, lineHeight: "20px", fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+                          TOTAL {grand} PCS
+                        </span>
+                      ) : undefined
+                    }
+                  >
+                    {pi === 0 ? "RINCIAN PESANAN" : "RINCIAN PESANAN (LANJUTAN)"}
+                  </SectionTitle>
+                </div>
+              )}
+
+              {hasCards ? (
+                <div style={{ display: "flex", gap: COL_GAP, alignItems: "flex-start", flexShrink: 0 }}>
+                  {page.cols.map((col, ci) => (
+                    <div key={ci} style={{ width: COL_W, display: "flex", flexDirection: "column", gap: CARD_GAP }}>
+                      {col.map((c) => (
+                        <Card key={c.item.id} card={c} />
+                      ))}
+                    </div>
                   ))}
                 </div>
-              ))}
-              {pi === 0 && page.rows.length === 0 && (
-                <div style={{ border: "2px dashed #aaa", color: "#777", fontSize: 12, padding: 14, textAlign: "center" }}>Rincian pesanan belum diisi.</div>
+              ) : (
+                pi === 0 && (
+                  <div style={{ border: `2px dashed ${LINE}`, borderRadius: 9, color: MUTED, fontSize: 12, padding: 16, textAlign: "center" }}>
+                    Rincian pesanan belum diisi.
+                  </div>
+                )
+              )}
+
+              {/* ── Halaman terakhir: catatan + TTD (menempel di bawah) ── */}
+              {page.final && (
+                <div style={{ marginTop: "auto", flexShrink: 0, paddingTop: hasCards ? BLOCK_GAP : 0 }}>
+                  {notes.length > 0 && (
+                    <div style={{ marginBottom: BLOCK_GAP }}>
+                      <SectionTitle n={3}>CATATAN</SectionTitle>
+                      <div
+                        style={{
+                          background: "#fffaf0",
+                          border: "1px solid #f0e2bf",
+                          borderRadius: 9,
+                          padding: "9px 14px",
+                          fontSize: 12,
+                          lineHeight: "17px",
+                          whiteSpace: "pre-line",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {notes.join("\n")}
+                      </div>
+                    </div>
+                  )}
+                  <SectionTitle n={notes.length > 0 ? 4 : 3}>APPROVAL & TTD PENERIMAAN</SectionTitle>
+                  <div style={{ display: "flex", gap: 12, height: SIGN_BOX_H }}>
+                    <SignBox title="APPROVAL" sub="Nama & tanda tangan" />
+                    <SignBox title="CUSTOMER" sub="Nama & tanda tangan" />
+                    <SignBox title={COMPANY.name.toUpperCase()} sub="Nama & tanda tangan" />
+                  </div>
+                </div>
               )}
             </div>
 
-            {/* ── Halaman terakhir: catatan + TTD (menempel di bawah) ── */}
-            {page.final && (
-              <div style={{ marginTop: page.rows.length === 0 && pi > 0 ? 0 : "auto", flexShrink: 0 }}>
-                {notes.length > 0 && (
-                  <div style={{ marginBottom: 8 }}>
-                    <SectionTitle n={3}>CATATAN</SectionTitle>
-                    <div style={{ fontSize: 12, lineHeight: "16px", whiteSpace: "pre-line", wordBreak: "break-word" }}>{notes.join("\n")}</div>
-                  </div>
-                )}
-                <SectionTitle n={notes.length > 0 ? 4 : 3}>APPROVAL & TTD PENERIMAAN</SectionTitle>
-                <div style={{ display: "flex", gap: 14, height: SIGN_BOX_H }}>
-                  <SignBox title="Approval" />
-                  <SignBox title="Customer" dotted />
-                  <SignBox title={COMPANY.name} dotted />
-                </div>
-              </div>
-            )}
+            {/* ── Footer ── */}
+            <div
+              style={{
+                position: "absolute",
+                left: PAD_X,
+                right: PAD_X,
+                bottom: 0,
+                height: FOOTER_H,
+                borderTop: `1px solid ${LINE}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                fontSize: 10,
+                color: MUTED,
+              }}
+            >
+              <span>
+                {COMPANY.name} · {COMPANY.address}
+              </span>
+              <span style={{ fontWeight: 700 }}>
+                Halaman {pi + 1} dari {pages.length}
+              </span>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </>
   );
 }

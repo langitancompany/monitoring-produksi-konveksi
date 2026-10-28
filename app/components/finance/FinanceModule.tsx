@@ -40,7 +40,7 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
 
   if (!meta) {
     return (
-      <div className="max-w-4xl mx-auto space-y-3 py-8">
+      <div className="w-full space-y-3 py-8">
         {error ? (
           <>
             <div className="rounded-md border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-300">

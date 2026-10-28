@@ -100,7 +100,7 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="w-full space-y-4">
       <button
         onClick={onCancel}
         className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors duration-150"
@@ -108,13 +108,13 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
         <ArrowLeft className="w-4 h-4" /> Kembali ke detail
       </button>
 
-      <form onSubmit={submit} className="bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 md:p-6 space-y-4">
-        <div>
+      <form onSubmit={submit} className="w-full bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 md:p-6 grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4 items-start">
+        <div className="lg:col-span-2">
           <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Edit Pesanan</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 font-mono tabular-nums">{order.kode_produksi}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:col-span-2">
           <div>
             <label className={labelCls}>Nama pemesan *</label>
             <input required className={inputCls} value={form.nama_pemesan} onChange={(e) => set("nama_pemesan", e.target.value)} />
@@ -130,8 +130,13 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
           <textarea rows={2} className={inputCls} value={form.alamat_pemesan} onChange={(e) => set("alamat_pemesan", e.target.value)} />
         </div>
 
+        <div>
+          <label className={labelCls}>Catatan</label>
+          <textarea rows={2} className={inputCls} value={form.catatan_pesanan} onChange={(e) => set("catatan_pesanan", e.target.value)} />
+        </div>
+
         {isNon && (
-          <div>
+          <div className="lg:col-span-2">
             <label className={labelCls}>Kategori pemesanan *</label>
             <select required className={inputCls} value={form.jenis_produksi} onChange={(e) => set("jenis_produksi", e.target.value)}>
               {nonUtamaOptions.map((t) => (
@@ -145,7 +150,7 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
 
         <TeamPicker value={teamId} onChange={setTeamId} teams={teamOptions} users={users} disabled={isSubmitting} />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:col-span-2">
           <div>
             <label className={labelCls}>Jumlah (pcs) *</label>
             {editItems ? (
@@ -167,7 +172,7 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
         </div>
 
         {editItems && (
-          <div>
+          <div className="lg:col-span-2">
             <p className={labelCls}>Item pesanan *</p>
             <ItemsEditor
               items={items}
@@ -183,20 +188,16 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
           </div>
         )}
 
-        <div>
-          <label className={labelCls}>Catatan</label>
-          <textarea rows={2} className={inputCls} value={form.catatan_pesanan} onChange={(e) => set("catatan_pesanan", e.target.value)} />
-        </div>
 
         {error && (
-          <p className="rounded-md border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-300">{error}</p>
+          <p className="lg:col-span-2 rounded-md border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-red-700 dark:text-red-300">{error}</p>
         )}
 
-        <div className="flex gap-2 pt-2">
-          <button type="button" onClick={onCancel} className="flex-1 py-2 border border-zinc-200 dark:border-zinc-800 rounded-md font-semibold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-150 text-sm">
+        <div className="flex gap-2 pt-2 lg:col-span-2 lg:justify-end">
+          <button type="button" onClick={onCancel} className="flex-1 lg:flex-none lg:w-40 py-2 border border-zinc-200 dark:border-zinc-800 rounded-md font-semibold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-150 text-sm">
             Batal
           </button>
-          <button type="submit" disabled={isSubmitting} className="flex-1 py-2 bg-[#124540] hover:bg-[#0d332f] disabled:opacity-60 text-white rounded-md font-semibold transition-colors duration-150 text-sm flex items-center justify-center gap-2">
+          <button type="submit" disabled={isSubmitting} className="flex-1 lg:flex-none lg:w-56 py-2 bg-[#124540] hover:bg-[#0d332f] disabled:opacity-60 text-white rounded-md font-semibold transition-colors duration-150 text-sm flex items-center justify-center gap-2">
             {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
             {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
           </button>

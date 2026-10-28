@@ -426,7 +426,7 @@ function MockupField({
             className="block w-full text-xs text-zinc-600 dark:text-zinc-300 file:mr-3 file:rounded-md file:border-0 file:bg-[#124540] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-[#0d332f]"
           />
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
-            Gambar JPG/PNG. Dilihat tim produksi dan tampil di Form Approval.
+            Gambar JPG/PNG. Otomatis dikecilkan saat diupload (tetap tajam untuk cetak). Dilihat tim produksi dan tampil di Form Approval.
             {existingUrl && !file ? " Pilih gambar baru untuk mengganti." : ""}
           </p>
         </div>

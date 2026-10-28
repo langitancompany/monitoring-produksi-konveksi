@@ -13,6 +13,7 @@
 import { useState, useCallback } from "react";
 import { SupabaseClient } from "@supabase/supabase-js";
 import imageCompression from "browser-image-compression";
+import { compressMockup, extensionForType, fmtBytes, MOCKUP_FALLBACK_MAX_MB } from "@/lib/imageCompress";
 import type { UserData } from "@/types";
 import type { Order } from "@/types/order";
 import { generateStorageFilename } from "@/lib/utils";
@@ -65,6 +66,7 @@ export function useUpload({ supabase, currentUser, writeLog, showAlert }: Props)
       order: OrderRef,
       file: File,
       label: string,
+      // highRes = gambar mockup: dikompres khusus (lihat lib/imageCompress.ts) supaya kecil tapi tetap layak cetak.
       opts: { allowPdf?: boolean; highRes?: boolean } = {},
     ): Promise<string | null> => {
       if (!currentUser) return null;
@@ -87,20 +89,31 @@ export function useUpload({ supabase, currentUser, writeLog, showAlert }: Props)
       setIsUploading(true);
       try {
         let processed = file;
-        if (isImage) {
+        let sizeMeta: { sebelum: number; sesudah: number } | null = null;
+        if (isImage && opts.highRes) {
+          const r = await compressMockup(file);
+          if (!r.compressed && file.size > MOCKUP_FALLBACK_MAX_MB * 1024 * 1024) {
+            showAlert(
+              "Gambar gagal dikompres",
+              `Gambar ini ${fmtBytes(file.size)} dan tidak bisa dikecilkan otomatis. Simpan sebagai JPG/PNG yang lebih kecil dari ${MOCKUP_FALLBACK_MAX_MB} MB, lalu coba lagi.`,
+              "error",
+            );
+            return null;
+          }
+          processed = r.file;
+          sizeMeta = { sebelum: r.before, sesudah: r.after };
+        } else if (isImage) {
           try {
-            processed = await imageCompression(file, {
-              maxSizeMB: opts.highRes ? 2 : 1,
-              maxWidthOrHeight: opts.highRes ? 2560 : 1920,
-              useWebWorker: true,
-            });
+            processed = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true });
           } catch (err) {
             console.error("Kompresi gagal, memakai file asli", err);
           }
         }
 
+        // Ekstensi mengikuti isi file hasil kompresi (mockup selalu JPEG), bukan nama file asli.
+        const ext = (isImage && extensionForType(processed.type)) || extensionOf(file);
         const baseName = generateStorageFilename(`${label}_${clockSuffix()}`, order.kode_produksi);
-        const path = `konveksi/${order.id}/${baseName}.${extensionOf(file)}`;
+        const path = `konveksi/${order.id}/${baseName}.${ext}`;
 
         const { error } = await supabase.storage
           .from(STORAGE_BUCKET)
@@ -116,8 +129,8 @@ export function useUpload({ supabase, currentUser, writeLog, showAlert }: Props)
           order,
           category: "FILE",
           event: `Upload ${label}`,
-          ket: `Nama file: ${baseName}.${extensionOf(file)}`,
-          meta: { url: data.publicUrl, path },
+          ket: `Nama file: ${baseName}.${ext}${sizeMeta ? ` (${fmtBytes(sizeMeta.sebelum)} → ${fmtBytes(sizeMeta.sesudah)})` : ""}`,
+          meta: { url: data.publicUrl, path, ...(sizeMeta ?? {}) },
         });
 
         return data.publicUrl;

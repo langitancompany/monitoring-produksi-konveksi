@@ -117,7 +117,7 @@ export default function OrderDetail(props: Props) {
     );
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4 md:space-y-6 pb-24 relative">
+    <div className="w-full space-y-4 md:space-y-6 pb-24 relative">
       {/* Tombol aksi atas */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <button
@@ -148,6 +148,10 @@ export default function OrderDetail(props: Props) {
         </div>
       </div>
 
+      {/* Layar lebar (lg+): kiri = info & detail pesanan (menempel saat scroll), kanan = tahapan.
+          Layar kecil: satu kolom berurutan seperti sebelumnya. */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 items-start">
+      <div className="lg:col-span-5 xl:col-span-4 space-y-4 md:space-y-6 lg:sticky lg:top-2 min-w-0">
       {/* Info pesanan */}
       <div className="bg-white dark:bg-zinc-950 p-5 md:p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex-1">
@@ -177,7 +181,7 @@ export default function OrderDetail(props: Props) {
 
       {/* Detail pesanan */}
       <div className="bg-white dark:bg-zinc-950 p-5 md:p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <Row label="Tanggal masuk">{formatDate(order.tanggal_masuk)}</Row>
           <Row label="No. HP">
             {order.no_hp ? (
@@ -245,6 +249,9 @@ export default function OrderDetail(props: Props) {
         {order.catatan_pesanan && <Row label="Catatan">{order.catatan_pesanan}</Row>}
       </div>
 
+      </div>
+
+      <div className="lg:col-span-7 xl:col-span-8 space-y-4 md:space-y-6 min-w-0">
       {/* 01 Approval */}
       <StepApproval ctx={ctx} productionTypes={productionTypes} onApproval={detail.submitApproval} />
 
@@ -268,6 +275,8 @@ export default function OrderDetail(props: Props) {
       {can(currentUser, "keuangan", "view") && (
         <OrderFinanceSection orderId={order.id} productionTypes={productionTypes} />
       )}
+      </div>
+      </div>
     </div>
   );
 }

@@ -235,7 +235,7 @@ export default function Header({
   return (
     <header
       className={`
-      sticky top-0 h-20 px-4 md:px-10 flex items-center justify-between transition-colors duration-150
+      sticky top-0 h-20 px-4 md:px-6 2xl:px-8 flex items-center justify-between transition-colors duration-150
       z-30 border-b border-transparent dark:border-transparent
       ${sidebarOpen ? "bg-zinc-50 dark:bg-zinc-900" : "bg-zinc-50 dark:bg-zinc-950"}
       md:bg-zinc-50 md:dark:bg-zinc-950

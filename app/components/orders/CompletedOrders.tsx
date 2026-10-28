@@ -149,7 +149,7 @@ export default function CompletedOrders({ orders, productionTypes, onSelectOrder
       </div>
 
       {/* STATISTIK */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
         <StatCard label="Total Pesanan" value={stats.totalOrder.toLocaleString("id-ID")} chip={scopeLabel} />
         <StatCard label="Total Pakaian" value={stats.totalPcs.toLocaleString("id-ID")} chip="Pcs" />
         <div className="col-span-2 md:col-span-1">

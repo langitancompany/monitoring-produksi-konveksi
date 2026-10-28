@@ -56,7 +56,7 @@ export default function AboutView() {
 
   return (
     <div className="flex justify-center items-start min-h-full p-2 md:p-8">
-      <div className="w-full max-w-2xl lg:max-w-6xl rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-100/80 dark:bg-zinc-900/90 shadow-sm p-5 md:p-8 space-y-6 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-10">
+      <div className="w-full rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-100/80 dark:bg-zinc-900/90 shadow-sm p-5 md:p-8 space-y-6 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-10">
         {/* ═══ KOLOM KIRI (layar lebar) — Logo, Detail Aplikasi, Pengembang ═══ */}
         <div className="space-y-6">
         {/* Header Aplikasi */}
