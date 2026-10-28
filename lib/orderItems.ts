@@ -154,16 +154,11 @@ export function validateItems(
   mockupFiles: Record<string, File> = {},
 ): string | null {
   if (items.length === 0) return "Tambahkan minimal satu item.";
-  const seen = new Set<string>();
   for (const it of items) {
     if (!it.jenis_produksi) return "Pilih jenis produksi untuk setiap baris item.";
     const type = types.find((t) => t.value === it.jenis_produksi);
     const custom = isCustomType(type);
-    // Pesanan umum boleh muncul berkali-kali (tiap desain = satu item); jenis lain hanya sekali.
-    if (!custom && seen.has(it.jenis_produksi)) {
-      return "Satu jenis produksi hanya boleh muncul sekali — gabungkan jumlahnya.";
-    }
-    seen.add(it.jenis_produksi);
+    // Jenis yang sama boleh muncul berkali-kali (mis. warna berbeda); gaji menggabungkannya per jenis.
 
     const name = custom ? (it.nama_model?.trim() || type?.name || it.jenis_produksi) : (type?.name ?? it.jenis_produksi);
 

@@ -6,8 +6,8 @@
 //                                tiap blok punya isian ukuran sendiri
 //  - pesanan umum (tender/instansi): tiap desain = satu item dengan nama model, bagian
 //                                (atasan/bawahan → menentukan daftar ukuran), dan mockup wajib
-// Jenis biasa hanya boleh sekali; pesanan umum boleh berkali-kali. `jumlah` item selalu
-// total seluruh ukuran.
+// Jenis apa pun boleh dipakai berkali-kali (mis. kaos polos warna hitam dan putih sebagai dua baris).
+// `jumlah` item selalu total seluruh ukuran.
 "use client";
 
 import React, { useEffect, useMemo } from "react";
@@ -59,15 +59,8 @@ export default function ItemsEditor({
 }: Props) {
   const typeOf = (value: string) => types.find((t) => t.value === value);
 
-  const usedByOthers = (idx: number) =>
-    new Set(items.filter((_, i) => i !== idx).map((it) => it.jenis_produksi));
-
   const optionsFor = (idx: number) =>
-    types.filter(
-      (t) =>
-        (t.is_active || t.value === items[idx].jenis_produksi) &&
-        (isCustomType(t) || !usedByOthers(idx).has(t.value)),
-    );
+    types.filter((t) => t.is_active || t.value === items[idx].jenis_produksi);
 
   const replace = (idx: number, next: OrderItem) =>
     onChange(items.map((it, i) => (i === idx ? next : it)));
@@ -133,12 +126,6 @@ export default function ItemsEditor({
     onMockupChange?.(items[idx].id, null);
     onChange(items.filter((_, i) => i !== idx));
   };
-
-  const allUsed =
-    !types.some((t) => t.is_active && isCustomType(t)) &&
-    types
-      .filter((t) => t.is_active)
-      .every((t) => items.some((it) => it.jenis_produksi === t.value));
 
   return (
     <div className="space-y-3">
@@ -324,7 +311,7 @@ export default function ItemsEditor({
       <div className="flex items-center justify-between pt-1">
         <button
           type="button"
-          disabled={disabled || allUsed}
+          disabled={disabled}
           onClick={() =>
             onChange([
               ...items,
@@ -333,10 +320,7 @@ export default function ItemsEditor({
           }
           className="flex items-center gap-1.5 text-xs font-semibold text-[#124540] dark:text-[#49BFB4] disabled:opacity-40 transition-colors duration-150"
         >
-          <Plus className="w-3.5 h-3.5" />{" "}
-          {types.some((t) => t.is_active && isCustomType(t))
-            ? "Tambah jenis / pesanan umum"
-            : "Tambah jenis produksi"}
+          <Plus className="w-3.5 h-3.5" /> Tambah jenis / pesanan umum
         </button>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Total pesanan:{" "}
