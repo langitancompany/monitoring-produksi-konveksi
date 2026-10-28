@@ -1,6 +1,6 @@
 // app/components/finance/tabs/AuditTab.tsx
 //
-// Log audit keuangan (HANYA supervisor). Hanya-baca: log tidak bisa diubah atau dihapus di database.
+// Log audit keuangan (HANYA Super Admin). Hanya-baca: log tidak bisa diubah atau dihapus di database.
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";

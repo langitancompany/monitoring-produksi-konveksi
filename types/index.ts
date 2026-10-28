@@ -9,7 +9,7 @@ export type UserRole =
   | "produksi"
   | "qc"
   | "manager"
-  | "supervisor"
+  | "super_admin"
   | "designer";
 
 // ─── Bentuk hak akses per modul ──────────────────────────────────────────────
@@ -105,7 +105,7 @@ export interface UserData {
   /** hanya dipakai di form; TIDAK disimpan di tabel users dan tidak dimuat ke browser */
   password?: string;
   name: string;
-  /** role utama (untuk pengecekan akses `role === 'supervisor'` dst) */
+  /** role utama (untuk pengecekan akses `role === 'super_admin'` dst) */
   role: UserRole;
   /** semua role yang dipilih (boleh lebih dari satu); kosong = [role]. Lihat lib/roles.ts */
   roles?: string[] | null;

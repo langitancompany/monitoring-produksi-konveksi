@@ -1,5 +1,5 @@
 // GET /api/finance/invoice-settings -> pengaturan tampilan invoice (kop, rekening, tanda tangan)
-// PUT /api/finance/invoice-settings -> simpan (HANYA supervisor: rekening pembayaran rawan disalahgunakan).
+// PUT /api/finance/invoice-settings -> simpan (HANYA Super Admin: rekening pembayaran rawan disalahgunakan).
 // Perubahan dicatat di log audit tanpa data gambar (hanya ada/tidaknya dan ukurannya).
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const guard = await requireFinance(req, "view");
   if (!guard.ok) return guard.response;
-  if (!guard.actor.caps.isSupervisor) return bad("Hanya supervisor yang boleh mengubah pengaturan invoice", 403);
+  if (!guard.actor.caps.isSuperAdmin) return bad("Hanya Super Admin yang boleh mengubah pengaturan invoice", 403);
 
   const body = await req.json().catch(() => null);
   const res = sanitizeInvoiceSettings(body?.settings);

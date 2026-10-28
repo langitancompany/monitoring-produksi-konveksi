@@ -1,7 +1,7 @@
 // GET /api/finance/report?from=YYYY-MM-DD&to=YYYY-MM-DD
 // Laporan laba (basis tagihan) dan arus kas (basis uang) per bulan, per kategori, dan per pesanan —
 // dihitung database (fin_report, migration 013). Data sensitif manajemen: hanya yang berhak menyetujui
-// (keuangan.edit) atau supervisor.
+// (keuangan.edit) atau Super Admin.
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireFinance, finFail, bad, isDate, todayWib } from "@/lib/finance/server";

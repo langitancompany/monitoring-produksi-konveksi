@@ -1,13 +1,13 @@
 // app/api/users/route.ts
 //
-// Kelola user dalam SATU langkah (akun login + profil), hanya admin/supervisor.
+// Kelola user dalam SATU langkah (akun login + profil), hanya admin/Super Admin.
 //   POST   → tambah user    {name, username(email), password?, roles[], no_wa, permissions}
 //   PATCH  → ubah user      {id, name, roles[], no_wa, permissions, password?}
 //   DELETE → hapus user     {userId}
 //
 // Semua tulis ke tabel `users` terjadi DI SINI (service role) — bukan dari
 // browser — sehingga password tidak pernah disimpan di tabel `users` dan
-// aturan "hanya supervisor yang boleh mengurus supervisor" ditegakkan di server.
+// aturan "hanya Super Admin yang boleh mengurus Super Admin" ditegakkan di server.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
@@ -18,7 +18,7 @@ import {
   validateUserInput,
   rolesOf,
   findAuthUserByEmail,
-  countOtherSupervisors,
+  countOtherSuperAdmins,
   usedByOtherUnit,
 } from '@/lib/userAdmin';
 
@@ -37,7 +37,7 @@ async function authorize(req: NextRequest) {
 
   return {
     callerId: guard.userId,
-    callerIsSupervisor: rolesOf(caller).includes('supervisor'),
+    callerIsSuperAdmin: rolesOf(caller).includes('super_admin'),
   } as const;
 }
 
@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.ok) return fail(parsed.error, 400);
   const v = parsed.value;
 
-  if (v.roles.includes('supervisor') && !auth.callerIsSupervisor) {
-    return fail('Hanya supervisor yang boleh membuat akun supervisor', 403);
+  if (v.roles.includes('super_admin') && !auth.callerIsSuperAdmin) {
+    return fail('Hanya Super Admin yang boleh membuat akun Super Admin', 403);
   }
 
   const admin = getSupabaseAdmin();
@@ -129,14 +129,14 @@ export async function PATCH(req: NextRequest) {
   const { data: target } = await admin.from('users').select('id, role, roles, username').eq('id', id).maybeSingle();
   if (!target) return fail('User tidak ditemukan', 404);
 
-  const wasSupervisor = rolesOf(target).includes('supervisor');
-  const willBeSupervisor = v.roles.includes('supervisor');
+  const wasSuperAdmin = rolesOf(target).includes('super_admin');
+  const willBeSuperAdmin = v.roles.includes('super_admin');
 
-  if ((wasSupervisor || willBeSupervisor !== wasSupervisor) && !auth.callerIsSupervisor) {
-    return fail('Hanya supervisor yang boleh mengubah akun atau role supervisor', 403);
+  if ((wasSuperAdmin || willBeSuperAdmin !== wasSuperAdmin) && !auth.callerIsSuperAdmin) {
+    return fail('Hanya Super Admin yang boleh mengubah akun atau role Super Admin', 403);
   }
-  if (wasSupervisor && !willBeSupervisor && (await countOtherSupervisors(admin, id)) === 0) {
-    return fail('Tidak bisa menurunkan supervisor terakhir', 409);
+  if (wasSuperAdmin && !willBeSuperAdmin && (await countOtherSuperAdmins(admin, id)) === 0) {
+    return fail('Tidak bisa menurunkan Super Admin terakhir', 409);
   }
 
   // Email login tidak bisa diubah di sini (akun login dipakai bersama semua unit).
@@ -184,10 +184,10 @@ export async function DELETE(req: NextRequest) {
   const admin = getSupabaseAdmin();
   const { data: target } = await admin.from('users').select('id, role, roles').eq('id', userId).maybeSingle();
 
-  if (target && rolesOf(target).includes('supervisor')) {
-    if (!auth.callerIsSupervisor) return fail('Hanya supervisor yang boleh menghapus akun supervisor', 403);
-    if ((await countOtherSupervisors(admin, userId)) === 0) {
-      return fail('Tidak bisa menghapus supervisor terakhir', 409);
+  if (target && rolesOf(target).includes('super_admin')) {
+    if (!auth.callerIsSuperAdmin) return fail('Hanya Super Admin yang boleh menghapus akun Super Admin', 403);
+    if ((await countOtherSuperAdmins(admin, userId)) === 0) {
+      return fail('Tidak bisa menghapus Super Admin terakhir', 409);
     }
   }
 

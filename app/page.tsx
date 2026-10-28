@@ -486,10 +486,10 @@ export default function KonveksiApp() {
         title={kategori === "utama" ? "Pesanan Utama" : "Pesanan Non-Utama"}
         loading={ordersLoading}
         canCreate={
-          currentUser.role === "supervisor" || p?.orders?.create === true
+          currentUser.role === "super_admin" || p?.orders?.create === true
         }
         canDelete={
-          currentUser.role === "supervisor" || p?.orders?.delete === true
+          currentUser.role === "super_admin" || p?.orders?.delete === true
         }
         deletingOrderId={deletingOrderId}
         onNewOrder={() => setView("create")}

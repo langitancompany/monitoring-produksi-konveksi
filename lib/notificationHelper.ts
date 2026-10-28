@@ -74,7 +74,7 @@ async function notifyServer(payload: {
   }
 }
 
-// Contoh: sendToRoles(['produksi', 'supervisor'], 'Judul', 'Pesan', 'order-uuid')
+// Contoh: sendToRoles(['produksi', 'super_admin'], 'Judul', 'Pesan', 'order-uuid')
 export const sendToRoles = async (
   roles: string[],
   title: string,

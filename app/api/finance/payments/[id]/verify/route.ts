@@ -1,5 +1,5 @@
 // POST /api/finance/payments/:id/verify   body: { action: 'verify' | 'reject', reason?: string }
-// Izin: keuangan.edit. Supervisor dikecualikan dari aturan "pencatat ≠ pemverifikasi".
+// Izin: keuangan.edit. Super Admin dikecualikan dari aturan "pencatat ≠ pemverifikasi".
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireFinance, finFail, bad, isUuid } from "@/lib/finance/server";
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     p_payment: id,
     p_actor: actor.userId,
     p_actor_name: actor.name,
-    p_is_supervisor: actor.caps.isSupervisor,
+    p_is_super_admin: actor.caps.isSuperAdmin,
     p_approve: body.action === "verify",
     p_reason: typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : null,
   });

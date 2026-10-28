@@ -8,7 +8,7 @@ import type { FinCaps } from "./caps";
 
 export type GuideTarget = "overview" | "invoices" | "payments" | "verify" | "expenses" | "report" | "audit" | "info";
 export type Freq = "daily" | "weekly" | "monthly";
-export type Needs = "create" | "edit" | "supervisor";
+export type Needs = "create" | "edit" | "super_admin";
 
 export interface GuideTask {
   id: string;
@@ -142,7 +142,7 @@ export const TASKS: GuideTask[] = [
     go: { tab: "report", label: "Buka Laporan" },
   },
   {
-    id: "m-audit", freq: "monthly", needs: "supervisor",
+    id: "m-audit", freq: "monthly", needs: "super_admin",
     title: "Tinjau log audit",
     why: "Void, revisi tagihan, dan penolakan yang tidak biasa perlu ditanyakan alasannya.",
     steps: [
@@ -178,7 +178,7 @@ export const FAQ: { q: string; a: string }[] = [
   { q: "Bagaimana mengirim invoice ke pelanggan?",
     a: "Buka Rincian pesanan (atau tombol Invoice di daftar Tagihan), lalu klik Invoice pelanggan. Dari sana Anda bisa mengunduh PDF, membagikan file (di HP), mencetak ukuran A5, atau membuka WhatsApp dengan pesan siap kirim — file PDF dilampirkan sendiri. Invoice otomatis berstatus LUNAS begitu pembayaran terverifikasi menutup tagihan." },
   { q: "Rekening atau tanda tangan di invoice salah atau belum ada.",
-    a: "Supervisor mengaturnya di Akun & Pengaturan → Tampilan invoice (kop, rekening, tanda tangan, pratinjau langsung). Invoice yang belum lunas tanpa rekening tidak memuat cara pembayaran." },
+    a: "Super Admin mengaturnya di Akun & Pengaturan → Tampilan invoice (kop, rekening, tanda tangan, pratinjau langsung). Invoice yang belum lunas tanpa rekening tidak memuat cara pembayaran." },
   { q: "Bagaimana mengekspor data ke Excel?",
     a: "Tombol Ekspor Excel ada di tab Tagihan, Transaksi, Pengeluaran, dan Laporan. File memuat data sesuai filter yang sedang tampil, dan setiap ekspor tercatat di log audit (siapa, kapan, berapa baris)." },
   { q: "Pesanan tidak bisa dihapus permanen dari Sampah.",
@@ -191,7 +191,7 @@ export const COMING_SOON: string[] = [
 ];
 
 export const canDo = (t: GuideTask, caps: FinCaps): boolean =>
-  !t.needs || (t.needs === "supervisor" ? caps.isSupervisor : caps[t.needs]);
+  !t.needs || (t.needs === "super_admin" ? caps.isSuperAdmin : caps[t.needs]);
 
 export const tasksFor = (caps: FinCaps): GuideTask[] => TASKS.filter((t) => canDo(t, caps));
 

@@ -2,7 +2,7 @@
 //
 // Halaman Keuangan. LANGKAH 6.4: tab Tagihan, Transaksi, Verifikasi (hanya yang berhak memverifikasi),
 // dan Akun & Pengaturan (hanya baca). LANGKAH 6.5: tab Pengeluaran. LANGKAH 6.6: tab Ringkasan (awal),
-// Laporan (berhak menyetujui), Audit (supervisor), dan Panduan (docs/PRD.md §21). Hak akses dihitung SERVER (meta.caps); di sini hanya untuk
+// Laporan (berhak menyetujui), Audit (Super Admin), dan Panduan (docs/PRD.md §21). Hak akses dihitung SERVER (meta.caps); di sini hanya untuk
 // menampilkan/menyembunyikan tombol — penegakan ada di API dan database.
 "use client";
 
@@ -86,9 +86,9 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
       // lencana hanya untuk yang berhak menyetujui
       badge: caps.edit ? meta.pending_expense_count : 0,
     },
-    // laporan & audit memuat data manajemen: hanya yang berhak menyetujui (laporan) / supervisor (audit)
+    // laporan & audit memuat data manajemen: hanya yang berhak menyetujui (laporan) / Super Admin (audit)
     { id: "report", label: "Laporan", icon: <BarChart3 size={14} className="shrink-0" />, show: caps.edit },
-    { id: "audit", label: "Audit", icon: <ScrollText size={14} className="shrink-0" />, show: caps.isSupervisor },
+    { id: "audit", label: "Audit", icon: <ScrollText size={14} className="shrink-0" />, show: caps.isSuperAdmin },
     { id: "guide", label: "Panduan", icon: <BookOpen size={14} className="shrink-0" />, show: true },
     { id: "info", label: "Akun & Pengaturan", icon: <Settings size={14} className="shrink-0" />, show: true },
   ];
@@ -188,7 +188,7 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
           />
         )}
         {active === "report" && caps.edit && <ReportTab version={version} />}
-        {active === "audit" && caps.isSupervisor && <AuditTab version={version} />}
+        {active === "audit" && caps.isSuperAdmin && <AuditTab version={version} />}
         {active === "guide" && <GuideTab caps={caps} version={version} userKey={meta.user_id} onGo={goTo} />}
         {active === "info" && <InfoTab meta={meta} />}
       </div>

@@ -25,8 +25,8 @@ function test(name: string, fn: () => void) {
 }
 const html = (node: React.ReactElement) => renderToStaticMarkup(<DialogProvider>{node}</DialogProvider>);
 const noop = () => {};
-const caps = (c: Partial<Record<"view" | "create" | "edit" | "delete", boolean>>, isSupervisor = false) => ({
-  view: true, create: false, edit: false, delete: false, ...c, isSupervisor,
+const caps = (c: Partial<Record<"view" | "create" | "edit" | "delete", boolean>>, isSuperAdmin = false) => ({
+  view: true, create: false, edit: false, delete: false, ...c, isSuperAdmin,
 });
 
 console.log("tab yang memuat data");

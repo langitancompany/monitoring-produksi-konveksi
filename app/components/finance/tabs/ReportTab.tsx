@@ -4,7 +4,7 @@
 //   Pendapatan = nilai tagihan pesanan yang masuk pada periode (tanggal masuk pesanan)
 //   Biaya      = pengeluaran DISETUJUI pada periode
 //   Laba       = Pendapatan − Biaya  (perkiraan manajemen, bukan laba pembukuan)
-// Ekspor Excel (4 lembar) sesuai rentang yang sedang tampil. Hanya untuk yang berhak menyetujui (keuangan.edit) atau supervisor.
+// Ekspor Excel (4 lembar) sesuai rentang yang sedang tampil. Hanya untuk yang berhak menyetujui (keuangan.edit) atau Super Admin.
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";

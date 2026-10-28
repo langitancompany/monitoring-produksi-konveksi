@@ -1,7 +1,7 @@
 // app/components/finance/InvoiceSettingsCard.tsx
 //
 // Pengaturan TAMPILAN invoice pelanggan (kop, rekening pembayaran, tanda tangan) + pratinjau langsung.
-// Hanya supervisor yang boleh mengubah (server menolak yang lain); perubahan dicatat di log audit tanpa gambar.
+// Hanya Super Admin yang boleh mengubah (server menolak yang lain); perubahan dicatat di log audit tanpa gambar.
 // Tidak mengubah aturan uang apa pun — hanya cara dokumen invoice ditampilkan.
 "use client";
 

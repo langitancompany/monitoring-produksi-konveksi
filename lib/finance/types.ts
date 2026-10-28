@@ -27,7 +27,7 @@ export interface FinanceMeta {
   categories: FinanceCategory[];
   settings: FinanceSettings;
   /** hak pengguna yang sedang login (hasil hitung server) */
-  caps: { view: boolean; create: boolean; edit: boolean; delete: boolean; isSupervisor: boolean };
+  caps: { view: boolean; create: boolean; edit: boolean; delete: boolean; isSuperAdmin: boolean };
   /** jumlah pembayaran yang menunggu verifikasi (lencana tab Verifikasi) */
   pending_count: number;
   /** jumlah pengeluaran yang menunggu persetujuan (lencana tab Pengeluaran) */

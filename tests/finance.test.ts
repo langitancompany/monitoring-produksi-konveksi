@@ -48,16 +48,16 @@ function test(name: string, fn: () => void) {
 }
 
 console.log("hak akses (caps)");
-test("supervisor punya semua hak walau permission kosong", () => {
-  const c = resolveFinanceCaps({ role: "supervisor" }, null);
-  assert.deepEqual(c, { view: true, create: true, edit: true, delete: true, isSupervisor: true });
+test("Super Admin punya semua hak walau permission kosong", () => {
+  const c = resolveFinanceCaps({ role: "super_admin" }, null);
+  assert.deepEqual(c, { view: true, create: true, edit: true, delete: true, isSuperAdmin: true });
 });
-test("supervisor lewat roles ganda juga dikenali", () => {
-  assert.equal(resolveFinanceCaps({ role: "admin", roles: ["admin", "supervisor"] }, null).isSupervisor, true);
+test("Super Admin lewat roles ganda juga dikenali", () => {
+  assert.equal(resolveFinanceCaps({ role: "admin", roles: ["admin", "super_admin"] }, null).isSuperAdmin, true);
 });
 test("tanpa permission → tidak punya hak apa pun", () => {
   const c = resolveFinanceCaps({ role: "admin" }, undefined);
-  assert.deepEqual(c, { view: false, create: false, edit: false, delete: false, isSupervisor: false });
+  assert.deepEqual(c, { view: false, create: false, edit: false, delete: false, isSuperAdmin: false });
   assert.equal(resolveFinanceCaps(null, null).view, false);
 });
 test("hak lebih tinggi otomatis boleh melihat; hak lain tidak ikut naik", () => {
@@ -66,7 +66,7 @@ test("hak lebih tinggi otomatis boleh melihat; hak lain tidak ikut naik", () => 
   assert.equal(c.create, true);
   assert.equal(c.edit, false);
   assert.equal(c.delete, false);
-  assert.equal(c.isSupervisor, false); // bukan supervisor → tak boleh lihat audit
+  assert.equal(c.isSuperAdmin, false); // bukan Super Admin → tak boleh lihat audit
 });
 test("nilai bukan boolean true tidak dianggap hak (mis. string 'true')", () => {
   const c = resolveFinanceCaps({ role: "admin" }, { view: "true" as unknown as boolean });
@@ -659,10 +659,10 @@ test("peringatan kelengkapan: tanpa biaya, biaya belum ditautkan, rugi, dan norm
 });
 
 console.log("panduan (guideTasks.ts)");
-const capsOf = (c: Partial<Record<"view" | "create" | "edit" | "delete", boolean>>, isSupervisor = false) => ({
-  view: true, create: false, edit: false, delete: false, ...c, isSupervisor,
+const capsOf = (c: Partial<Record<"view" | "create" | "edit" | "delete", boolean>>, isSuperAdmin = false) => ({
+  view: true, create: false, edit: false, delete: false, ...c, isSuperAdmin,
 });
-test("tugas disaring menurut hak: lihat saja, hanya-create, hanya-edit, supervisor", () => {
+test("tugas disaring menurut hak: lihat saja, hanya-create, hanya-edit, Super Admin", () => {
   const ids = (c: ReturnType<typeof capsOf>) => tasksFor(c).map((t) => t.id).sort();
   assert.deepEqual(ids(capsOf({})), ["w-aging"]);
   assert.deepEqual(ids(capsOf({ create: true })), ["d-expense", "d-invoice", "d-payment", "w-aging", "w-complete", "w-unbilled"]);

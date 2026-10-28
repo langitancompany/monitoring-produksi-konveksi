@@ -2,7 +2,7 @@
 //
 // Pengecekan hak akses di sisi tampilan (UI). Penegak sebenarnya tetap RLS
 // database (has_perm) — ini hanya supaya tombol yang tidak boleh dipakai
-// tidak muncul. Supervisor selalu boleh semuanya (sama seperti has_perm di SQL).
+// tidak muncul. Super Admin selalu boleh semuanya (sama seperti has_perm di SQL).
 
 import type { UserData, UserPermissions } from "@/types";
 
@@ -15,7 +15,7 @@ export type PermAction = "view" | "create" | "edit" | "delete";
 /** Boleh melakukan `action` pada `module`? */
 export function can(user: Actor, module: PermModule, action: PermAction): boolean {
   if (!user) return false;
-  if (user.role === "supervisor") return true;
+  if (user.role === "super_admin") return true;
   const perm = (user.permissions as unknown as Record<string, Record<string, boolean> | undefined>)?.[module];
   return perm?.[action] === true;
 }

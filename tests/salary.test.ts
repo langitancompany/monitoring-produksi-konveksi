@@ -489,7 +489,7 @@ const users = [
   { id: "qc1", name: "Citra", role: "qc" },
   { id: "qc2", name: "Dewi", role: "qc" },
   { id: "adm", name: "Eka", role: "admin" },
-  { id: "spv", name: "Fajar", role: "supervisor" },
+  { id: "spv", name: "Fajar", role: "super_admin" },
 ];
 const teams = [{ id: "t1", member_ids: ["m1", "m2"] }];
 const FULL = (m: number, d: number) => ({

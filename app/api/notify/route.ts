@@ -17,7 +17,7 @@ import { sendPushToUser } from "@/lib/pushServer";
 import { ROLE_OPTIONS } from "@/lib/roles";
 
 // Sama dengan is_staff() di database: hanya staf yang boleh memicu notifikasi.
-const STAFF_ROLES = ["admin", "supervisor", "manager", "produksi", "qc"];
+const STAFF_ROLES = ["admin", "super_admin", "manager", "produksi", "qc"];
 const VALID_ROLES = new Set<string>(ROLE_OPTIONS.map((r) => r.value));
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

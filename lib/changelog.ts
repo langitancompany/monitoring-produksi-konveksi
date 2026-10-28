@@ -31,6 +31,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Pengaturan → Jenis Produksi: daftar ukuran dan varian tiap jenis jahitan bisa diatur (rentang boleh ditulis 25-43). Detail pesanan menampilkan rincian varian dan ukuran.",
       "Gaji, tagihan, dan dashboard tetap memakai total pcs per jenis, jadi tidak berubah. Pesanan lama tetap bisa dibuka dan diedit.",
       "Form Approval sekarang dibuat otomatis dari rincian pesanan (halaman Lihat Form Approval, lembar A4 portrait: detail customer, kartu jenis × varian × ukuran, catatan, kotak tanda tangan; bisa Simpan PDF, Bagikan, dan Cetak). Admin tidak perlu lagi mengupload file atau menempel link approval.",
+      "Istilah Supervisor diganti Super Admin di seluruh aplikasi (menu, pesan, dan nilai role di database), sama seperti aplikasi Sablon. Perlu menjalankan migration 016 di Supabase bersamaan dengan deploy.",
       "Semua menu kini memenuhi lebar layar dan responsif: Detail Pesanan tampil dua kolom di layar lebar, form Buat/Edit Pesanan dua kolom, halaman Tentang dan Keuangan tidak lagi dibatasi lebar, dan daftar kartu menambah kolom di layar sangat lebar.",
       "Gambar mockup otomatis dikompres sebelum diupload (sisi terpanjang maks 1600 px, JPEG kualitas 85%, target di bawah 0,8 MB) supaya penyimpanan Supabase hemat tapi tetap tajam saat dicetak. Ukuran sebelum dan sesudah tercatat di log.",
       "Perlu menjalankan migration 014_order_variants.sql dan 015_pesanan_umum.sql. Ukuran awal selain celana sekolah hanya tebakan (S-3XL), silakan sesuaikan di Pengaturan.",
@@ -41,7 +42,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-10-22",
     changes: [
       "Keuangan langkah 6.7: invoice untuk pelanggan. Tombol Invoice di rincian pesanan dan daftar Tagihan membuka invoice A5 yang bisa diunduh sebagai PDF, dibagikan sebagai file (di HP), dicetak, atau dikirim lewat WhatsApp dengan pesan siap kirim. Invoice otomatis berstatus LUNAS begitu pembayaran terverifikasi menutup tagihan, dan memuat rincian item, diskon, pembayaran yang sudah diterima, serta cara pembayaran.",
-      "Supervisor dapat mengatur kop (gambar atau teks), rekening pembayaran, catatan, dan tanda tangan invoice di Akun & Pengaturan → Tampilan invoice, lengkap dengan pratinjau. Perubahan tercatat di log audit.",
+      "Super Admin dapat mengatur kop (gambar atau teks), rekening pembayaran, catatan, dan tanda tangan invoice di Akun & Pengaturan → Tampilan invoice, lengkap dengan pratinjau. Perubahan tercatat di log audit.",
       "Tombol Ekspor Excel di tab Tagihan, Transaksi, Pengeluaran, dan Laporan (4 lembar) sesuai filter yang sedang tampil. Setiap ekspor tercatat di log audit lebih dulu; bila pencatatan gagal, file tidak dibuat.",
       "Tidak ada migration baru. Perlu `npm install` karena ada tiga paket baru (xlsx, jspdf, html-to-image).",
     ],
@@ -51,7 +52,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-10-22",
     changes: [
       "Keuangan langkah 6.6: tab Ringkasan (kas masuk, tagihan terbit, piutang beserta umurnya, pengeluaran, arus kas bersih, dan saldo per akun) kini menjadi tab pertama. Tab Laporan menampilkan laba (berdasarkan tagihan) dan arus kas (berdasarkan uang) per bulan, biaya per kategori, dan laba kotor per pesanan, lengkap dengan peringatan bila biaya belum lengkap.",
-      "Tab Audit (khusus supervisor) menampilkan jejak semua perubahan keuangan. Tab Panduan berisi angka \"perlu tindakan\" langsung dari data, tugas harian/mingguan/bulanan yang bisa dicentang, aturan penting, tanya jawab, dan daftar fitur yang belum tersedia.",
+      "Tab Audit (khusus Super Admin) menampilkan jejak semua perubahan keuangan. Tab Panduan berisi angka \"perlu tindakan\" langsung dari data, tugas harian/mingguan/bulanan yang bisa dicentang, aturan penting, tanya jawab, dan daftar fitur yang belum tersedia.",
       "Semua angka Ringkasan dan Laporan dihitung langsung oleh database sehingga tidak terpotong batas jumlah baris. Piutang tanpa jatuh tempo ditampilkan terpisah, tidak dihitung telat.",
       "Butuh migration 013_finance_reports.sql di Supabase (setelah 012). Saldo awal tiap akun diisi lewat kolom opening_balance di database.",
     ],
@@ -145,7 +146,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       "Dashboard kini berisi ringkasan produksi: jumlah pesanan berjalan, telat, mepet deadline, kendala/revisi, siap kirim, dan selesai bulan ini; posisi pesanan per tahap; daftar pesanan yang perlu perhatian (klik untuk membuka detail); jumlah pcs per jenis produksi; dan grafik 6 bulan terakhir.",
       "Perbaikan: hitungan \"Telat\" dan \"Mepet\" sebelumnya meleset sehari (pesanan yang deadline-nya kemarin belum dianggap telat). Kini memakai tanggal kalender: lewat kemarin = Telat, deadline hari ini sampai 2 hari lagi = Mepet. Notifikasi telat/mepet ikut diperbaiki, termasuk pesan \"deadline hari ini\".",
-      "Hak akses diperketat di database: kode pesanan dan pembuat tidak bisa diubah; data pemesan, deadline, dan jumlah hanya bisa diubah oleh yang berhak mengedit pesanan; log aktivitas hanya bisa dihapus supervisor. Butuh menjalankan migration 005.",
+      "Hak akses diperketat di database: kode pesanan dan pembuat tidak bisa diubah; data pemesan, deadline, dan jumlah hanya bisa diubah oleh yang berhak mengedit pesanan; log aktivitas hanya bisa dihapus Super Admin. Butuh menjalankan migration 005.",
       "Pembersihan kode kecil (import dan variabel yang tidak terpakai).",
     ],
   },
@@ -153,7 +154,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: "1.5",
     date: "2026-10-18",
     changes: [
-      "Catatan produksi di detail pesanan: kotak Catatan di kartu Produksi, QC & Packing, dan Pengiriman. Tulis catatan, lihat siapa penulisnya dan kapan; catatan hanya bisa dihapus oleh penulisnya atau supervisor.",
+      "Catatan produksi di detail pesanan: kotak Catatan di kartu Produksi, QC & Packing, dan Pengiriman. Tulis catatan, lihat siapa penulisnya dan kapan; catatan hanya bisa dihapus oleh penulisnya atau Super Admin.",
       "Menu baru Catatan Rapat: rekap semua catatan per pesanan untuk rapat mingguan (Minggu ini, Minggu lalu, atau Semua), bisa dicetak atau disimpan sebagai PDF. Kode pesanan bisa diklik untuk membuka detailnya.",
       "Perbaikan: file sisa desain lama (StepCard) yang membuat build gagal sudah dihapus.",
     ],

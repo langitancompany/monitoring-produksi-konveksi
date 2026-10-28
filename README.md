@@ -81,6 +81,7 @@ hak akses (RLS, fungsi, trigger) berperilaku sama.
    - `supabase/migrations/005_rls_hardening.sql` — pengetatan hak akses tabel `orders` (penjaga per kolom) dan hapus log; tidak mengubah data.
    - `supabase/migrations/006_teams.sql` — tim produksi (tabel `teams`, kolom `orders.team_id`) untuk Pengaturan → Tim dan pilihan tim di form pesanan. Tidak mengubah data lama.
    - `supabase/migrations/007_pricing_salary.sql` — Config Harga & Gaji (tabel `pricing_configs`, `salary_payments`, `salary_audit_log`, kolom `orders.crew_snapshot`, fungsi tandai lunas). Mengisi salinan PJ/tim untuk pesanan yang produksinya sudah selesai. Jalankan di luar jam kerja.
+   - `supabase/migrations/016_rename_supervisor_to_super_admin.sql` — mengganti role `supervisor` menjadi `super_admin` (data user, fungsi, policy RLS) agar sama dengan Sablon. Jalankan `supabase/optional/016_preview_supervisor_usage.sql` dulu (hanya membaca), backup, lalu jalankan 016 dan **segera deploy kode versi ini**. Dijalankan sekali; aman bila diulang.
 2. **Expose schema** `monitoring_konveksi` di pengaturan API Supabase
    (`PGRST_DB_SCHEMAS` / Exposed schemas; di self-hosted: variabel PostgREST di Coolify)
    lalu restart PostgREST. Tanpa ini aplikasi tidak bisa membaca tabel.
@@ -91,23 +92,23 @@ hak akses (RLS, fungsi, trigger) berperilaku sama.
    `avatars/`) yang sudah ada dan dipakai Sablon. Policy bucket itu berlaku
    untuk seluruh bucket (semua user login boleh upload/baca/hapus), jadi file
    Konveksi nanti ditaruh di awalan `konveksi/` supaya tidak bercampur.
-5. **Akun pertama (supervisor).** Login memakai Supabase Auth yang sama dengan unit lain,
+5. **Akun pertama (Super Admin).** Login memakai Supabase Auth yang sama dengan unit lain,
    tapi `users` tiap unit terpisah. Untuk pengguna pertama (yang belum bisa membuka
    Pengaturan): jalankan `supabase/optional/copy_users_from_sablon.sql` (ganti daftar id
-   dengan akun supervisor yang sudah ada di Sablon). Setelah itu semua user berikutnya
+   dengan akun Super Admin yang sudah ada di Sablon). Setelah itu semua user berikutnya
    dibuat dari **Pengaturan → Pengguna**.
 
 ### Mengelola user (API server)
 
-Tambah, ubah, dan hapus user lewat **`/api/users`** (hanya admin & supervisor) — akun
+Tambah, ubah, dan hapus user lewat **`/api/users`** (hanya admin & Super Admin) — akun
 login Supabase Auth **dan** profil `users` dibuat dalam satu langkah. Aturannya:
 
 - **Email Login** = `users.username`; tidak bisa diubah setelah dibuat. Password minimal 8 karakter.
 - Email yang **sudah punya akun login di unit lain** (mis. Sablon) → akun ditautkan:
   hanya profil Konveksi yang dibuat, **password tidak diubah**.
 - Password **tidak disimpan di tabel `users`** (kolom `password` tidak ada) dan tidak pernah dimuat ke browser.
-- Hanya **supervisor** yang boleh membuat/mengubah/menghapus akun atau role supervisor;
-  supervisor terakhir tidak bisa diturunkan/dihapus; tidak bisa menghapus akun sendiri.
+- Hanya **Super Admin** yang boleh membuat/mengubah/menghapus akun atau role Super Admin;
+  Super Admin terakhir tidak bisa diturunkan/dihapus; tidak bisa menghapus akun sendiri.
 - Hapus user = hapus profil Konveksi + datanya (notifikasi, token push, akses direksi).
   Akun login **dihapus hanya bila tidak dipakai unit lain** (dicek lewat env `OTHER_UNIT_SCHEMAS`;
   bila tidak bisa dipastikan, akun dipertahankan).

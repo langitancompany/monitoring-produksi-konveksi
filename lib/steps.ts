@@ -147,7 +147,7 @@ export function activeStepName(steps: ProductionStep[] | undefined): string {
 
 // ─── Aturan aksi tahap (Bagian 2) ────────────────────────────────────────────
 
-/** Modul hak akses yang boleh mengerjakan suatu tahap (salah satu cukup). Supervisor selalu boleh. */
+/** Modul hak akses yang boleh mengerjakan suatu tahap (salah satu cukup). Super Admin selalu boleh. */
 export type StepPerm = [module: "orders" | "produksi" | "finishing", action: "create" | "edit" | "delete"];
 
 /**

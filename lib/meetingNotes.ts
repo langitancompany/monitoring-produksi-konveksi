@@ -51,13 +51,13 @@ export function cleanNoteText(raw: string): string {
   return raw.replace(/\r\n?/g, "\n").trim().slice(0, NOTE_MAX_LENGTH).trim();
 }
 
-/** Boleh menghapus catatan? Pembuatnya atau supervisor (sama dengan policy database). */
+/** Boleh menghapus catatan? Pembuatnya atau Super Admin (sama dengan policy database). */
 export function canDeleteNote(
   note: Pick<ProductionNote, "created_by_id">,
   user: { id: string; role: string } | null | undefined,
 ): boolean {
   if (!user) return false;
-  return note.created_by_id === user.id || user.role === "supervisor";
+  return note.created_by_id === user.id || user.role === "super_admin";
 }
 
 /** Pesan galat yang ramah. Tabel belum ada = migration 004 belum dijalankan. */

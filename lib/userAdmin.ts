@@ -12,7 +12,7 @@ import { ROLE_OPTIONS } from '@/lib/roles';
 import { DEFAULT_PERMISSIONS, type UserPermissions } from '@/types';
 
 /** Role yang boleh menambah/ubah/hapus user (selaras dengan policy RLS tabel users). */
-export const USER_MANAGER_ROLES = ['admin', 'supervisor'];
+export const USER_MANAGER_ROLES = ['admin', 'super_admin'];
 
 /**
  * Schema unit LAIN yang berbagi Supabase Auth ini (dipisah koma).
@@ -116,13 +116,13 @@ export async function findAuthUserByEmail(admin: SupabaseClient<any, any, any>, 
   return null;
 }
 
-/** Jumlah supervisor di unit ini, tidak termasuk `exceptId`. */
-export async function countOtherSupervisors(
+/** Jumlah Super Admin di unit ini, tidak termasuk `exceptId`. */
+export async function countOtherSuperAdmins(
   admin: SupabaseClient<any, any, any>,
   exceptId: string,
 ): Promise<number> {
   const { data } = await admin.from('users').select('id, role, roles').neq('id', exceptId);
-  return (data ?? []).filter((u: any) => rolesOf(u).includes('supervisor')).length;
+  return (data ?? []).filter((u: any) => rolesOf(u).includes('super_admin')).length;
 }
 
 /**
