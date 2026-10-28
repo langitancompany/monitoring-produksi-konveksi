@@ -832,7 +832,7 @@ function OrderGroup({
               {o.nama_pemesan}
             </h4>
             <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-              <span className="font-mono tabular-nums">{o.jumlah} pcs</span>
+              <span className="font-mono tabular-nums">{o.jumlah > 0 ? `${o.jumlah} pcs` : "Jumlah belum diisi"}</span>
               <span className="w-1 h-1 rounded-full bg-zinc-300" />
               <span>{KIND_LABEL[o.kategori] ?? o.kategori}</span>
             </div>

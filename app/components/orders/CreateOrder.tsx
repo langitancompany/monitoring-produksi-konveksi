@@ -51,8 +51,13 @@ export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isS
       setError("Penanggung jawab (PJ) wajib dipilih.");
       return;
     }
+    if (isNon && (!form.jumlah || form.jumlah < 1)) {
+      setError("Jumlah minimal 1 pcs.");
+      return;
+    }
     setError(null);
-    onSubmit(form);
+    // Pesanan utama: jumlah belum ada, baru terisi dari rincian di tahap Approval.
+    onSubmit({ ...form, jumlah: isNon ? form.jumlah : 0 });
   };
 
   return (
@@ -72,7 +77,7 @@ export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isS
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             {isNon
               ? "Isi detail pemesan, jumlah, dan kategori pemesanan."
-              : "Isi data pemesan. Jenis produksi dipilih saat membuat Approval."}
+              : "Isi data pemesan. Jenis jahitan, varian, ukuran, dan jumlah diisi admin saat membuat Approval."}
           </p>
         </div>
 
@@ -108,11 +113,13 @@ export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isS
 
         <TeamPicker value={form.team_id ?? null} onChange={(id) => set("team_id", id)} teams={teams} users={users} disabled={isSubmitting} />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className={labelCls}>Jumlah (pcs) *</label>
-            <input required type="number" min={1} inputMode="numeric" className={inputCls} value={form.jumlah || ""} onChange={(e) => set("jumlah", parseInt(e.target.value, 10) || 0)} />
-          </div>
+        <div className={`grid grid-cols-1 gap-4 ${isNon ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          {isNon && (
+            <div>
+              <label className={labelCls}>Jumlah (pcs) *</label>
+              <input required type="number" min={1} inputMode="numeric" className={inputCls} value={form.jumlah || ""} onChange={(e) => set("jumlah", parseInt(e.target.value, 10) || 0)} />
+            </div>
+          )}
           <div>
             <label className={labelCls}>Tanggal masuk *</label>
             <input required type="date" className={inputCls} value={form.tanggal_masuk} onChange={(e) => set("tanggal_masuk", e.target.value)} />

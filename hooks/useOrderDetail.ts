@@ -14,10 +14,10 @@
 
 import { useCallback, useState } from "react";
 import type { UserData } from "@/types";
-import type { ApprovalInput, KendalaNote, Order } from "@/types/order";
+import type { ApprovalInput, KendalaNote, Order, ProductionTypeData } from "@/types/order";
 import { resetStep, stepPosition } from "@/lib/steps";
 import { getDocumentLabel } from "@/lib/utils";
-import { cleanItems, sumItems, validateItems } from "@/lib/orderItems";
+import { cleanItems, sumItems, uploadMockups, validateItems } from "@/lib/orderItems";
 import type { ActionLog, OrderFields } from "@/hooks/useOrders";
 import type { ProductionStep } from "@/types/order";
 
@@ -25,6 +25,8 @@ type OrderRef = Pick<Order, "id" | "kode_produksi" | "status">;
 
 interface Props {
   order: Order;
+  /** master jenis produksi (daftar ukuran & varian dipakai memeriksa rincian Approval) */
+  productionTypes: ProductionTypeData[];
   currentUser: UserData & { id: string };
   applyStepUpdate: (
     order: Order,
@@ -61,6 +63,7 @@ function doneFields(byName: string, workers: string[]): Partial<ProductionStep> 
 
 export function useOrderDetail({
   order,
+  productionTypes,
   currentUser,
   applyStepUpdate,
   applyKendalaUpdate,
@@ -129,38 +132,24 @@ export function useOrderDetail({
         const step = activeStep("approval");
         if (!step) return false;
 
-        const problem = validateItems(input.items);
+        const problem = validateItems(input.items, productionTypes, input.mockups ?? {});
         if (problem) {
           showAlert("Item belum lengkap", problem, "error");
           return false;
         }
-        const link = input.link?.trim() ?? "";
-        if (!input.file && !link) {
-          showAlert("Approval belum lengkap", "Upload file approval atau tempel link-nya.", "error");
-          return false;
-        }
-        if (!input.file && !/^https?:\/\//i.test(link)) {
-          showAlert("Link tidak valid", "Link harus diawali http:// atau https://", "error");
-          return false;
-        }
+        // Mockup pesanan umum diupload dulu; urlnya disimpan di item.
+        const withMockups = await uploadMockups(input.items, input.mockups ?? {}, (f, label) =>
+          uploadProof(order, f, label, { highRes: true }),
+        );
+        if (!withMockups) return false;
 
-        let fileUrl = link;
-        if (input.file) {
-          const url = await uploadProof(order, input.file, getDocumentLabel("approval"), {
-            allowPdf: true,
-            highRes: true,
-          });
-          if (!url) return false;
-          fileUrl = url;
-        }
-
-        const items = cleanItems(input.items);
+        const items = cleanItems(withMockups);
         const total = sumItems(items);
         const catatan = input.catatan?.trim();
         return applyStepUpdate(
           order,
           "approval",
-          { ...doneFields(currentUser.name, [currentUser.id]), fileUrl, note: catatan || undefined },
+          { ...doneFields(currentUser.name, [currentUser.id]), note: catatan || undefined },
           {
             // Item → dasar gaji per item. jumlah pesanan mengikuti total item.
             fields: { items, jumlah: total, jenis_produksi: items[0].jenis_produksi },
@@ -168,12 +157,12 @@ export function useOrderDetail({
               category: "STATUS",
               event: "Approval Dibuat",
               ket: `${items.length} jenis, total ${total} pcs${catatan ? ` — ${catatan}` : ""}`,
-              meta: { items, url: fileUrl },
+              meta: { items },
             },
           },
         );
       }),
-    [run, activeStep, order, uploadProof, applyStepUpdate, currentUser.id, currentUser.name, showAlert],
+    [run, activeStep, order, productionTypes, uploadProof, applyStepUpdate, currentUser.id, currentUser.name, showAlert],
   );
 
   // ─── QC ────────────────────────────────────────────────────────────────────

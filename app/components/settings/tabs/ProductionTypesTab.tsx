@@ -8,13 +8,20 @@ import React, { useState } from "react";
 import { Trash2, Pencil, EyeOff, Eye } from "lucide-react";
 import type { OrderKategori, ProductionTypeData } from "@/types/order";
 import { inputCls, labelCls } from "@/app/components/settings/settingsShared";
+import { formatList, parseList } from "@/lib/orderItems";
+import type { BagianUkuran } from "@/types/order";
 
 interface Props {
   productionTypes: ProductionTypeData[];
-  onSave: (t: { id?: string; name: string; kategori: OrderKategori }) => void;
+  onSave: (t: { id?: string; name: string; kategori: OrderKategori; varian?: string[]; ukuran?: string[]; is_custom?: boolean; bagian?: BagianUkuran[] }) => void;
   onToggle: (t: ProductionTypeData) => void;
   onDelete: (id: string) => void;
 }
+
+const DEFAULT_BAGIAN = [
+  { nama: "Atasan", ukuranText: "S, M, L, XL, XXL, 3XL" },
+  { nama: "Bawahan", ukuranText: "21-41" },
+];
 
 const SECTIONS: { kategori: OrderKategori; title: string; desc: string }[] = [
   { kategori: "utama", title: "Jenis Jahitan Utama", desc: "Dipilih admin saat membuat Approval pesanan utama" },
@@ -22,11 +29,34 @@ const SECTIONS: { kategori: OrderKategori; title: string; desc: string }[] = [
 ];
 
 export default function ProductionTypesTab({ productionTypes, onSave, onToggle, onDelete }: Props) {
-  const [editing, setEditing] = useState<{ id?: string; name: string; kategori: OrderKategori } | null>(null);
+  const [editing, setEditing] = useState<{
+    id?: string;
+    name: string;
+    kategori: OrderKategori;
+    varianText: string;
+    ukuranText: string;
+    /** pesanan umum: desain khusus per pesanan, ukuran ditentukan bagian */
+    isCustom: boolean;
+    bagianRows: { nama: string; ukuranText: string }[];
+  } | null>(null);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) onSave(editing);
+    if (editing) {
+      const { varianText, ukuranText, bagianRows, isCustom, ...rest } = editing;
+      if (editing.kategori === "utama" && isCustom) {
+        const bagian = bagianRows
+          .map((b) => ({ nama: b.nama.trim(), ukuran: parseList(b.ukuranText) }))
+          .filter((b) => b.nama);
+        onSave({ ...rest, is_custom: true, bagian, varian: [], ukuran: [] });
+      } else {
+        onSave(
+          editing.kategori === "utama"
+            ? { ...rest, varian: parseList(varianText), ukuran: parseList(ukuranText) }
+            : rest,
+        );
+      }
+    }
     setEditing(null);
   };
 
@@ -43,7 +73,7 @@ export default function ProductionTypesTab({ productionTypes, onSave, onToggle, 
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{desc}</p>
                 </div>
                 <button
-                  onClick={() => setEditing({ name: "", kategori })}
+                  onClick={() => setEditing({ name: "", kategori, varianText: "", ukuranText: "", isCustom: false, bagianRows: DEFAULT_BAGIAN })}
                   className="bg-[#124540] hover:bg-[#0d332f] text-white px-3 py-1.5 rounded-md text-xs font-semibold transition-colors duration-150 shrink-0"
                 >
                   + Tambah
@@ -62,11 +92,27 @@ export default function ProductionTypesTab({ productionTypes, onSave, onToggle, 
                         {pt.value}
                         {!pt.is_active && " · nonaktif"}
                       </div>
+                      {pt.kategori === "utama" && (
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1.5">
+                          {pt.is_custom
+                            ? `Pesanan umum · ${(pt.bagian ?? []).map((b) => `${b.nama}: ${formatList(b.ukuran)}`).join(" · ") || "bagian belum diatur"}`
+                            : (pt.ukuran?.length ?? 0) > 0 ? `Ukuran: ${formatList(pt.ukuran)}` : "Ukuran belum diatur"}
+                          {!pt.is_custom && (pt.varian?.length ?? 0) > 0 && ` · Varian: ${formatList(pt.varian)}`}
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <button
-                        onClick={() => setEditing({ id: pt.id, name: pt.name, kategori: pt.kategori })}
-                        title="Ubah nama"
+                        onClick={() => setEditing({
+                          id: pt.id,
+                          name: pt.name,
+                          kategori: pt.kategori,
+                          varianText: formatList(pt.varian),
+                          ukuranText: formatList(pt.ukuran),
+                          isCustom: pt.is_custom === true,
+                          bagianRows: (pt.bagian ?? []).map((b) => ({ nama: b.nama, ukuranText: formatList(b.ukuran) })),
+                        })}
+                        title="Ubah"
                         className="p-1.5 text-zinc-300 dark:text-zinc-600 hover:text-[#124540] dark:hover:text-[#49BFB4] hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors duration-150"
                       >
                         <Pencil className="w-4 h-4" />
@@ -117,6 +163,97 @@ export default function ProductionTypesTab({ productionTypes, onSave, onToggle, 
                   placeholder={editing.kategori === "utama" ? "mis. Rok Sekolah" : "mis. Jahit Gorden"}
                 />
               </div>
+              {editing.kategori === "utama" && !editing.id && (
+                <label className="flex items-start gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={editing.isCustom}
+                    onChange={(e) => setEditing({ ...editing, isCustom: e.target.checked })}
+                  />
+                  <span>
+                    <span className="font-semibold">Pesanan umum</span> — desain khusus (tender, instansi). Tiap pesanan
+                    punya nama model, bagian, dan mockup sendiri.
+                  </span>
+                </label>
+              )}
+              {editing.kategori === "utama" && editing.isCustom && (
+                <div>
+                  <label className={labelCls}>Bagian &amp; ukurannya</label>
+                  <div className="space-y-2">
+                    {editing.bagianRows.map((b, i) => (
+                      <div key={i} className="grid grid-cols-[7rem_1fr_auto] gap-2 items-start">
+                        <input
+                          className={inputCls}
+                          value={b.nama}
+                          placeholder="mis. Atasan"
+                          onChange={(e) =>
+                            setEditing({ ...editing, bagianRows: editing.bagianRows.map((r, j) => (j === i ? { ...r, nama: e.target.value } : r)) })
+                          }
+                        />
+                        <input
+                          className={`${inputCls} font-mono`}
+                          value={b.ukuranText}
+                          placeholder="mis. S, M, L, XL  atau  21-41"
+                          onChange={(e) =>
+                            setEditing({ ...editing, bagianRows: editing.bagianRows.map((r, j) => (j === i ? { ...r, ukuranText: e.target.value } : r)) })
+                          }
+                        />
+                        <button
+                          type="button"
+                          title="Hapus bagian"
+                          disabled={editing.bagianRows.length <= 1}
+                          onClick={() => setEditing({ ...editing, bagianRows: editing.bagianRows.filter((_, j) => j !== i) })}
+                          className="p-2 text-zinc-400 hover:text-red-600 disabled:opacity-30 disabled:hover:text-zinc-400 transition-colors duration-150"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditing({ ...editing, bagianRows: [...editing.bagianRows, { nama: "", ukuranText: "" }] })}
+                    className="mt-2 text-xs font-semibold text-[#124540] dark:text-[#49BFB4]"
+                  >
+                    + Tambah bagian
+                  </button>
+                  <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+                    Bagian yang dipilih admin menentukan daftar ukuran. Rentang angka boleh ditulis 21-41. Perubahan tidak
+                    memengaruhi pesanan yang sudah dibuat.
+                  </p>
+                </div>
+              )}
+              {editing.kategori === "utama" && !editing.isCustom && (
+                <>
+                  <div>
+                    <label className={labelCls}>Daftar ukuran</label>
+                    <textarea
+                      rows={2}
+                      className={`${inputCls} font-mono`}
+                      value={editing.ukuranText}
+                      onChange={(e) => setEditing({ ...editing, ukuranText: e.target.value })}
+                      placeholder="mis. 25-43  atau  S, M, L, XL"
+                    />
+                    <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+                      Pisahkan dengan koma. Rentang angka boleh ditulis 25-43. Kosongkan bila jumlah cukup satu angka.
+                    </p>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Varian (opsional)</label>
+                    <textarea
+                      rows={2}
+                      className={inputCls}
+                      value={editing.varianText}
+                      onChange={(e) => setEditing({ ...editing, varianText: e.target.value })}
+                      placeholder="mis. Abu-abu, Pramuka, Biru, Lainnya"
+                    />
+                    <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+                      Tulis &quot;Lainnya&quot; bila admin boleh mengetik nama varian sendiri.
+                    </p>
+                  </div>
+                </>
+              )}
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"

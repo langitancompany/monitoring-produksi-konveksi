@@ -225,7 +225,7 @@ function MobileCard({
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-mono tabular-nums text-[10px] text-zinc-500 dark:text-zinc-400 font-medium shrink-0">
-            {order.jumlah.toLocaleString("id-ID")} pcs
+            {order.jumlah > 0 ? `${order.jumlah.toLocaleString("id-ID")} pcs` : "Jumlah belum diisi"}
           </span>
           <span className="text-[10px] text-zinc-400 dark:text-zinc-600">
             ·
@@ -348,7 +348,7 @@ function KanbanCard({
         <div className="flex items-center gap-1">
           <FileText className="w-3 h-3 shrink-0" />
           <span className="font-mono tabular-nums font-medium">
-            {order.jumlah.toLocaleString("id-ID")} pcs
+            {order.jumlah > 0 ? `${order.jumlah.toLocaleString("id-ID")} pcs` : "Jumlah belum diisi"}
           </span>
           <span className="text-zinc-300 dark:text-zinc-600">·</span>
           <span className="uppercase font-semibold truncate">

@@ -42,6 +42,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { useProductionTypes } from "@/hooks/useProductionTypes";
 import { useTeams } from "@/hooks/useTeams";
 import { useUpload } from "@/hooks/useUpload";
+import { uploadMockups } from "@/lib/orderItems";
 
 // ─── Layout & UI ─────────────────────────────────────────────────────────────
 import Sidebar from "@/app/components/layout/Sidebar";
@@ -440,7 +441,15 @@ export default function KonveksiApp() {
             isSubmitting={isSaving}
             onCancel={() => setView("detail")}
             onSubmit={async (data) => {
-              if (await handleEditOrder(selectedOrder, data)) setView("detail");
+              let payload = data;
+              if (data.items && data.mockups && Object.keys(data.mockups).length > 0) {
+                const withMockups = await uploadMockups(data.items, data.mockups, (f, label) =>
+                  uploadProof(selectedOrder, f, label, { highRes: true }),
+                );
+                if (!withMockups) return;
+                payload = { ...data, items: withMockups };
+              }
+              if (await handleEditOrder(selectedOrder, payload)) setView("detail");
             }}
           />
         );

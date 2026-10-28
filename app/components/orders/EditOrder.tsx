@@ -42,6 +42,14 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
     jenis_produksi: order.jenis_produksi ?? "",
   });
   const [items, setItems] = useState<OrderItem[]>(order.items);
+  const [mockupFiles, setMockupFiles] = useState<Record<string, File>>({});
+  const setMockup = (itemId: string, file: File | null) =>
+    setMockupFiles((prev) => {
+      const next = { ...prev };
+      if (file) next[itemId] = file;
+      else delete next[itemId];
+      return next;
+    });
   const [teamId, setTeamId] = useState<string | null>(order.team_id ?? null);
   const [pjId, setPjId] = useState<string | null>(order.assigned_to ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -72,12 +80,12 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
       return;
     }
     if (editItems) {
-      const problem = validateItems(items);
+      const problem = validateItems(items, productionTypes, mockupFiles);
       if (problem) {
         setError(problem);
         return;
       }
-    } else if (!form.jumlah || form.jumlah < 1) {
+    } else if (isNon && (!form.jumlah || form.jumlah < 1)) {
       setError("Jumlah minimal 1 pcs.");
       return;
     }
@@ -87,7 +95,7 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
       jenis_produksi: isNon ? form.jenis_produksi : order.jenis_produksi,
       team_id: teamId,
       assigned_to: pjId,
-      ...(editItems ? { items } : {}),
+      ...(editItems ? { items, mockups: mockupFiles } : {}),
     });
   };
 
@@ -142,6 +150,8 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
             <label className={labelCls}>Jumlah (pcs) *</label>
             {editItems ? (
               <p className="px-3 py-2 text-sm font-mono tabular-nums text-zinc-900 dark:text-zinc-100">{sumItems(items)} <span className="text-[11px] text-zinc-400">(total item)</span></p>
+            ) : !isNon ? (
+              <p className="px-3 py-2 text-xs text-zinc-400 dark:text-zinc-500 italic">Diisi saat Approval</p>
             ) : (
               <input required type="number" min={1} inputMode="numeric" className={inputCls} value={form.jumlah || ""} onChange={(e) => set("jumlah", parseInt(e.target.value, 10) || 0)} />
             )}
@@ -159,7 +169,14 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
         {editItems && (
           <div>
             <p className={labelCls}>Item pesanan *</p>
-            <ItemsEditor items={items} types={utamaTypes} onChange={setItems} disabled={isSubmitting} />
+            <ItemsEditor
+              items={items}
+              types={utamaTypes}
+              onChange={setItems}
+              disabled={isSubmitting}
+              mockupFiles={mockupFiles}
+              onMockupChange={setMockup}
+            />
             <p className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">
               Item dipakai untuk menghitung gaji produksi. Mengubahnya setelah tahap produksi berjalan akan memengaruhi gaji.
             </p>

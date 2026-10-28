@@ -26,15 +26,62 @@ export interface ProductionTypeData {
   kategori: OrderKategori;
   is_active: boolean;
   sort_order?: number | null;
+  /** pilihan varian jenis ini (mis. Celana Sekolah: Abu-abu, Pramuka, Biru, Lainnya); kosong = tanpa varian */
+  varian?: string[] | null;
+  /** daftar ukuran jenis ini (mis. 25–43); kosong = jumlah diisi satu angka saja */
+  ukuran?: string[] | null;
+  /**
+   * Pesanan umum (tender/instansi, desain khusus): tiap pesanan punya nama model, bagian
+   * (atasan/bawahan), dan mockup sendiri; boleh muncul beberapa kali dalam satu pesanan.
+   */
+  is_custom?: boolean | null;
+  /** hanya is_custom: daftar bagian beserta ukurannya, mis. Atasan S–3XL, Bawahan 21–41 */
+  bagian?: BagianUkuran[] | null;
 }
 
-/** Satu baris item dalam pesanan (mis. Seragam Sekolah × 120). Dasar hitung gaji per item. */
+/** Satu bagian pakaian pada jenis pesanan umum beserta daftar ukurannya. */
+export interface BagianUkuran {
+  nama: string;
+  ukuran: string[];
+}
+
+/** Jumlah pesanan untuk satu ukuran (mis. ukuran "28" × 5). */
+export interface UkuranQty {
+  ukuran: string;
+  jumlah: number;
+}
+
+/**
+ * Satu blok rincian dalam item: satu varian (mis. "Pramuka") beserta jumlah per ukuran.
+ * Jenis tanpa varian memakai satu blok saja dengan `varian` kosong.
+ */
+export interface ItemRincian {
+  id: string;
+  /** salah satu nilai ProductionTypeData.varian; kosong bila jenis tanpa varian */
+  varian?: string;
+  /** nama bebas bila varian = "Lainnya" */
+  varian_lain?: string;
+  ukuran: UkuranQty[];
+}
+
+/**
+ * Satu baris item dalam pesanan (mis. Celana Sekolah × 120). Dasar hitung gaji dan tagihan per jenis.
+ * `jumlah` SELALU total seluruh pcs jenis ini; bila `rincian` ada, jumlah = total semua ukuran di dalamnya.
+ */
 export interface OrderItem {
   id: string;
   /** value dari ProductionTypeData */
   jenis_produksi: string;
   jumlah: number;
   catatan?: string;
+  /** rincian varian × ukuran (opsional; jenis tanpa daftar ukuran cukup memakai jumlah) */
+  rincian?: ItemRincian[];
+  /** hanya pesanan umum: nama model/desain (mis. "Baju Dinas Harian") */
+  nama_model?: string;
+  /** hanya pesanan umum: nama bagian, salah satu ProductionTypeData.bagian[].nama */
+  bagian?: string;
+  /** hanya pesanan umum: gambar mockup yang dilihat tim produksi */
+  mockup_url?: string;
 }
 
 export type StepType =
@@ -117,6 +164,7 @@ export interface NewOrderInput {
   nama_pemesan: string;
   no_hp: string;
   alamat_pemesan: string;
+  /** non_utama: wajib diisi · utama: 0 (jumlah baru ada setelah rincian Approval diisi) */
   jumlah: number;
   tanggal_masuk: string;
   deadline: string;
@@ -142,6 +190,8 @@ export interface EditOrderInput {
   jenis_produksi?: string | null;
   /** hanya dipakai pesanan utama yang Approval-nya sudah selesai */
   items?: OrderItem[];
+  /** mockup pesanan umum yang baru dipilih, kunci = item.id (diupload saat simpan) */
+  mockups?: Record<string, File>;
   /** tim pengerjaan; undefined = jangan ubah, null = kosongkan */
   team_id?: string | null;
   /** PJ; undefined = jangan ubah, null = kosongkan */
@@ -151,9 +201,8 @@ export interface EditOrderInput {
 /** Data dari form Approval pesanan utama. */
 export interface ApprovalInput {
   items: OrderItem[];
-  /** file approval yang baru dipilih (diupload saat simpan) */
-  file?: File | null;
-  /** atau tautan (mis. Google Drive) */
-  link?: string;
+  /** catatan admin; tampil di Form Approval otomatis (lembar dibuat dari data pesanan, tanpa upload file) */
   catatan?: string;
+  /** mockup pesanan umum yang baru dipilih, kunci = item.id (diupload saat simpan) */
+  mockups?: Record<string, File>;
 }

@@ -19,9 +19,11 @@ import { can, canAny } from "@/lib/access";
 import { teamLabel, teamMembers } from "@/lib/teams";
 import TeamAvatars from "@/app/components/ui/TeamAvatars";
 import { canUndoStep, stepPosition, stepUndoPerms, stepWorkPerms } from "@/lib/steps";
-import { formatDate, getDeadlineStatus, getStatusColor, openWA, typeLabel, userLabel } from "@/lib/utils";
+import { formatDate, getDeadlineStatus, getStatusColor, openWA, userLabel } from "@/lib/utils";
 import type { StepCtx } from "./detail/stepUi";
 import StepApproval from "./detail/StepApproval";
+import { itemTitle } from "@/lib/orderItems";
+import ItemBreakdown from "@/app/components/orders/ItemBreakdown";
 import StepProduksi from "./detail/StepProduksi";
 import StepFinishing from "./detail/StepFinishing";
 import OrderFinanceSection from "@/app/components/finance/OrderFinanceSection";
@@ -74,7 +76,7 @@ export default function OrderDetail(props: Props) {
   } = props;
 
   const detail = useOrderDetail({
-    order, currentUser, applyStepUpdate, applyKendalaUpdate, uploadProof, showAlert, showConfirm,
+    order, productionTypes, currentUser, applyStepUpdate, applyKendalaUpdate, uploadProof, showAlert, showConfirm,
   });
 
   // Catatan produksi (kartu 02, 03, 04) — dimuat sekali untuk satu pesanan
@@ -154,7 +156,7 @@ export default function OrderDetail(props: Props) {
             <span className="font-mono tabular-nums bg-zinc-100 dark:bg-zinc-900 px-2 py-0.5 rounded-md text-zinc-600 dark:text-zinc-300">
               #{order.kode_produksi}
             </span>
-            <span className="font-mono tabular-nums">{order.jumlah} Pcs</span>
+            <span className="font-mono tabular-nums">{order.kategori === "utama" && order.jumlah === 0 ? "Jumlah diisi saat Approval" : `${order.jumlah} Pcs`}</span>
             <span className={isLate ? "font-mono tabular-nums text-red-600 dark:text-red-400 font-semibold" : "font-mono tabular-nums"}>
               {formatDate(order.deadline)}
             </span>
@@ -211,12 +213,27 @@ export default function OrderDetail(props: Props) {
             <p className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.12em] mb-1.5">Item pesanan</p>
             <ul className="divide-y divide-zinc-100 dark:divide-zinc-900 rounded-md border border-zinc-200 dark:border-zinc-800">
               {order.items.map((it) => (
-                <li key={it.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                  <span className="text-zinc-900 dark:text-zinc-100">
-                    {typeLabel(it.jenis_produksi, productionTypes)}
-                    {it.catatan && <span className="text-xs text-zinc-400 dark:text-zinc-500"> — {it.catatan}</span>}
-                  </span>
-                  <span className="font-mono tabular-nums text-zinc-600 dark:text-zinc-300">{it.jumlah} pcs</span>
+                <li key={it.id} className="px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-zinc-900 dark:text-zinc-100">
+                      {itemTitle(it, productionTypes)}
+                      {it.catatan && <span className="text-xs text-zinc-400 dark:text-zinc-500"> — {it.catatan}</span>}
+                    </span>
+                    <span className="font-mono tabular-nums text-zinc-600 dark:text-zinc-300">{it.jumlah} pcs</span>
+                  </div>
+                  <ItemBreakdown item={it} />
+                  {it.mockup_url && (
+                    <a
+                      href={it.mockup_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-2 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={it.mockup_url} alt={`Mockup ${it.nama_model ?? ""}`} className="w-20 h-20 object-contain rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900" />
+                      Lihat mockup
+                    </a>
+                  )}
                 </li>
               ))}
             </ul>

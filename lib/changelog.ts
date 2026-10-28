@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.17",
+  version: "V.1.18",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Keuangan: invoice pelanggan (PDF/cetak/WhatsApp) dan ekspor Excel",
+  notes: "Rincian pesanan per jenis, varian, dan ukuran diisi saat Approval",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,20 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.18",
+    date: "2026-10-28",
+    changes: [
+      "Jenis baru \"Pesanan Umum\" untuk tender/instansi dengan desain khusus. Tiap desain punya nama model, bagian (Atasan atau Bawahan, yang menentukan ukuran: atasan S-3XL, bawahan 21-41), jumlah per ukuran, dan mockup wajib. Satu pesanan boleh berisi beberapa desain. Daftar bagian dan ukurannya bisa diubah di Pengaturan → Jenis Produksi.",
+      "Mockup pesanan umum tampil di Detail Pesanan supaya tim produksi tahu desainnya, dan ikut tercetak di Form Approval. Mockup bisa diganti lewat Edit Pesanan.",
+      "Form Approval dirancang ulang: header sama seperti Sablon (file public/Header-approval.png, ganti dengan header konveksi), rincian berupa kartu ukuran:jumlah (hanya ukuran yang terisi, tanpa kolom kosong), pesanan umum tampil bersama gambarnya dua per baris, dan lembar otomatis bertambah halaman bila pesanan banyak. PDF dan cetak mengikuti jumlah halaman.",
+      "Pesanan utama: form Pesanan Baru tidak lagi meminta jumlah. Admin mengisi rincian pesanan di tahap Approval: pilih jenis jahitan, varian bila ada (mis. celana: Abu-abu, Pramuka, Biru, Lainnya), lalu jumlah per ukuran (celana 25-43). Jumlah pesanan otomatis dihitung dari total semua ukuran.",
+      "Pengaturan → Jenis Produksi: daftar ukuran dan varian tiap jenis jahitan bisa diatur (rentang boleh ditulis 25-43). Detail pesanan menampilkan rincian varian dan ukuran.",
+      "Gaji, tagihan, dan dashboard tetap memakai total pcs per jenis, jadi tidak berubah. Pesanan lama tetap bisa dibuka dan diedit.",
+      "Form Approval sekarang dibuat otomatis dari rincian pesanan (halaman Lihat Form Approval, lembar A4 landscape: detail customer, tabel jenis × varian × ukuran, catatan, kotak tanda tangan; bisa Simpan PDF, Bagikan, dan Cetak). Admin tidak perlu lagi mengupload file atau menempel link approval.",
+      "Perlu menjalankan migration 014_order_variants.sql dan 015_pesanan_umum.sql. Ukuran awal selain celana sekolah hanya tebakan (S-3XL), silakan sesuaikan di Pengaturan.",
+    ],
+  },
   {
     version: "1.17",
     date: "2026-10-22",

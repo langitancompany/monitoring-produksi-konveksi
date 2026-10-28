@@ -1,13 +1,13 @@
 // app/components/orders/detail/StepApproval.tsx
 // Kartu 01 — Approval.
-//  utama     : form Approval (jenis produksi + jumlah per item, file/link approval)
+//  utama     : form Approval (rincian jenis × varian × ukuran) → Form Approval dibuat otomatis
 //  non_utama : Detail Pesanan (otomatis) + Upload Mockup
 "use client";
 
 import React, { useState } from "react";
-import { Eye, Upload } from "lucide-react";
+import { Eye, FileText } from "lucide-react";
 import type { ApprovalInput, ProductionTypeData } from "@/types/order";
-import { typeLabel } from "@/lib/utils";
+import { itemTitle } from "@/lib/orderItems";
 import { ByLine, DoneBadge, SectionCard, StepCtx, UploadButton, getStep } from "./stepUi";
 import ApprovalForm from "./ApprovalForm";
 
@@ -47,24 +47,23 @@ export default function StepApproval({ ctx, productionTypes, onApproval }: Props
             {step.isCompleted ? (
               <>
                 <div className="font-semibold text-sm md:text-base text-zinc-900 dark:text-zinc-200">
-                  Approval Terupload
+                  Form Approval Siap
                 </div>
                 <ByLine step={step} />
                 {order.items.length > 0 && (
                   <div className="text-xs text-zinc-600 dark:text-zinc-300 mt-1">
                     {order.items
-                      .map((it) => `${typeLabel(it.jenis_produksi, productionTypes)} × ${it.jumlah}`)
+                      .map((it) => `${itemTitle(it, productionTypes)} × ${it.jumlah}`)
                       .join(" · ")}
                   </div>
                 )}
                 {step.note && (
                   <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Catatan: {step.note}</div>
                 )}
-                {step.fileUrl && (
-                  <div className="flex items-center gap-4 mt-1">
-                    <ViewLink href={step.fileUrl}>Lihat File Approval</ViewLink>
-                  </div>
-                )}
+                <div className="flex items-center gap-4 mt-1">
+                  <ViewLink href={`/approval/${order.id}`}>Lihat Form Approval</ViewLink>
+                  {step.fileUrl && <ViewLink href={step.fileUrl}>File approval lama</ViewLink>}
+                </div>
               </>
             ) : (
               <>
@@ -72,7 +71,7 @@ export default function StepApproval({ ctx, productionTypes, onApproval }: Props
                   Approval Desain
                 </div>
                 <div className="text-[10px] text-zinc-400 dark:text-zinc-600 italic">
-                  Pilih jenis produksi & jumlah, lalu upload file approval...
+                  Isi rincian pesanan (jenis, varian, ukuran, jumlah); Form Approval dibuat otomatis...
                 </div>
               </>
             )}
@@ -89,7 +88,7 @@ export default function StepApproval({ ctx, productionTypes, onApproval }: Props
                   disabled={disabled}
                   className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-2 rounded-md text-xs font-semibold text-zinc-600 dark:text-zinc-300 flex items-center justify-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors duration-150 w-full sm:w-auto"
                 >
-                  <Upload className="w-4 h-4" /> Buat Approval
+                  <FileText className="w-4 h-4" /> Buat Approval
                 </button>
               )
             )}
@@ -98,7 +97,6 @@ export default function StepApproval({ ctx, productionTypes, onApproval }: Props
 
         {!step.isCompleted && showForm && ctx.canWork("approval") && (
           <ApprovalForm
-            initialJumlah={order.jumlah}
             utamaTypes={utamaTypes}
             isSubmitting={busy || disabled}
             onCancel={() => setShowForm(false)}
