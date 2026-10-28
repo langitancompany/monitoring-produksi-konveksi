@@ -41,7 +41,22 @@ interface Props {
 
 const pcs = (n: number) => n.toLocaleString("id-ID");
 
-export default function ItemsEditor({ items, types, onChange, disabled, mockupFiles = {}, onMockupChange }: Props) {
+// Isian jumlah per ukuran. Sengaja tidak memakai inputCls: padding horizontal px-3 di sana
+// menyisakan terlalu sedikit ruang di kolom sempit sehingga angka terpotong. Panah spinner
+// browser juga disembunyikan karena memakan lebar isian.
+const qtyInputCls =
+  "w-full min-w-0 border border-zinc-200 dark:border-zinc-800 rounded-md px-1 py-2 text-sm text-center font-mono tabular-nums " +
+  "text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900 outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-600 " +
+  "transition-colors duration-150 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+export default function ItemsEditor({
+  items,
+  types,
+  onChange,
+  disabled,
+  mockupFiles = {},
+  onMockupChange,
+}: Props) {
   const typeOf = (value: string) => types.find((t) => t.value === value);
 
   const usedByOthers = (idx: number) =>
@@ -63,24 +78,55 @@ export default function ItemsEditor({ items, types, onChange, disabled, mockupFi
 
   const pickJenis = (idx: number, value: string) => {
     const type = typeOf(value);
-    const base: OrderItem = { id: items[idx].id, jenis_produksi: value, jumlah: 0, catatan: items[idx].catatan };
+    const base: OrderItem = {
+      id: items[idx].id,
+      jenis_produksi: value,
+      jumlah: 0,
+      catatan: items[idx].catatan,
+    };
     onMockupChange?.(items[idx].id, null);
     if (isCustomType(type)) {
       // pesanan umum: ukuran baru muncul setelah bagian dipilih; bila hanya ada satu bagian, langsung dipilih
       const only = type?.bagian?.length === 1 ? type.bagian[0] : null;
-      replace(idx, only
-        ? { ...base, nama_model: "", bagian: only.nama, rincian: [emptyRincian(type, undefined, only.ukuran)] }
-        : { ...base, nama_model: "" });
+      replace(
+        idx,
+        only
+          ? {
+              ...base,
+              nama_model: "",
+              bagian: only.nama,
+              rincian: [emptyRincian(type, undefined, only.ukuran)],
+            }
+          : { ...base, nama_model: "" },
+      );
       return;
     }
-    replace(idx, hasUkuran(type) ? { ...base, rincian: [emptyRincian(type)] } : base);
+    replace(
+      idx,
+      hasUkuran(type) ? { ...base, rincian: [emptyRincian(type)] } : base,
+    );
   };
 
   const pickBagian = (idx: number, nama: string) => {
     const it = items[idx];
-    const next: OrderItem = { ...it, bagian: nama || undefined, rincian: undefined, jumlah: 0 };
+    const next: OrderItem = {
+      ...it,
+      bagian: nama || undefined,
+      rincian: undefined,
+      jumlah: 0,
+    };
     const ukuran = ukuranList(typeOf(it.jenis_produksi), next);
-    replace(idx, ukuran.length > 0 ? { ...next, rincian: [emptyRincian(typeOf(it.jenis_produksi), undefined, ukuran)] } : next);
+    replace(
+      idx,
+      ukuran.length > 0
+        ? {
+            ...next,
+            rincian: [
+              emptyRincian(typeOf(it.jenis_produksi), undefined, ukuran),
+            ],
+          }
+        : next,
+    );
   };
 
   const removeItem = (idx: number) => {
@@ -90,7 +136,9 @@ export default function ItemsEditor({ items, types, onChange, disabled, mockupFi
 
   const allUsed =
     !types.some((t) => t.is_active && isCustomType(t)) &&
-    types.filter((t) => t.is_active).every((t) => items.some((it) => it.jenis_produksi === t.value));
+    types
+      .filter((t) => t.is_active)
+      .every((t) => items.some((it) => it.jenis_produksi === t.value));
 
   return (
     <div className="space-y-3">
@@ -99,9 +147,13 @@ export default function ItemsEditor({ items, types, onChange, disabled, mockupFi
         const rincian = it.rincian ?? [];
         const custom = isCustomType(type);
         // Item lama (tanpa rincian, sudah punya total) tetap tampil sebagai satu angka.
-        const gridMode = hasUkuran(type, it) && (rincian.length > 0 || !(it.jumlah > 0));
+        const gridMode =
+          hasUkuran(type, it) && (rincian.length > 0 || !(it.jumlah > 0));
         const legacyHasUkuran = hasUkuran(type, it) && !gridMode;
-        const total = it.rincian && it.rincian.length > 0 ? sumRincian(it.rincian) : it.jumlah || 0;
+        const total =
+          it.rincian && it.rincian.length > 0
+            ? sumRincian(it.rincian)
+            : it.jumlah || 0;
 
         return (
           <div
@@ -146,7 +198,9 @@ export default function ItemsEditor({ items, types, onChange, disabled, mockupFi
                     disabled={disabled}
                     className={inputCls}
                     value={it.nama_model ?? ""}
-                    onChange={(e) => replace(idx, { ...it, nama_model: e.target.value })}
+                    onChange={(e) =>
+                      replace(idx, { ...it, nama_model: e.target.value })
+                    }
                     placeholder="mis. Baju Dinas Harian"
                   />
                 </div>
@@ -188,34 +242,53 @@ export default function ItemsEditor({ items, types, onChange, disabled, mockupFi
             )}
 
             {/* ── Jenis tanpa ukuran, atau item lama: satu angka ── */}
-            {it.jenis_produksi && !gridMode && !(custom && !hasUkuran(type, it)) && (
-              <div className="grid grid-cols-[6rem_1fr] gap-2 items-end">
-                <div>
-                  <label className={labelCls}>Jumlah</label>
-                  <input
-                    disabled={disabled}
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    className={`${inputCls} font-mono tabular-nums`}
-                    value={it.jumlah || ""}
-                    onChange={(e) => replace(idx, { ...it, jumlah: parseInt(e.target.value, 10) || 0 })}
-                  />
-                </div>
-                {legacyHasUkuran && (
-                  <div className="pb-2">
-                    <button
-                      type="button"
+            {it.jenis_produksi &&
+              !gridMode &&
+              !(custom && !hasUkuran(type, it)) && (
+                <div className="grid grid-cols-[6rem_1fr] gap-2 items-end">
+                  <div>
+                    <label className={labelCls}>Jumlah</label>
+                    <input
                       disabled={disabled}
-                      onClick={() => replace(idx, { ...it, jumlah: 0, rincian: [emptyRincian(type, undefined, ukuranList(type, it))] })}
-                      className="text-xs font-semibold text-[#124540] dark:text-[#49BFB4] disabled:opacity-40"
-                    >
-                      Rinci per ukuran
-                    </button>
+                      type="number"
+                      min={1}
+                      inputMode="numeric"
+                      className={`${inputCls} font-mono tabular-nums`}
+                      value={it.jumlah || ""}
+                      onChange={(e) =>
+                        replace(idx, {
+                          ...it,
+                          jumlah: parseInt(e.target.value, 10) || 0,
+                        })
+                      }
+                    />
                   </div>
-                )}
-              </div>
-            )}
+                  {legacyHasUkuran && (
+                    <div className="pb-2">
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() =>
+                          replace(idx, {
+                            ...it,
+                            jumlah: 0,
+                            rincian: [
+                              emptyRincian(
+                                type,
+                                undefined,
+                                ukuranList(type, it),
+                              ),
+                            ],
+                          })
+                        }
+                        className="text-xs font-semibold text-[#124540] dark:text-[#49BFB4] disabled:opacity-40"
+                      >
+                        Rinci per ukuran
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
             {it.jenis_produksi && (
               <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
@@ -225,13 +298,22 @@ export default function ItemsEditor({ items, types, onChange, disabled, mockupFi
                     disabled={disabled}
                     className={inputCls}
                     value={it.catatan ?? ""}
-                    onChange={(e) => replace(idx, { ...it, catatan: e.target.value })}
-                    placeholder={custom ? "Bahan, warna, bordir, dst. (opsional)" : "Warna, bahan, dst. (opsional)"}
+                    onChange={(e) =>
+                      replace(idx, { ...it, catatan: e.target.value })
+                    }
+                    placeholder={
+                      custom
+                        ? "Bahan, warna, bordir, dst. (opsional)"
+                        : "Warna, bahan, dst. (opsional)"
+                    }
                   />
                 </div>
                 <p className="pb-2 text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
                   Subtotal:{" "}
-                  <span className="font-mono tabular-nums font-semibold text-zinc-900 dark:text-zinc-100">{pcs(total)}</span> pcs
+                  <span className="font-mono tabular-nums font-semibold text-zinc-900 dark:text-zinc-100">
+                    {pcs(total)}
+                  </span>{" "}
+                  pcs
                 </p>
               </div>
             )}
@@ -243,13 +325,25 @@ export default function ItemsEditor({ items, types, onChange, disabled, mockupFi
         <button
           type="button"
           disabled={disabled || allUsed}
-          onClick={() => onChange([...items, { id: newItemId(), jenis_produksi: "", jumlah: 0 }])}
+          onClick={() =>
+            onChange([
+              ...items,
+              { id: newItemId(), jenis_produksi: "", jumlah: 0 },
+            ])
+          }
           className="flex items-center gap-1.5 text-xs font-semibold text-[#124540] dark:text-[#49BFB4] disabled:opacity-40 transition-colors duration-150"
         >
-          <Plus className="w-3.5 h-3.5" /> {types.some((t) => t.is_active && isCustomType(t)) ? "Tambah jenis / pesanan umum" : "Tambah jenis produksi"}
+          <Plus className="w-3.5 h-3.5" />{" "}
+          {types.some((t) => t.is_active && isCustomType(t))
+            ? "Tambah jenis / pesanan umum"
+            : "Tambah jenis produksi"}
         </button>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Total pesanan: <span className="font-mono tabular-nums font-semibold text-zinc-900 dark:text-zinc-100">{pcs(sumItems(items))}</span> pcs
+          Total pesanan:{" "}
+          <span className="font-mono tabular-nums font-semibold text-zinc-900 dark:text-zinc-100">
+            {pcs(sumItems(items))}
+          </span>{" "}
+          pcs
         </p>
       </div>
     </div>
@@ -278,16 +372,29 @@ function RincianBlocks({
   const setQty = (idx: number, ukuran: string, jumlah: number) =>
     onChange(
       rincian.map((r, i) =>
-        i === idx ? { ...r, ukuran: r.ukuran.map((u) => (u.ukuran === ukuran ? { ...u, jumlah } : u)) } : r,
+        i === idx
+          ? {
+              ...r,
+              ukuran: r.ukuran.map((u) =>
+                u.ukuran === ukuran ? { ...u, jumlah } : u,
+              ),
+            }
+          : r,
       ),
     );
 
   // Varian biasa hanya boleh dipakai satu blok; "Lainnya" boleh berkali-kali (nama bebas).
   const takenElsewhere = (idx: number) =>
-    new Set(rincian.filter((_, i) => i !== idx).map((r) => r.varian).filter((v) => v && v !== VARIAN_LAINNYA));
-  const allVarianUsed = varianList.every(
-    (v) => v === VARIAN_LAINNYA ? false : rincian.some((r) => r.varian === v),
-  ) && !varianList.includes(VARIAN_LAINNYA);
+    new Set(
+      rincian
+        .filter((_, i) => i !== idx)
+        .map((r) => r.varian)
+        .filter((v) => v && v !== VARIAN_LAINNYA),
+    );
+  const allVarianUsed =
+    varianList.every((v) =>
+      v === VARIAN_LAINNYA ? false : rincian.some((r) => r.varian === v),
+    ) && !varianList.includes(VARIAN_LAINNYA);
 
   return (
     <div className="space-y-3">
@@ -298,18 +405,28 @@ function RincianBlocks({
         >
           {withVarian && (
             <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-              <div className={`grid gap-2 ${r.varian === VARIAN_LAINNYA ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+              <div
+                className={`grid gap-2 ${r.varian === VARIAN_LAINNYA ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}
+              >
                 <div>
                   <label className={labelCls}>Varian</label>
                   <select
                     disabled={disabled}
                     className={inputCls}
                     value={r.varian ?? ""}
-                    onChange={(e) => patch(idx, { varian: e.target.value || undefined, varian_lain: undefined })}
+                    onChange={(e) =>
+                      patch(idx, {
+                        varian: e.target.value || undefined,
+                        varian_lain: undefined,
+                      })
+                    }
                   >
                     <option value="">Pilih varian…</option>
                     {varianList
-                      .filter((v) => v === VARIAN_LAINNYA || !takenElsewhere(idx).has(v))
+                      .filter(
+                        (v) =>
+                          v === VARIAN_LAINNYA || !takenElsewhere(idx).has(v),
+                      )
                       .map((v) => (
                         <option key={v} value={v}>
                           {v}
@@ -324,7 +441,9 @@ function RincianBlocks({
                       disabled={disabled}
                       className={inputCls}
                       value={r.varian_lain ?? ""}
-                      onChange={(e) => patch(idx, { varian_lain: e.target.value })}
+                      onChange={(e) =>
+                        patch(idx, { varian_lain: e.target.value })
+                      }
                       placeholder="mis. Hijau, Cokelat"
                     />
                   </div>
@@ -348,10 +467,13 @@ function RincianBlocks({
               <p className={`${labelCls} mb-0`}>Jumlah per ukuran</p>
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
                 {withVarian ? "Total varian: " : "Total: "}
-                <span className="font-mono tabular-nums font-semibold text-zinc-900 dark:text-zinc-100">{pcs(sumUkuran(r.ukuran))}</span> pcs
+                <span className="font-mono tabular-nums font-semibold text-zinc-900 dark:text-zinc-100">
+                  {pcs(sumUkuran(r.ukuran))}
+                </span>{" "}
+                pcs
               </p>
             </div>
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(4rem,1fr))] gap-2">
               {r.ukuran.map((u) => (
                 <label key={u.ukuran} className="block">
                   <span className="block text-center text-[11px] font-mono tabular-nums font-semibold text-zinc-600 dark:text-zinc-300 mb-0.5">
@@ -363,9 +485,15 @@ function RincianBlocks({
                     min={0}
                     inputMode="numeric"
                     aria-label={`Jumlah ukuran ${u.ukuran}`}
-                    className={`${inputCls} px-1.5 text-center font-mono tabular-nums`}
+                    className={qtyInputCls}
                     value={u.jumlah || ""}
-                    onChange={(e) => setQty(idx, u.ukuran, Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    onChange={(e) =>
+                      setQty(
+                        idx,
+                        u.ukuran,
+                        Math.max(0, parseInt(e.target.value, 10) || 0),
+                      )
+                    }
                   />
                 </label>
               ))}
@@ -401,8 +529,16 @@ function MockupField({
   onChange: (f: File | null) => void;
   disabled?: boolean;
 }) {
-  const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  const preview = useMemo(
+    () => (file ? URL.createObjectURL(file) : null),
+    [file],
+  );
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview);
+    },
+    [preview],
+  );
   const src = preview ?? existingUrl ?? null;
 
   return (
@@ -412,7 +548,11 @@ function MockupField({
         <div className="w-28 h-28 shrink-0 rounded-md border border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40 flex items-center justify-center overflow-hidden">
           {src ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={src} alt="Mockup" className="max-w-full max-h-full object-contain" />
+            <img
+              src={src}
+              alt="Mockup"
+              className="max-w-full max-h-full object-contain"
+            />
           ) : (
             <ImagePlus className="w-6 h-6 text-zinc-300 dark:text-zinc-600" />
           )}
@@ -426,7 +566,8 @@ function MockupField({
             className="block w-full text-xs text-zinc-600 dark:text-zinc-300 file:mr-3 file:rounded-md file:border-0 file:bg-[#124540] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-[#0d332f]"
           />
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
-            Gambar JPG/PNG. Otomatis dikecilkan saat diupload (tetap tajam untuk cetak). Dilihat tim produksi dan tampil di Form Approval.
+            Gambar JPG/PNG. Otomatis dikecilkan saat diupload (tetap tajam untuk
+            cetak). Dilihat tim produksi dan tampil di Form Approval.
             {existingUrl && !file ? " Pilih gambar baru untuk mengganti." : ""}
           </p>
         </div>
