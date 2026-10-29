@@ -181,6 +181,14 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
   const generateProductionCode = useCallback(async () => {
     const now = new Date();
     const prefix = `KNV-${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getFullYear()).slice(-2)}-`;
+
+    // Utama: nomor urut dihitung DATABASE (migration 017, fungsi next_kode_produksi). Setelah akses
+    // pesanan dibatasi per PJ/tim, query dari browser hanya melihat sebagian pesanan, sehingga nomornya
+    // bisa bentrok dengan pesanan orang lain.
+    const rpc = await supabase.rpc("next_kode_produksi", { p_prefix: prefix });
+    if (!rpc.error && typeof rpc.data === "string" && rpc.data) return rpc.data;
+
+    // Cadangan (migration 017 belum dijalankan; saat itu semua staf masih melihat semua pesanan).
     const { data } = await supabase
       .from("orders")
       .select("kode_produksi")
@@ -301,11 +309,12 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
           return false;
         }
         if (!data || data.length === 0) {
-          // 0 baris terubah: pesanan diubah orang lain barusan, atau tidak punya izin
+          // 0 baris terubah: pesanan diubah orang lain barusan, atau RLS menolak
+          // (tidak punya izin, atau bukan PJ / anggota tim / pengelola pesanan ini — migration 017)
           await fetchOrders();
           showAlert(
             "Perubahan tidak tersimpan",
-            "Pesanan ini baru saja diubah oleh orang lain (atau Anda tidak punya izin untuk aksi ini). Data sudah dimuat ulang — periksa kondisi terbaru lalu ulangi.",
+            "Pesanan ini baru saja diubah oleh orang lain, atau Anda tidak berhak mengerjakannya (bukan PJ/anggota tim pesanan ini, atau tidak punya izin untuk aksi ini). Data sudah dimuat ulang — periksa kondisi terbaru lalu ulangi.",
             "error",
           );
           return false;

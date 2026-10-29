@@ -89,6 +89,7 @@ export default function ProductionNotes({ section, api }: Props) {
         </div>
       )}
 
+      {api.canWrite && (
       <div className="flex gap-2">
         <input
           type="text"
@@ -112,6 +113,7 @@ export default function ProductionNotes({ section, api }: Props) {
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
         </button>
       </div>
+      )}
     </div>
   );
 }

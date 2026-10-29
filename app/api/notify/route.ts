@@ -8,6 +8,11 @@
 // Di sini penerima dicari dengan service role, lalu notifikasi disimpan
 // (lonceng) dan push FCM dikirim.
 //
+// PENERIMA DISARING PER PESANAN: bila `orderId` diisi, hanya kru pesanan itu
+// (pembuat, PJ, anggota tim) dan yang boleh melihat semua pesanan
+// (lib/orderAccess.ts) yang menerima — supaya kode produksi & nama pemesan
+// tidak bocor ke staf yang bukan bagian pesanan itu.
+//
 // Body: { title, message, orderId?, roles?: string[] | all?: true }
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -15,6 +20,7 @@ import { requireUser } from "@/lib/apiAuth";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendPushToUser } from "@/lib/pushServer";
 import { ROLE_OPTIONS } from "@/lib/roles";
+import { filterOrderRecipients } from "@/lib/orderAccess";
 
 // Sama dengan is_staff() di database: hanya staf yang boleh memicu notifikasi.
 const STAFF_ROLES = ["admin", "super_admin", "manager", "produksi", "qc"];
@@ -56,7 +62,7 @@ export async function POST(request: NextRequest) {
   try {
     const db = getSupabaseAdmin();
 
-    let query = db.from("users").select("id");
+    let query = db.from("users").select("id, role, permissions");
     if (!toAll) {
       const list = roles.join(",");
       // Cek kolom `role` (utama) DAN `roles` (array, role ganda)
@@ -67,11 +73,42 @@ export async function POST(request: NextRequest) {
       console.error("❌ /api/notify: gagal mencari penerima:", fetchError);
       return NextResponse.json({ error: "Database error" }, { status: 500 });
     }
-    if (!users || users.length === 0) {
+    let targets: any[] = users ?? [];
+
+    // Notifikasi pesanan: saring ke yang berhak tahu pesanan ini.
+    if (orderId && targets.length > 0) {
+      const { data: order, error: orderError } = await db
+        .from("orders")
+        .select("created_by, assigned_to, team_id")
+        .eq("id", orderId)
+        .maybeSingle();
+      if (orderError) {
+        console.error("❌ /api/notify: gagal membaca pesanan:", orderError);
+        return NextResponse.json({ error: "Database error" }, { status: 500 });
+      }
+
+      let team: { member_ids: string[] } | null = null;
+      if (order?.team_id) {
+        const { data: t, error: teamError } = await db
+          .from("teams")
+          .select("member_ids")
+          .eq("id", order.team_id)
+          .maybeSingle();
+        if (teamError) {
+          console.error("❌ /api/notify: gagal membaca tim:", teamError);
+          return NextResponse.json({ error: "Database error" }, { status: 500 });
+        }
+        team = t as { member_ids: string[] } | null;
+      }
+
+      targets = filterOrderRecipients(order, team, targets);
+    }
+
+    if (targets.length === 0) {
       return NextResponse.json({ success: true, recipients: 0 });
     }
 
-    const rows = users.map((u: any) => ({
+    const rows = targets.map((u: any) => ({
       user_id: u.id,
       title,
       message,
@@ -86,10 +123,10 @@ export async function POST(request: NextRequest) {
 
     // Push gagal tidak masalah — notifikasi lonceng sudah tersimpan
     await Promise.allSettled(
-      users.map((u: any) => sendPushToUser({ userId: u.id, title, body: message, orderId }))
+      targets.map((u: any) => sendPushToUser({ userId: u.id, title, body: message, orderId }))
     );
 
-    return NextResponse.json({ success: true, recipients: users.length });
+    return NextResponse.json({ success: true, recipients: targets.length });
   } catch (error: any) {
     console.error("🔥 /api/notify:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

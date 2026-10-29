@@ -4,6 +4,8 @@
 // Semua tahap dikerjakan dengan upload foto; pengunggah & waktunya tampil.
 // Hak akses: orders (edit/hapus), produksi (approval, mockup, potong, jahit),
 // finishing (QC, packing, kirim, terima) — aturan di lib/steps.ts & lib/access.ts.
+// Selain izin, user harus KRU pesanan ini (pembuat / PJ / anggota tim) atau pengelola
+// (lib/orderAccess.ts); selain itu (mis. pemantau Keuangan/Gaji) layar ini hanya-lihat.
 "use client";
 
 import React from "react";
@@ -16,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useOrderDetail } from "@/hooks/useOrderDetail";
 import { useOrderNotes } from "@/hooks/useOrderNotes";
 import { can, canAny } from "@/lib/access";
+import { canOperateOrder } from "@/lib/orderAccess";
 import { teamLabel, teamMembers } from "@/lib/teams";
 import TeamAvatars from "@/app/components/ui/TeamAvatars";
 import { canUndoStep, stepPosition, stepUndoPerms, stepWorkPerms } from "@/lib/steps";
@@ -79,14 +82,17 @@ export default function OrderDetail(props: Props) {
     order, productionTypes, currentUser, applyStepUpdate, applyKendalaUpdate, uploadProof, showAlert, showConfirm,
   });
 
+  // Boleh mengerjakan pesanan INI? (pengelola, atau pembuat/PJ/anggota tim). Cermin RLS migration 017.
+  const operable = canOperateOrder(order, currentUser, teams);
+
   // Catatan produksi (kartu 02, 03, 04) — dimuat sekali untuk satu pesanan
-  const notes = useOrderNotes({ supabase, order, currentUser, showAlert, showConfirm });
+  const notes = useOrderNotes({ supabase, order, currentUser, canWrite: operable, showAlert, showConfirm });
 
   const disabled = isSaving || isUploading || detail.busyKey !== null;
   const canEdit = can(currentUser, "orders", "edit");
   const canDelete = can(currentUser, "orders", "delete");
-  const canKendala = canAny(currentUser, [["produksi", "edit"], ["finishing", "edit"], ["orders", "edit"]]);
-  const canDeleteKendala = canAny(currentUser, [["produksi", "delete"], ["finishing", "delete"], ["orders", "delete"]]);
+  const canKendala = operable && canAny(currentUser, [["produksi", "edit"], ["finishing", "edit"], ["orders", "edit"]]);
+  const canDeleteKendala = operable && canAny(currentUser, [["produksi", "delete"], ["finishing", "delete"], ["orders", "delete"]]);
   const isLate = getDeadlineStatus(order.deadline, order.status) === "overdue" && order.status !== "Ada Kendala";
   const team = order.team_id ? teams.find((t) => t.id === order.team_id) ?? null : null;
   const teamMemberList = teamMembers(team, users);
@@ -96,10 +102,10 @@ export default function OrderDetail(props: Props) {
     order,
     disabled,
     busyKey: detail.busyKey,
-    canWork: (key) => canAny(currentUser, stepWorkPerms(key)),
+    canWork: (key) => operable && canAny(currentUser, stepWorkPerms(key)),
     canUndo: (key) => {
       const i = indexOf(key);
-      return i >= 0 && canUndoStep(order.steps, i) && canAny(currentUser, stepUndoPerms(key));
+      return operable && i >= 0 && canUndoStep(order.steps, i) && canAny(currentUser, stepUndoPerms(key));
     },
     position: (key) => {
       const i = indexOf(key);
@@ -147,6 +153,12 @@ export default function OrderDetail(props: Props) {
           )}
         </div>
       </div>
+
+      {!operable && (
+        <div className="rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+          Anda melihat pesanan ini sebagai pemantau. Anda bukan PJ atau anggota tim pesanan ini, jadi tahap, kendala, dan catatan tidak bisa diubah.
+        </div>
+      )}
 
       {/* Layar lebar (lg+): kiri = info & detail pesanan (menempel saat scroll), kanan = tahapan.
           Layar kecil: satu kolom berurutan seperti sebelumnya. */}

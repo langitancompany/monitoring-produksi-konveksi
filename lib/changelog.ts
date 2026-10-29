@@ -6,11 +6,11 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.18",
+  version: "V.1.19",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
-  notes: "Rincian pesanan per jenis, varian, dan ukuran diisi saat Approval",
+  notes: "Pesanan hanya bisa dibuka dan dikerjakan oleh PJ, anggota tim, dan pengelola",
 };
 
 export interface ChangelogEntry {
@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.19",
+    date: "2026-10-29",
+    changes: [
+      "Akses pesanan kini mengikuti Penanggung Jawab (PJ) dan Tim. Staf hanya melihat pesanan yang ia buat, yang ia PJ-i, atau yang timnya memuat dirinya. Sebelumnya semua staf bisa membuka semua pesanan.",
+      "Mengerjakan tahap, melapor kendala, dan menulis catatan produksi hanya bisa dilakukan oleh PJ, anggota tim, pembuat pesanan, atau pengelola (Super Admin, atau yang punya izin Pesanan: ubah/hapus, atau Sampah: hapus). Aturan ini dijaga di database, jadi tidak bisa dilewati lewat API.",
+      "Pemegang izin Keuangan: lihat atau Gaji: lihat tetap melihat semua pesanan karena menu mereka menghitung dari semua pesanan, tetapi hanya-lihat: tombol tahap, kendala, dan kolom catatan disembunyikan.",
+      "Notifikasi pesanan (lonceng dan push) kini hanya dikirim ke PJ, anggota tim, pembuat, dan yang boleh melihat semua pesanan, bukan ke semua staf berdasarkan role.",
+      "Perlu menjalankan migration 017_order_access_by_assignment.sql di Supabase bersamaan dengan deploy. Pesanan lama tanpa PJ, tanpa tim, dan tanpa pembuat hanya terlihat oleh pengelola: isi PJ atau timnya lewat Edit Pesanan.",
+    ],
+  },
   {
     version: "1.18",
     date: "2026-10-28",

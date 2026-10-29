@@ -82,6 +82,7 @@ hak akses (RLS, fungsi, trigger) berperilaku sama.
    - `supabase/migrations/006_teams.sql` — tim produksi (tabel `teams`, kolom `orders.team_id`) untuk Pengaturan → Tim dan pilihan tim di form pesanan. Tidak mengubah data lama.
    - `supabase/migrations/007_pricing_salary.sql` — Config Harga & Gaji (tabel `pricing_configs`, `salary_payments`, `salary_audit_log`, kolom `orders.crew_snapshot`, fungsi tandai lunas). Mengisi salinan PJ/tim untuk pesanan yang produksinya sudah selesai. Jalankan di luar jam kerja.
    - `supabase/migrations/016_rename_supervisor_to_super_admin.sql` — mengganti role `supervisor` menjadi `super_admin` (data user, fungsi, policy RLS) agar sama dengan Sablon. Jalankan `supabase/optional/016_preview_supervisor_usage.sql` dulu (hanya membaca), backup, lalu jalankan 016 dan **segera deploy kode versi ini**. Dijalankan sekali; aman bila diulang.
+   - `supabase/migrations/017_order_access_by_assignment.sql` — akses pesanan mengikuti PJ & tim: RLS baca/ubah `orders` dan `production_notes` hanya untuk pembuat, PJ, anggota tim, dan pengelola/pemantau (aturan di §23 `docs/PRD.md`). Jalankan **setelah 016**, bersamaan dengan deploy kode versi ini. Tidak mengubah data; aman bila diulang.
 2. **Expose schema** `monitoring_konveksi` di pengaturan API Supabase
    (`PGRST_DB_SCHEMAS` / Exposed schemas; di self-hosted: variabel PostgREST di Coolify)
    lalu restart PostgREST. Tanpa ini aplikasi tidak bisa membaca tabel.

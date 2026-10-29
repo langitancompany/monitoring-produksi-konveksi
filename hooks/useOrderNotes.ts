@@ -22,6 +22,11 @@ interface Props {
   supabase: SupabaseClient;
   order: Pick<Order, "id" | "kode_produksi" | "nama_pemesan">;
   currentUser: UserData & { id: string };
+  /**
+   * Boleh menulis catatan? false untuk yang hanya melihat pesanan (bukan PJ / anggota tim /
+   * pengelola). Penegak sebenarnya RLS production_notes (migration 017). Bawaan: true.
+   */
+  canWrite?: boolean;
   showAlert: (title: string, message: string, type?: "success" | "error") => void;
   showConfirm: (title: string, message: string, onConfirm: () => void) => void;
 }
@@ -36,13 +41,15 @@ export interface OrderNotesApi {
   savingSection: NoteSection | null;
   /** id catatan yang sedang dihapus */
   deletingId: string | null;
+  /** false = tampilan hanya-baca: kolom tulis catatan disembunyikan */
+  canWrite: boolean;
   add: (section: NoteSection, text: string) => Promise<boolean>;
   remove: (note: ProductionNote) => void;
   canDelete: (note: ProductionNote) => boolean;
   reload: () => void;
 }
 
-export function useOrderNotes({ supabase, order, currentUser, showAlert, showConfirm }: Props): OrderNotesApi {
+export function useOrderNotes({ supabase, order, currentUser, canWrite = true, showAlert, showConfirm }: Props): OrderNotesApi {
   const [notes, setNotes] = useState<ProductionNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -171,7 +178,7 @@ export function useOrderNotes({ supabase, order, currentUser, showAlert, showCon
   const reload = useCallback(() => setReloadTick((t) => t + 1), []);
 
   return useMemo(
-    () => ({ notes, loading, loadError, savingSection, deletingId, add, remove, canDelete, reload }),
-    [notes, loading, loadError, savingSection, deletingId, add, remove, canDelete, reload],
+    () => ({ notes, loading, loadError, savingSection, deletingId, canWrite, add, remove, canDelete, reload }),
+    [notes, loading, loadError, savingSection, deletingId, canWrite, add, remove, canDelete, reload],
   );
 }

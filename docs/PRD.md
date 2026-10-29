@@ -923,3 +923,35 @@ Dibangun di atas kode terakhir (setelah 6.6); tidak ada zip baru dari pemilik se
 - **Form Approval otomatis:** tahap Approval pesanan utama tidak lagi meminta file/link. `ApprovalInput` = `{items, catatan}`. Lembar dibuat di `ApprovalSheet.tsx` dan ditampilkan di `/approval/[id]` (A4 landscape 1123x794, PDF dibuat di browser dengan html-to-image + jsPDF, seperti Sablon). `steps[approval].fileUrl` tidak lagi diisi; pesanan lama yang punya file tetap menampilkan tautan "File approval lama".
 - **Pesanan Umum (V.1.18, migration `015`)**: `production_types.is_custom = true` + `bagian = [{nama, ukuran[]}]` (bawaan Atasan S–3XL, Bawahan 21–41, bisa diubah di Pengaturan). Item pesanan umum menambah field `nama_model`, `bagian`, `mockup_url` di `orders.items[]`; `rincian` berisi satu blok tanpa varian dengan ukuran milik bagian. Jenis ini boleh muncul berkali-kali dalam satu pesanan (tiap desain = satu item); jenis biasa tetap sekali. Mockup wajib (`validateItems`), diupload saat Approval / Edit Pesanan lewat `uploadMockups`. Gaji menjumlah per jenis (`payItems`), tagihan per `item.id`, jadi tidak berubah. Catatan: baris tagihan memakai nama jenis ("Pesanan Umum"), belum nama model.
 - **Form Approval berhalaman banyak**: `ApprovalSheet.tsx` membagi kartu item (2 kolom) ke halaman A4 landscape lewat `buildApprovalPages` (perkiraan tinggi kartu; catatan + TTD di halaman terakhir). `/approval/[id]` memotret tiap halaman jadi satu halaman PDF. Header memakai `public/Header-approval.png` (2129x300, salinan Sablon sebagai pengganti sementara).
+
+---
+
+## 23. Revisi V.1.19 (29 Okt 2026) — akses pesanan mengikuti PJ & tim
+
+**Masalah:** `assigned_to` (PJ) dan `team_id` (tim) semula hanya label. Policy baca `orders` hanya `is_staff()`, dan policy ubah hanya mengecek izin produksi/finishing, jadi semua staf bisa membuka semua pesanan dan menekan tombol tahap di pesanan tim lain (juga lewat API Supabase langsung).
+
+**Aturan (migration `017`, cermin di `lib/orderAccess.ts`):**
+
+| Peran terhadap pesanan | Syarat | Lihat | Ubah |
+|---|---|---|---|
+| Pengelola | Super Admin, atau izin `orders.edit`, `orders.delete`, `trash.delete` | semua pesanan | semua pesanan |
+| Pemantau | izin `keuangan.view` atau `salary.view` | semua pesanan | tidak |
+| Kru | pembuat (`created_by`), PJ (`assigned_to`), atau anggota tim (`teams.member_ids`) | pesanan itu | pesanan itu, bila punya izin produksi/finishing yang sesuai |
+| Lainnya | — | tidak | tidak |
+
+- Daftar izin "pengelola" dan "pemantau" ada di **satu tempat**: fungsi SQL `can_manage_all_orders()` / `can_view_all_orders()` dan `lib/orderAccess.ts`. Ubah di dua tempat itu, jangan di tiap policy.
+- Fungsi bantu: `can_manage_all_orders()`, `can_view_all_orders()`, `is_order_crew(created_by, assigned_to, team_id)`. Tim nonaktif tetap dihitung (anggota tidak kehilangan pesanan lamanya).
+- Penjaga kolom `guard_orders_update` (007) **tidak diubah**; ia tetap membatasi kolom mana yang boleh diubah per izin. RLS menambah syarat "pesanan ini milikmu". `WITH CHECK` kini sama dengan `USING` (sebelumnya `true`).
+- `production_notes`: baca = bisa membaca pesanan induknya; tulis = pengelola atau kru pesanan itu.
+- **Nomor urut kode produksi** kini dihitung database (`next_kode_produksi(prefix)`, security definer). Alasan: query `orders` dari browser kini hanya melihat sebagian pesanan, sehingga nomor urut yang dihitung di browser bisa bentrok (kolom `kode_produksi` unik). Kode lama tetap jadi cadangan bila migration belum dijalankan.
+- **Notifikasi:** `/api/notify` menyaring penerima per `orderId` (kru + yang boleh lihat semua). Pesanan tidak ditemukan → hanya yang boleh lihat semua.
+- **UI:** `OrderDetail` menyembunyikan tombol tahap, kendala, dan kolom catatan bila bukan kru/pengelola, serta menampilkan banner hanya-lihat (pemantau Keuangan/Gaji).
+- **Efek samping yang disengaja:** Dashboard, Kalender, Pesanan Selesai, dan Sampah ikut tersaring karena membaca tabel yang sama. Pengguna biasa hanya melihat angka pesanan miliknya.
+- Uji: `npx tsx tests/orderAccess.test.ts` (20 kasus). Migration **belum dijalankan/diuji** di Supabase pemilik; uji dengan 3 akun (PJ, anggota tim lain, pemantau Keuangan) sebelum dipakai.
+
+**Belum dicakup / keputusan terbuka (tanyakan pemilik):**
+1. QC / finishing: kini hanya mengerjakan pesanan yang timnya memuat dirinya. Bila QC harus mengerjakan semua pesanan, beri izin `orders.edit` atau tambahkan ke aturan `can_manage_all_orders()`; **atau** pertimbangkan izin baru khusus "lihat semua pesanan".
+2. `order_logs` (Log Aktivitas) tetap dibaca semua pemegang `logs.view`; log memuat kode produksi dan nama pemesan.
+3. Bucket storage `production-proofs` (foto bukti) belum dibatasi per pesanan (di luar migration).
+4. Notifikasi lama yang sudah tersimpan di lonceng tidak dihapus.
+5. Pesanan tanpa PJ, tanpa tim, dan tanpa pembuat hanya terlihat pengelola (kueri pemeriksaan ada di komentar migration 017).
