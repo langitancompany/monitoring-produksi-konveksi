@@ -142,6 +142,7 @@ export default function SettingsPage({
         {active === "pengguna" && (
           <UsersTab
             users={users}
+            currentUser={currentUser}
             onSaveUser={onSaveUser}
             onDeleteUser={onDeleteUser}
           />

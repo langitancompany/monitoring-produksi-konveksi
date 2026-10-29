@@ -10,7 +10,7 @@ type Actor = Pick<UserData, "role" | "permissions"> | null | undefined;
 
 /** Nama modul hak akses (key di UserPermissions), mis. "orders", "trash", "logs". */
 export type PermModule = keyof UserPermissions;
-export type PermAction = "view" | "create" | "edit" | "delete";
+export type PermAction = "view" | "create" | "edit" | "delete" | "view_all";
 
 /** Boleh melakukan `action` pada `module`? */
 export function can(user: Actor, module: PermModule, action: PermAction): boolean {

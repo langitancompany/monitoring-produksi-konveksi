@@ -262,6 +262,11 @@ Role bawaan: Super Admin, manager, admin, produksi, qc, designer (`lib/roles.ts`
   Akun login dipakai bersama semua unit → email tidak bisa diubah, penghapusan akun login dicek
   terhadap `OTHER_UNIT_SCHEMAS`, email yang sudah punya akun ditautkan (password tidak diubah).
   Hanya Super Admin yang boleh mengurus akun/role Super Admin.
+- **Batas izin Admin (29 Okt 2026, migration 019):** Admin tidak bisa mengubah izin akunnya sendiri dan
+  hanya bisa MENAMBAH izin yang ia sendiri punya (mengurangi tetap boleh); role Super Admin dan akun
+  Super Admin hanya bisa diurus Super Admin. Dijaga di `/api/users` (`lib/permissionRules.ts`), di tabel hak
+  akses (sel yang tidak boleh diberikan redup), dan di trigger `guard_users_update`/`guard_users_insert`
+  (menutup jalan pintas lewat API Supabase langsung). Uji: `npx tsx tests/permissionRules.test.ts`.
 - Edit profil sendiri (nama, alamat, tgl lahir, no WA, foto) tetap langsung ke `users` dan dijaga
   trigger `guard_users_update` (role, roles, permissions, username tidak bisa diubah user biasa).
 - Di **Sablon** kolom `users.password` masih ada dan dimuat ke browser admin (`select *`); cek isinya
@@ -944,10 +949,12 @@ Dibangun di atas kode terakhir (setelah 6.6); tidak ada zip baru dari pemilik se
 - Penjaga kolom `guard_orders_update` (007) **tidak diubah**; ia tetap membatasi kolom mana yang boleh diubah per izin. RLS menambah syarat "pesanan ini milikmu". `WITH CHECK` kini sama dengan `USING` (sebelumnya `true`).
 - `production_notes`: baca = bisa membaca pesanan induknya; tulis = pengelola atau kru pesanan itu.
 - **Nomor urut kode produksi** kini dihitung database (`next_kode_produksi(prefix)`, security definer). Alasan: query `orders` dari browser kini hanya melihat sebagian pesanan, sehingga nomor urut yang dihitung di browser bisa bentrok (kolom `kode_produksi` unik). Kode lama tetap jadi cadangan bila migration belum dijalankan.
-- **Notifikasi:** `/api/notify` menyaring penerima per `orderId` (kru + yang boleh lihat semua). Pesanan tidak ditemukan → hanya yang boleh lihat semua.
+- **Notifikasi:** `/api/notify` menyaring penerima per `orderId`: PJ (`assigned_to`), anggota tim, dan pemegang izin `orders.view_all` (Super Admin selalu). Pembuat biasa dan pemantau Keuangan/Gaji tidak ikut (diubah 29 Okt 2026). Pesanan tidak ditemukan → hanya pemegang `orders.view_all`.
 - **UI:** `OrderDetail` menyembunyikan tombol tahap, kendala, dan kolom catatan bila bukan kru/pengelola, serta menampilkan banner hanya-lihat (pemantau Keuangan/Gaji).
 - **Efek samping yang disengaja:** Dashboard, Kalender, Pesanan Selesai, dan Sampah ikut tersaring karena membaca tabel yang sama. Pengguna biasa hanya melihat angka pesanan miliknya.
 - Uji: `npx tsx tests/orderAccess.test.ts` (20 kasus). Migration **belum dijalankan/diuji** di Supabase pemilik; uji dengan 3 akun (PJ, anggota tim lain, pemantau Keuangan) sebelum dipakai.
+
+- **Izin `orders.view_all` ("Pesanan: akses semua pesanan") — migration 018, 29 Okt 2026:** diatur per user di Pengaturan Admin > Pengguna (baris tambahan di bawah "Pesanan"). Pemegangnya melihat semua pesanan, dinotifikasi, dan bisa mengerjakan tahap pesanan mana pun sesuai izin produksi/finishing; buat/edit/hapus pesanan tetap izin `orders.create/edit/delete`. Migration memberi izin ini ke user ber-role QC/Admin/Manager yang sudah ada. Menjawab keputusan terbuka no. 1 di bawah (QC memeriksa semua pesanan).
 
 **Belum dicakup / keputusan terbuka (tanyakan pemilik):**
 1. QC / finishing: kini hanya mengerjakan pesanan yang timnya memuat dirinya. Bila QC harus mengerjakan semua pesanan, beri izin `orders.edit` atau tambahkan ke aturan `can_manage_all_orders()`; **atau** pertimbangkan izin baru khusus "lihat semua pesanan".

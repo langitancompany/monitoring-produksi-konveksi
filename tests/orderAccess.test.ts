@@ -7,6 +7,7 @@ import {
   canOperateOrder,
   canViewAllOrders,
   filterOrderRecipients,
+  hasAllOrdersAccess,
   isOrderCrew,
 } from "../lib/orderAccess";
 
@@ -29,6 +30,7 @@ const gaji = user("pay", "manager", { salary: { view: true } });
 const penjahit = user("u1", "produksi", { produksi: { view: true, edit: true } }); // PJ
 const anggota = user("u2", "produksi", { produksi: { view: true, edit: true } }); // anggota tim
 const pembuat = user("cr", "admin", { orders: { view: true, create: true } }); // hanya membuat
+const qc = user("qc1", "qc", { orders: { view: true, view_all: true }, finishing: { view: true, edit: true } }); // akses semua, tanpa izin edit pesanan
 const orangLain = user("x9", "produksi", { produksi: { view: true, edit: true } }); // bukan siapa-siapa
 
 const teams = [
@@ -116,6 +118,22 @@ test("pengelola & Super Admin: bisa semuanya walau bukan kru", () => {
   }
 });
 
+console.log("orders.view_all (akses semua pesanan)");
+test("QC dengan view_all: lihat & kerjakan semua pesanan, tapi bukan pengelola", () => {
+  assert.equal(hasAllOrdersAccess(qc), true);
+  assert.equal(canAccessOrder(order, qc, teams), true);
+  assert.equal(canOperateOrder(order, qc, teams), true);
+  assert.equal(canManageAllOrders(qc), false); // edit/hapus pesanan tetap diatur izin orders.edit/delete
+});
+test("tanpa view_all: bukan akses semua (keuangan hanya lihat)", () => {
+  assert.equal(hasAllOrdersAccess(keuangan), false);
+  assert.equal(hasAllOrdersAccess(orangLain), false);
+  assert.equal(canOperateOrder(order, keuangan, teams), false);
+});
+test("Super Admin selalu punya akses semua", () => {
+  assert.equal(hasAllOrdersAccess(superAdmin), true);
+});
+
 console.log("filterOrderRecipients (notifikasi)");
 const row = (id: string, role: string, permissions: unknown = {}) => ({ id, role, permissions });
 const everyone = [
@@ -130,17 +148,32 @@ const everyone = [
 ];
 const ids = (rows: { id: string }[]) => rows.map((r) => r.id).sort();
 
-test("hanya kru + yang boleh lihat semua; staf lain tidak dapat", () => {
-  const got = filterOrderRecipients(order, { member_ids: ["u2", "u3"] }, everyone);
-  assert.deepEqual(ids(got), ["adm", "cr", "fin", "sa", "u1", "u2", "u3"]);
-  assert.equal(ids(got).includes("x9"), false);
+const everyone2 = [
+  row("sa", "super_admin"),
+  row("adm", "admin", { orders: { view_all: true } }),
+  row("mgr", "manager", { orders: { view_all: true } }),
+  row("qc1", "qc", { orders: { view_all: true } }),
+  row("fin", "manager", { keuangan: { view: true } }), // hanya pemantau keuangan
+  row("u1", "produksi", { produksi: { edit: true } }),
+  row("u2", "produksi", { produksi: { edit: true } }),
+  row("cr", "produksi", { orders: { create: true } }),
+  row("x9", "produksi", { produksi: { edit: true } }),
+];
+test("kru (PJ + tim) + pemegang view_all dapat; pembuat biasa, pemantau keuangan, orang lain tidak", () => {
+  const got = filterOrderRecipients(order, { member_ids: ["u2"] }, everyone2);
+  assert.deepEqual(ids(got), ["adm", "mgr", "qc1", "sa", "u1", "u2"]);
+  for (const bukan of ["cr", "fin", "x9"]) assert.equal(ids(got).includes(bukan), false);
 });
-test("pesanan tanpa tim: anggota tim lain tidak dapat", () => {
-  const got = filterOrderRecipients({ created_by: "cr", assigned_to: "u1", team_id: null }, null, everyone);
-  assert.deepEqual(ids(got), ["adm", "cr", "fin", "sa", "u1"]);
+test("pesanan tanpa tim: PJ + pemegang view_all", () => {
+  const got = filterOrderRecipients({ created_by: "cr", assigned_to: "u1", team_id: null }, null, everyone2);
+  assert.deepEqual(ids(got), ["adm", "mgr", "qc1", "sa", "u1"]);
 });
-test("pesanan tidak ditemukan → hanya yang boleh lihat semua (aman)", () => {
-  assert.deepEqual(ids(filterOrderRecipients(null, null, everyone)), ["adm", "fin", "sa"]);
+test("pesanan tanpa PJ dan tanpa tim → hanya pemegang view_all", () => {
+  const got = filterOrderRecipients({ created_by: "cr", assigned_to: null, team_id: null }, null, everyone2);
+  assert.deepEqual(ids(got), ["adm", "mgr", "qc1", "sa"]);
+});
+test("pesanan tidak ditemukan → hanya pemegang view_all (aman)", () => {
+  assert.deepEqual(ids(filterOrderRecipients(null, null, everyone2)), ["adm", "mgr", "qc1", "sa"]);
 });
 test("permissions kosong / null dari database tidak membuat error", () => {
   const got = filterOrderRecipients(order, null, [row("u1", "produksi", null), row("x9", "produksi", undefined)]);

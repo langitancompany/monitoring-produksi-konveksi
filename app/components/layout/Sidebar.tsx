@@ -20,6 +20,7 @@ import {
   Landmark,
 } from "lucide-react";
 import { UserData } from "@/types";
+import { getUserRoles, roleLabel } from "@/lib/roles";
 import { APP_INFO } from "@/lib/changelog";
 import ThemedLogo from "@/app/components/ui/ThemedLogo";
 
@@ -145,6 +146,15 @@ export default function Sidebar({
     },
   ];
 
+  // Hanya tampilkan grup yang punya minimal satu menu yang boleh diakses,
+  // supaya judul grup (mis. "KEUANGAN") tidak muncul sendirian tanpa isi.
+  const visibleGroups = menuGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.visible),
+    }))
+    .filter((group) => group.items.length > 0);
+
   return (
     <>
       {sidebarOpen && (
@@ -195,23 +205,20 @@ export default function Sidebar({
 
         {/* Menu */}
         <div className="flex-1 overflow-y-auto px-4 py-2 space-y-6 md:space-y-3 custom-scrollbar">
-          {menuGroups.map((group, idx) => (
-            <div key={idx}>
+          {visibleGroups.map((group) => (
+            <div key={group.title}>
               <h3 className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.14em] mb-3 md:mb-1 px-3">
                 {group.title}
               </h3>
               <div className="space-y-1 md:space-y-0.5">
-                {group.items.map(
-                  (item) =>
-                    item.visible && (
-                      <MenuItemMemo
-                        key={item.id}
-                        item={item}
-                        isActive={activeTab === item.id}
-                        onClick={() => handleNav(item.id)}
-                      />
-                    ),
-                )}
+                {group.items.map((item) => (
+                  <MenuItemMemo
+                    key={item.id}
+                    item={item}
+                    isActive={activeTab === item.id}
+                    onClick={() => handleNav(item.id)}
+                  />
+                ))}
               </div>
             </div>
           ))}
@@ -288,8 +295,8 @@ const ProfileCardDesktopMemo = memo(
             <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
               {currentUser.name}
             </p>
-            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate capitalize">
-              {currentUser.role}
+            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
+              {getUserRoles(currentUser).map(roleLabel).join(", ")}
             </p>
           </div>
         </div>

@@ -13,6 +13,9 @@ type PermKey = keyof UserPermissions;
 interface ModuleDef {
   key: PermKey;
   label: string;
+  /** Kolom "Lihat" memakai field ini (default "view"). Untuk baris izin tambahan. */
+  viewField?: string;
+  viewLabel?: string;
   hasCreate: boolean;
   hasEdit: boolean;
   hasDelete: boolean;
@@ -40,6 +43,16 @@ const MODULES: ModuleDef[] = [
     createLabel: "Buat pesanan",
     editLabel: "Edit pesanan",
     deleteLabel: "Hapus pesanan",
+  },
+  {
+    key: "orders",
+    label: "Pesanan: akses semua pesanan",
+    viewField: "view_all",
+    viewLabel:
+      "Melihat, dinotifikasi, dan mengerjakan tahap SEMUA pesanan (bukan hanya yang ditugaskan). Buat/edit/hapus tetap diatur di baris Pesanan.",
+    hasCreate: false,
+    hasEdit: false,
+    hasDelete: false,
   },
   {
     key: "produksi",
@@ -143,11 +156,17 @@ function setPermVal(
 function PermCell({
   active,
   disabled,
+  locked,
+  frozen,
   tooltip,
   onChange,
 }: {
   active: boolean;
   disabled?: boolean;
+  /** Tampil sesuai nilai sekarang tapi tidak bisa diubah; isinya = alasan (tooltip). */
+  frozen?: string;
+  /** Tampil tercentang tapi tidak bisa diubah (mis. Super Admin). */
+  locked?: boolean;
   tooltip?: string;
   onChange: () => void;
 }) {
@@ -155,6 +174,33 @@ function PermCell({
     return (
       <td className="px-3 py-2.5 text-center">
         <Minus className="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-700 mx-auto" />
+      </td>
+    );
+  }
+  if (frozen) {
+    return (
+      <td className="px-3 py-2.5 text-center" title={frozen}>
+        <div
+          className={`w-5 h-5 rounded-md border mx-auto flex items-center justify-center cursor-not-allowed opacity-40 ${
+            active
+              ? "bg-[#124540] border-[#124540]"
+              : "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600"
+          }`}
+        >
+          {active && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+        </div>
+      </td>
+    );
+  }
+  if (locked) {
+    return (
+      <td
+        className="px-3 py-2.5 text-center"
+        title="Super Admin selalu punya akses ini"
+      >
+        <div className="w-5 h-5 rounded-md border mx-auto flex items-center justify-center bg-[#124540]/60 border-[#124540]/60 cursor-not-allowed">
+          <Check className="w-3 h-3 text-white" strokeWidth={3} />
+        </div>
       </td>
     );
   }
@@ -179,10 +225,27 @@ function PermCell({
 export function PermissionTable({
   permissions,
   onChange,
+  allGranted = false,
+  readOnly = false,
+  canGrant,
 }: {
   permissions: UserPermissions;
   onChange: (updated: UserPermissions) => void;
+  /** Super Admin: semua izin aktif otomatis (sama seperti pengecekan di aplikasi & database). */
+  allGranted?: boolean;
+  /** Tabel hanya dibaca (mis. Admin melihat izin akunnya sendiri). */
+  readOnly?: boolean;
+  /** Boleh menambah/mengubah izin ini? false → sel dibekukan. Dipakai agar Admin tidak memberi izin di atas miliknya. */
+  canGrant?: (key: PermKey, field: string) => boolean;
 }) {
+  // Alasan sel dibekukan (undefined = bisa diubah)
+  const freezeReason = (key: PermKey, field: string): string | undefined => {
+    if (allGranted) return undefined; // ditangani `locked`
+    if (readOnly) return "Anda tidak bisa mengubah izin akun Anda sendiri";
+    if (canGrant && !canGrant(key, field))
+      return "Anda tidak punya izin ini, jadi tidak bisa memberikannya";
+    return undefined;
+  };
   const toggle = (key: PermKey, field: string) => {
     const current = getPermVal(permissions, key, field);
     onChange(setPermVal(permissions, key, field, !current));
@@ -213,7 +276,7 @@ export function PermissionTable({
         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {MODULES.map((mod) => (
             <tr
-              key={mod.key}
+              key={`${mod.key}-${mod.viewField ?? "view"}`}
               className="hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-150"
             >
               <td className="px-3 py-2.5">
@@ -222,11 +285,15 @@ export function PermissionTable({
                 </span>
               </td>
               <PermCell
-                active={getPermVal(permissions, mod.key, "view")}
-                tooltip="Akses halaman ini"
-                onChange={() => toggle(mod.key, "view")}
+                locked={allGranted}
+                frozen={freezeReason(mod.key, mod.viewField ?? "view")}
+                active={getPermVal(permissions, mod.key, mod.viewField ?? "view")}
+                tooltip={mod.viewLabel ?? "Akses halaman ini"}
+                onChange={() => toggle(mod.key, mod.viewField ?? "view")}
               />
               <PermCell
+                locked={allGranted && mod.hasCreate}
+                frozen={mod.hasCreate ? freezeReason(mod.key, "create") : undefined}
                 active={
                   mod.hasCreate
                     ? getPermVal(permissions, mod.key, "create")
@@ -237,6 +304,8 @@ export function PermissionTable({
                 onChange={() => mod.hasCreate && toggle(mod.key, "create")}
               />
               <PermCell
+                locked={allGranted && mod.hasEdit}
+                frozen={mod.hasEdit ? freezeReason(mod.key, "edit") : undefined}
                 active={
                   mod.hasEdit ? getPermVal(permissions, mod.key, "edit") : false
                 }
@@ -245,6 +314,8 @@ export function PermissionTable({
                 onChange={() => mod.hasEdit && toggle(mod.key, "edit")}
               />
               <PermCell
+                locked={allGranted && mod.hasDelete}
+                frozen={mod.hasDelete ? freezeReason(mod.key, "delete") : undefined}
                 active={
                   mod.hasDelete
                     ? getPermVal(permissions, mod.key, "delete")

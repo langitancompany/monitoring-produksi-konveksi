@@ -17,17 +17,21 @@ import {
   roleLabel,
 } from "@/lib/roles";
 import UserAvatar from "@/app/components/ui/UserAvatar";
+import { holdsPermission } from "@/lib/permissionRules";
 import { PermissionTable } from "@/app/components/settings/PermissionTable";
 import { inputCls, labelCls } from "@/app/components/settings/settingsShared";
 
 interface UsersTabProps {
   users: UserData[];
+  /** Yang sedang login — menentukan izin apa yang boleh ia berikan ke user lain. */
+  currentUser: UserData;
   onSaveUser: (u: any) => Promise<boolean>;
   onDeleteUser: (id: string) => void;
 }
 
 export default function UsersTab({
   users,
+  currentUser,
   onSaveUser,
   onDeleteUser,
 }: UsersTabProps) {
@@ -94,6 +98,19 @@ export default function UsersTab({
   };
 
   const showEditor = selectedUser !== null || isNewUser;
+
+  // Super Admin = semua izin aktif otomatis (can() di lib/access.ts & has_perm di database).
+  const isSuperAdminForm = (formData.roles ?? []).includes("super_admin");
+
+  // Aturan pemberian izin (cermin /api/users dan migration 019):
+  // yang login bukan Super Admin → tidak bisa mengubah izin akunnya sendiri,
+  // dan hanya bisa memberi izin yang ia sendiri punya.
+  const callerIsSuperAdmin = currentUser.role === "super_admin";
+  const editingSelf = !isNewUser && selectedUser?.id === currentUser.id;
+  const permReadOnly = !callerIsSuperAdmin && editingSelf;
+  const canGrantPerm = callerIsSuperAdmin
+    ? undefined
+    : (key: string, field: string) => holdsPermission(currentUser.permissions, key, field);
 
   return (
     <div className="space-y-4">
@@ -316,12 +333,21 @@ export default function UsersTab({
                   Hak Akses
                 </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  Klik sel untuk toggle. Hover untuk melihat keterangan.
+                  {isSuperAdminForm
+                    ? "Super Admin selalu punya semua akses, jadi semua izin aktif otomatis dan tidak bisa diubah."
+                    : permReadOnly
+                      ? "Anda tidak bisa mengubah izin akun Anda sendiri. Minta Super Admin bila perlu perubahan."
+                      : callerIsSuperAdmin
+                        ? "Klik sel untuk toggle. Hover untuk melihat keterangan."
+                        : "Klik sel untuk toggle. Izin yang Anda sendiri tidak punya tidak bisa diberikan (sel redup)."}
                 </p>
               </div>
               <PermissionTable
                 permissions={permissions}
                 onChange={setPermissions}
+                allGranted={isSuperAdminForm}
+                readOnly={permReadOnly}
+                canGrant={canGrantPerm as any}
               />
             </div>
 

@@ -14,6 +14,7 @@ import {
 import { UserData } from "@/types";
 import UnitSwitcher from "@/app/components/layout/UnitSwitcher";
 import { UNIT } from "@/lib/config";
+import { getUserRoles, roleLabel } from "@/lib/roles";
 
 interface Notification {
   id: string;
@@ -346,7 +347,7 @@ export default function Header({
                     {currentUser.name}
                   </p>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
-                    {currentUser.role}
+                    {getUserRoles(currentUser).map(roleLabel).join(", ")}
                   </p>
                 </div>
                 {onOpenProfile && (

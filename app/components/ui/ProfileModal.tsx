@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { UserData } from "@/types";
+import { getUserRoles, roleLabel } from "@/lib/roles";
 import {
   X,
   Save,
@@ -398,7 +399,11 @@ export default function ProfileModal({ user, isOpen, onClose, onSave }: Props) {
                     <input
                       disabled
                       className="w-full border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900/50 rounded-md p-3.5 sm:p-4 text-base sm:text-sm font-medium text-zinc-400 dark:text-zinc-600 uppercase"
-                      value={formData.role}
+                      value={
+                        user
+                          ? getUserRoles(user).map(roleLabel).join(", ")
+                          : formData.role
+                      }
                       readOnly
                     />
                   </div>

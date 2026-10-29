@@ -20,6 +20,10 @@ interface ModuleFull {
   edit: boolean;
   delete: boolean;
 }
+/** Pesanan: izin biasa + `view_all` (akses ke SEMUA pesanan, bukan hanya yang ditugaskan). */
+interface ModuleOrders extends ModuleFull {
+  view_all: boolean;
+}
 interface ModuleView {
   view: boolean;
 }
@@ -51,7 +55,7 @@ interface ModuleTrash {
 
 export interface UserPermissions {
   dashboard: ModuleView;
-  orders: ModuleFull;
+  orders: ModuleOrders;
   produksi: ModuleFull;
   finishing: ModuleFull;
   salary: ModuleViewCreateEdit;
@@ -64,7 +68,7 @@ export interface UserPermissions {
 
 export const DEFAULT_PERMISSIONS: UserPermissions = {
   dashboard: { view: true },
-  orders: { view: true, create: false, edit: false, delete: false },
+  orders: { view: true, create: false, edit: false, delete: false, view_all: false },
   produksi: { view: true, create: false, edit: false, delete: false },
   finishing: { view: true, create: false, edit: false, delete: false },
   salary: { view: false, create: false, edit: false },

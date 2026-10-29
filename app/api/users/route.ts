@@ -20,7 +20,13 @@ import {
   findAuthUserByEmail,
   countOtherSuperAdmins,
   usedByOtherUnit,
+  sanitizePermissions,
 } from '@/lib/userAdmin';
+import { DEFAULT_PERMISSIONS } from '@/types';
+import {
+  findPermissionEscalation,
+  permissionsEqual,
+} from '@/lib/permissionRules';
 
 const fail = (error: string, status: number) =>
   NextResponse.json({ error }, { status });
@@ -31,13 +37,14 @@ async function authorize(req: NextRequest) {
 
   const { data: caller } = await getSupabaseAdmin()
     .from('users')
-    .select('role, roles')
+    .select('role, roles, permissions')
     .eq('id', guard.userId)
     .single();
 
   return {
     callerId: guard.userId,
     callerIsSuperAdmin: rolesOf(caller).includes('super_admin'),
+    callerPermissions: sanitizePermissions((caller as any)?.permissions),
   } as const;
 }
 
@@ -60,6 +67,12 @@ export async function POST(req: NextRequest) {
   const admin = getSupabaseAdmin();
 
   // Email sudah punya profil di Konveksi?
+  // Admin hanya boleh memberi izin yang ia sendiri punya (user baru mulai dari izin default).
+  if (!auth.callerIsSuperAdmin) {
+    const over = findPermissionEscalation(v.permissions, DEFAULT_PERMISSIONS, auth.callerPermissions);
+    if (over) return fail(`Anda tidak bisa memberi izin yang tidak Anda miliki: ${over}`, 403);
+  }
+
   const { data: dup } = await admin.from('users').select('id').eq('username', v.email).maybeSingle();
   if (dup) return fail('Email ini sudah terdaftar di Konveksi', 409);
 
@@ -126,7 +139,7 @@ export async function PATCH(req: NextRequest) {
   const v = parsed.value;
 
   const admin = getSupabaseAdmin();
-  const { data: target } = await admin.from('users').select('id, role, roles, username').eq('id', id).maybeSingle();
+  const { data: target } = await admin.from('users').select('id, role, roles, username, permissions').eq('id', id).maybeSingle();
   if (!target) return fail('User tidak ditemukan', 404);
 
   const wasSuperAdmin = rolesOf(target).includes('super_admin');
@@ -137,6 +150,17 @@ export async function PATCH(req: NextRequest) {
   }
   if (wasSuperAdmin && !willBeSuperAdmin && (await countOtherSuperAdmins(admin, id)) === 0) {
     return fail('Tidak bisa menurunkan Super Admin terakhir', 409);
+  }
+
+  // Admin (bukan Super Admin): tidak boleh mengubah izin dirinya sendiri, dan hanya
+  // boleh MENAMBAH izin yang ia sendiri punya. Mengurangi izin tetap boleh.
+  if (!auth.callerIsSuperAdmin) {
+    const currentPerms = sanitizePermissions((target as any).permissions);
+    if (id === auth.callerId && !permissionsEqual(v.permissions, currentPerms)) {
+      return fail('Anda tidak bisa mengubah izin akun Anda sendiri', 403);
+    }
+    const over = findPermissionEscalation(v.permissions, currentPerms, auth.callerPermissions);
+    if (over) return fail(`Anda tidak bisa memberi izin yang tidak Anda miliki: ${over}`, 403);
   }
 
   // Email login tidak bisa diubah di sini (akun login dipakai bersama semua unit).

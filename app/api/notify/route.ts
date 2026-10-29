@@ -8,10 +8,9 @@
 // Di sini penerima dicari dengan service role, lalu notifikasi disimpan
 // (lonceng) dan push FCM dikirim.
 //
-// PENERIMA DISARING PER PESANAN: bila `orderId` diisi, hanya kru pesanan itu
-// (pembuat, PJ, anggota tim) dan yang boleh melihat semua pesanan
-// (lib/orderAccess.ts) yang menerima — supaya kode produksi & nama pemesan
-// tidak bocor ke staf yang bukan bagian pesanan itu.
+// PENERIMA DISARING PER PESANAN: bila `orderId` diisi, hanya PJ (assigned_to),
+// anggota tim pesanan itu, dan pemegang izin orders.view_all ("akses semua
+// pesanan", mis. QC/Admin/Manager) yang menerima (lib/orderAccess.ts).
 //
 // Body: { title, message, orderId?, roles?: string[] | all?: true }
 
