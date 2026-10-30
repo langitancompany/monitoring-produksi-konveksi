@@ -1,7 +1,7 @@
 // app/components/finance/tabs/PaymentsTab.tsx
 //
 // mode "all"     = buku transaksi (semua status, filter tanggal).
-// mode "pending" = antrean verifikasi (hanya yang menunggu; hanya untuk pemegang keuangan.edit).
+// mode "pending" = antrean verifikasi (hanya yang menunggu; hanya untuk pemegang izin Approver keuangan).
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";

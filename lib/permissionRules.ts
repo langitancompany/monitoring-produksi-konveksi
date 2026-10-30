@@ -32,6 +32,8 @@ const ACTION_LABEL: Record<string, string> = {
   edit: "Edit",
   delete: "Hapus",
   view_all: "Akses semua pesanan",
+  maker: "Maker",
+  approver: "Approver",
 };
 
 export function permissionLabel(module: string, action: string): string {

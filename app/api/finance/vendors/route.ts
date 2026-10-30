@@ -1,5 +1,5 @@
 // GET  /api/finance/vendors                     -> daftar vendor/pemasok aktif
-// POST /api/finance/vendors  body: { name, phone? } -> tambah vendor (izin keuangan.create), tercatat di audit
+// POST /api/finance/vendors  body: { name, phone? } -> tambah vendor (izin Maker keuangan), tercatat di audit
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireFinance, finFail, bad } from "@/lib/finance/server";
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await requireFinance(req, "create");
+  const guard = await requireFinance(req, "maker");
   if (!guard.ok) return guard.response;
   const { actor } = guard;
 

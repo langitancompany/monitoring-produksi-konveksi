@@ -1,5 +1,5 @@
 // POST /api/finance/payments/:id/void   body: { reason: string }  (koreksi; data tidak dihapus)
-// Izin: keuangan.delete.
+// Izin: keuangan.delete (void).
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireFinance, finFail, bad, isUuid } from "@/lib/finance/server";

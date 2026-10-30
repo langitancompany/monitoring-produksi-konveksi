@@ -24,6 +24,19 @@ interface ModuleFull {
 interface ModuleOrders extends ModuleFull {
   view_all: boolean;
 }
+/**
+ * Keuangan: `view` + `delete` (void) + dua peran terpisah.
+ *  - maker    : menerbitkan/merevisi tagihan & mencatat pembayaran/pengeluaran
+ *  - approver : memverifikasi/menolak pembayaran & pengeluaran (+ laporan)
+ * Kolom lama `create`/`edit` tidak dipakai lagi (dibaca hanya sebagai cadangan
+ * untuk user lama yang belum punya `maker`/`approver`; lihat resolvePermissions).
+ */
+interface ModuleKeuangan {
+  view: boolean;
+  maker: boolean;
+  approver: boolean;
+  delete: boolean;
+}
 interface ModuleView {
   view: boolean;
 }
@@ -59,7 +72,7 @@ export interface UserPermissions {
   produksi: ModuleFull;
   finishing: ModuleFull;
   salary: ModuleViewCreateEdit;
-  keuangan: ModuleFull;
+  keuangan: ModuleKeuangan;
   config_harga: ModuleViewEdit;
   logs: ModuleView;
   trash: ModuleTrash;
@@ -72,7 +85,7 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   produksi: { view: true, create: false, edit: false, delete: false },
   finishing: { view: true, create: false, edit: false, delete: false },
   salary: { view: false, create: false, edit: false },
-  keuangan: { view: false, create: false, edit: false, delete: false },
+  keuangan: { view: false, maker: false, approver: false, delete: false },
   config_harga: { view: false, edit: false },
   logs: { view: false },
   trash: { view: false, delete: false },
@@ -96,6 +109,16 @@ export function resolvePermissions(
       ...(DEFAULT_PERMISSIONS as unknown as Record<string, object>)[key],
       ...(((raw as Record<string, object> | null | undefined)?.[key]) ?? {}),
     };
+  }
+  // User lama (sebelum ada Maker/Approver): create → maker, edit → approver,
+  // supaya akses mereka tidak hilang. Hanya berlaku bila kunci barunya belum tertulis.
+  const rawK = (raw as Record<string, Record<string, unknown>> | null | undefined)?.keuangan;
+  if (rawK) {
+    const k = out.keuangan as Record<string, unknown>;
+    if (typeof rawK.maker !== "boolean") k.maker = rawK.create === true;
+    if (typeof rawK.approver !== "boolean") k.approver = rawK.edit === true;
+    delete k.create;
+    delete k.edit;
   }
   return out as unknown as UserPermissions;
 }

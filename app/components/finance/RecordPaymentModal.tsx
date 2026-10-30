@@ -40,7 +40,7 @@ export default function RecordPaymentModal({
   onDone: () => void;
 }) {
   const { notify } = useDialog();
-  const canRefund = meta.caps.edit;
+  const canRefund = meta.caps.maker;
 
   const [isRefund, setIsRefund] = useState(false);
   const [amount, setAmount] = useState(Math.max(0, target.balance - target.paid_pending));

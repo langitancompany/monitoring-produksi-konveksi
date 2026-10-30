@@ -75,7 +75,7 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
       id: "verify",
       label: "Verifikasi",
       icon: <ShieldCheck size={14} className="shrink-0" />,
-      show: caps.edit,
+      show: caps.approver,
       badge: meta.pending_count,
     },
     {
@@ -84,10 +84,10 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
       icon: <ArrowUpFromLine size={14} className="shrink-0" />,
       show: true,
       // lencana hanya untuk yang berhak menyetujui
-      badge: caps.edit ? meta.pending_expense_count : 0,
+      badge: caps.approver ? meta.pending_expense_count : 0,
     },
     // laporan & audit memuat data manajemen: hanya yang berhak menyetujui (laporan) / Super Admin (audit)
-    { id: "report", label: "Laporan", icon: <BarChart3 size={14} className="shrink-0" />, show: caps.edit },
+    { id: "report", label: "Laporan", icon: <BarChart3 size={14} className="shrink-0" />, show: caps.approver },
     { id: "audit", label: "Audit", icon: <ScrollText size={14} className="shrink-0" />, show: caps.isSuperAdmin },
     { id: "guide", label: "Panduan", icon: <BookOpen size={14} className="shrink-0" />, show: true },
     { id: "info", label: "Akun & Pengaturan", icon: <Settings size={14} className="shrink-0" />, show: true },
@@ -167,13 +167,13 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
           <InvoicesTab meta={meta} productionTypes={productionTypes} version={version} onChanged={changed} />
         )}
         {active === "payments" && <PaymentsTab mode="all" caps={caps} version={version} onChanged={changed} />}
-        {active === "verify" && caps.edit && (
+        {active === "verify" && caps.approver && (
           <PaymentsTab mode="pending" caps={caps} version={version} onChanged={changed} />
         )}
         {active === "overview" && (
           <OverviewTab
             version={version}
-            canVerify={caps.edit}
+            canVerify={caps.approver}
             onGoVerify={() => goTo("verify")}
             onGoExpenses={() => goTo("expenses", { pending: true })}
           />
@@ -187,7 +187,7 @@ export default function FinanceModule({ productionTypes }: { productionTypes: Pr
             initialStatus={expenseNav.pending ? "pending" : ""}
           />
         )}
-        {active === "report" && caps.edit && <ReportTab version={version} />}
+        {active === "report" && caps.approver && <ReportTab version={version} />}
         {active === "audit" && caps.isSuperAdmin && <AuditTab version={version} />}
         {active === "guide" && <GuideTab caps={caps} version={version} userKey={meta.user_id} onGo={goTo} />}
         {active === "info" && <InfoTab meta={meta} />}

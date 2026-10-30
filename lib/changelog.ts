@@ -6,7 +6,7 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.19",
+  version: "V.1.20",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.20",
+    date: "2026-10-30",
+    changes: [
+      "Izin Keuangan kini punya dua peran terpisah di tabel hak akses: Maker dan Approver. Maker boleh menerbitkan/merevisi tagihan dan mencatat pembayaran & pengeluaran. Approver boleh memverifikasi atau menolak pembayaran & pengeluaran, serta melihat Laporan. Refund dicatat oleh Maker dan tetap harus diverifikasi Approver.",
+      "Punya akses menu Keuangan (Lihat) saja tidak lagi otomatis boleh membuat tagihan atau memverifikasi. Pemisahan ini dicek di server, bukan hanya menyembunyikan tombol.",
+      "User yang sebelumnya punya Keuangan: Buat otomatis menjadi Maker, dan yang punya Keuangan: Edit menjadi Approver, sehingga akses mereka tidak berubah. Jalankan migration 020 agar tersimpan permanen.",
+    ],
+  },
   {
     version: "1.19",
     date: "2026-10-29",

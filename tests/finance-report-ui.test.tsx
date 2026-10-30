@@ -25,8 +25,8 @@ function test(name: string, fn: () => void) {
 }
 const html = (node: React.ReactElement) => renderToStaticMarkup(<DialogProvider>{node}</DialogProvider>);
 const noop = () => {};
-const caps = (c: Partial<Record<"view" | "create" | "edit" | "delete", boolean>>, isSuperAdmin = false) => ({
-  view: true, create: false, edit: false, delete: false, ...c, isSuperAdmin,
+const caps = (c: Partial<Record<"view" | "maker" | "approver" | "delete", boolean>>, isSuperAdmin = false) => ({
+  view: true, maker: false, approver: false, delete: false, ...c, isSuperAdmin,
 });
 
 console.log("tab yang memuat data");
@@ -52,18 +52,18 @@ test("SummaryCard menampilkan label, nilai, dan petunjuk", () => {
 
 console.log("Panduan");
 test("semua bagian tampil; invoice & Excel sudah tidak disebut belum tersedia, gaji otomatis masih", () => {
-  const out = html(<GuideTab caps={caps({ create: true, edit: true, delete: true }, true)} version={0} userKey="u1" onGo={noop} />);
+  const out = html(<GuideTab caps={caps({ maker: true, approver: true, delete: true }, true)} version={0} userKey="u1" onGo={noop} />);
   for (const t of ["Perlu tindakan sekarang", "Tugas rutin", "Aturan penting", "Tanya jawab", "Belum tersedia", "Gaji yang otomatis", "Bagaimana mengirim invoice", "Bagaimana mengekspor data ke Excel"]) {
     assert.match(out, new RegExp(t));
   }
   assert.doesNotMatch(out, /Invoice dalam bentuk PDF\/cetak dan kirim/);
 });
 test("tugas harian mengikuti hak: admin pencatat tidak melihat tugas verifikasi", () => {
-  const creator = html(<GuideTab caps={caps({ create: true })} version={0} userKey="u1" onGo={noop} />);
+  const creator = html(<GuideTab caps={caps({ maker: true })} version={0} userKey="u1" onGo={noop} />);
   assert.match(creator, /Terbitkan tagihan untuk pesanan baru/);
   assert.match(creator, /Catat pembayaran yang masuk/);
   assert.doesNotMatch(creator, /Proses antrean verifikasi pembayaran/);
-  const verifier = html(<GuideTab caps={caps({ edit: true })} version={0} userKey="u1" onGo={noop} />);
+  const verifier = html(<GuideTab caps={caps({ approver: true })} version={0} userKey="u1" onGo={noop} />);
   assert.match(verifier, /Proses antrean verifikasi pembayaran/);
   assert.doesNotMatch(verifier, /Catat pembayaran yang masuk/);
 });
@@ -72,7 +72,7 @@ test("hanya-lihat: tidak ada tugas harian, ada pesan jelas", () => {
   assert.match(out, /Tidak ada tugas harian untuk hak akses Anda/);
 });
 test("setiap tugas punya kotak centang yang dapat diakses (aria-label)", () => {
-  const out = html(<GuideTab caps={caps({ create: true, edit: true }, false)} version={0} userKey="u1" onGo={noop} />);
+  const out = html(<GuideTab caps={caps({ maker: true, approver: true }, false)} version={0} userKey="u1" onGo={noop} />);
   assert.ok((out.match(/role="checkbox"/g) ?? []).length >= 5);
   assert.match(out, /aria-label="Tandai selesai: Catat pembayaran yang masuk"/);
 });

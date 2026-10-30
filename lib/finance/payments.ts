@@ -35,7 +35,7 @@ export type ParsePaymentResult =
 /** Periksa isian form pencatatan pembayaran. `get` mengambil nilai teks per nama isian. */
 export function parsePaymentFields(
   get: (key: string) => string,
-  caps: { edit: boolean },
+  caps: { maker: boolean },
 ): ParsePaymentResult {
   const fail = (error: string, status = 400): ParsePaymentResult => ({ ok: false, error, status });
   const s = (k: string) => (get(k) ?? "").trim();
@@ -55,8 +55,8 @@ export function parsePaymentFields(
     return fail("Nominal tidak valid");
   }
   if (kind !== null && kind !== "refund") return fail("Jenis pembayaran tidak valid");
-  // Refund = uang keluar ke pelanggan → hanya yang berhak memverifikasi.
-  if (kind === "refund" && !caps.edit) return fail("Refund hanya dapat dicatat oleh yang berhak memverifikasi", 403);
+  // Refund = uang keluar ke pelanggan → dicatat oleh Maker, lalu tetap harus diverifikasi Approver.
+  if (kind === "refund" && !caps.maker) return fail("Refund hanya dapat dicatat oleh Maker", 403);
 
   return {
     ok: true,

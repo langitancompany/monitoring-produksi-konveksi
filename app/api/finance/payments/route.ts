@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await requireFinance(req, "create");
+  const guard = await requireFinance(req, "maker");
   if (!guard.ok) return guard.response;
   const { actor } = guard;
 
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       const v = form.get(k);
       return typeof v === "string" ? v : "";
     },
-    { edit: actor.caps.edit },
+    { maker: actor.caps.maker },
   );
   if (!parsed.ok) return bad(parsed.error, parsed.status);
   const f = parsed.value;
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
   }
 
   const settings = await loadSettings();
-  const autoVerify = settings.auto_verify_own_payment && actor.caps.edit && !settings.require_separate_verifier;
+  const autoVerify = settings.auto_verify_own_payment && actor.caps.approver && !settings.require_separate_verifier;
 
   const { data: id, error } = await admin.rpc("fin_record_payment", {
     p_order: f.orderId,

@@ -278,7 +278,7 @@ export default function RecordExpenseModal({
                   </option>
                 ))}
               </select>
-              {meta.caps.create && (
+              {meta.caps.maker && (
                 <GhostButton type="button" onClick={() => setAddingVendor(true)} aria-label="Tambah vendor baru">
                   <Plus className="w-4 h-4" />
                 </GhostButton>

@@ -86,12 +86,32 @@ const MODULES: ModuleDef[] = [
   {
     key: "keuangan",
     label: "Keuangan",
-    hasCreate: true,
-    hasEdit: true,
+    viewLabel:
+      "Membuka menu Keuangan dan melihat tagihan, transaksi & laporan. TIDAK otomatis boleh membuat tagihan, mencatat, atau memverifikasi: atur di baris Maker dan Approver.",
+    hasCreate: false,
+    hasEdit: false,
     hasDelete: true,
-    createLabel: "Terbitkan tagihan & catat pembayaran",
-    editLabel: "Verifikasi / tolak pembayaran",
     deleteLabel: "Void (batalkan) transaksi",
+  },
+  {
+    key: "keuangan",
+    label: "Keuangan: Maker (pembuat)",
+    viewField: "maker",
+    viewLabel:
+      "Menerbitkan/merevisi tagihan dan mencatat pembayaran & pengeluaran. Tidak bisa memverifikasi kecuali juga dicentang Approver.",
+    hasCreate: false,
+    hasEdit: false,
+    hasDelete: false,
+  },
+  {
+    key: "keuangan",
+    label: "Keuangan: Approver (pemverifikasi)",
+    viewField: "approver",
+    viewLabel:
+      "Memverifikasi atau menolak pembayaran & pengeluaran masuk, mencatat refund, dan melihat Laporan. Tidak bisa membuat tagihan kecuali juga dicentang Maker.",
+    hasCreate: false,
+    hasEdit: false,
+    hasDelete: false,
   },
   {
     key: "config_harga",
@@ -248,7 +268,19 @@ export function PermissionTable({
   };
   const toggle = (key: PermKey, field: string) => {
     const current = getPermVal(permissions, key, field);
-    onChange(setPermVal(permissions, key, field, !current));
+    let next = setPermVal(permissions, key, field, !current);
+    // Maker/Approver butuh akses menu Keuangan: centang "Lihat" otomatis bila belum
+    // (kecuali pengguna ini memang tidak boleh memberi izin "Lihat" itu).
+    if (
+      key === "keuangan" &&
+      (field === "maker" || field === "approver") &&
+      !current &&
+      !getPermVal(permissions, key, "view") &&
+      (!canGrant || canGrant(key, "view"))
+    ) {
+      next = setPermVal(next, key, "view", true);
+    }
+    onChange(next);
   };
 
   return (

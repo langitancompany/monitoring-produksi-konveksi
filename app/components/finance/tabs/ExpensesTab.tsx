@@ -2,7 +2,7 @@
 //
 // Buku pengeluaran: catat, setujui/tolak/void, filter status/kategori/periode. Antrean "Menunggu persetujuan"
 // tidak dibatasi tanggal (yang menunggu harus selalu terlihat) dan diurutkan dari yang paling lama menunggu.
-// Hak: lihat = keuangan.view, catat = create, setujui/tolak = edit, void = delete (dihitung server, meta.caps).
+// Hak: lihat = keuangan.view, catat = Maker, setujui/tolak = Approver, void = delete (dihitung server, meta.caps).
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -126,7 +126,7 @@ export default function ExpensesTab({
               })}
               disabled={!rows}
             />
-            {caps.create && (
+            {caps.maker && (
               <PrimaryButton onClick={() => setShowRecord(true)} className="flex-1 sm:flex-none h-10">
                 <Plus className="w-4 h-4" /> Catat pengeluaran
               </PrimaryButton>

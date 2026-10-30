@@ -120,7 +120,7 @@ export default function InvoicesTab({
             <ul className="space-y-2 md:space-y-3">
               {paged.visible.map((r) => {
                 const overdue = isOverdue(r);
-                const canPay = caps.create && !!r.invoice_id && r.balance - r.paid_pending > 0;
+                const canPay = caps.maker && !!r.invoice_id && r.balance - r.paid_pending > 0;
                 return (
                   <li
                     key={r.order_id}
@@ -167,7 +167,7 @@ export default function InvoicesTab({
                           Invoice
                         </button>
                       )}
-                      {caps.create && !r.invoice_id && (
+                      {caps.maker && !r.invoice_id && (
                         <button onClick={() => setDetail({ id: r.order_id, issue: true })} className={smallPrimaryBtnCls}>
                           Terbitkan
                         </button>

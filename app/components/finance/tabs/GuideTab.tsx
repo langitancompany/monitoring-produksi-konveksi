@@ -89,7 +89,7 @@ export default function GuideTab({
 
   const alerts: { key: string; tone: Tone; text: React.ReactNode; go?: () => void; goLabel?: string }[] = [];
   if (todo) {
-    if (caps.edit && todo.pending_payments.count > 0) {
+    if (caps.approver && todo.pending_payments.count > 0) {
       const old = todo.pending_payments.oldest_days;
       alerts.push({
         key: "pp", tone: (old ?? 0) >= 3 ? "red" : "amber",
@@ -97,7 +97,7 @@ export default function GuideTab({
         go: () => onGo("verify"), goLabel: "Buka antrean",
       });
     }
-    if (caps.edit && todo.pending_expenses.count > 0) {
+    if (caps.approver && todo.pending_expenses.count > 0) {
       const old = todo.pending_expenses.oldest_days;
       alerts.push({
         key: "pe", tone: (old ?? 0) >= 3 ? "red" : "amber",
@@ -112,7 +112,7 @@ export default function GuideTab({
         go: () => onGo("overview"), goLabel: "Lihat piutang",
       });
     }
-    if (caps.create && todo.unbilled_recent.count > 0) {
+    if (caps.maker && todo.unbilled_recent.count > 0) {
       alerts.push({
         key: "ub", tone: "amber",
         text: <><b>{todo.unbilled_recent.count} pesanan</b> 30 hari terakhir sudah punya rincian item tetapi belum ditagih.</>,

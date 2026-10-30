@@ -1,7 +1,7 @@
 // GET /api/finance/report?from=YYYY-MM-DD&to=YYYY-MM-DD
 // Laporan laba (basis tagihan) dan arus kas (basis uang) per bulan, per kategori, dan per pesanan —
 // dihitung database (fin_report, migration 013). Data sensitif manajemen: hanya yang berhak menyetujui
-// (keuangan.edit) atau Super Admin.
+// (Approver keuangan) atau Super Admin.
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireFinance, finFail, bad, isDate, todayWib } from "@/lib/finance/server";
@@ -10,7 +10,7 @@ import type { ReportData } from "@/lib/finance/types";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const guard = await requireFinance(req, "edit");
+  const guard = await requireFinance(req, "approver");
   if (!guard.ok) return guard.response;
 
   const today = todayWib();

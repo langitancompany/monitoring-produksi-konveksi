@@ -50,23 +50,48 @@ function test(name: string, fn: () => void) {
 console.log("hak akses (caps)");
 test("Super Admin punya semua hak walau permission kosong", () => {
   const c = resolveFinanceCaps({ role: "super_admin" }, null);
-  assert.deepEqual(c, { view: true, create: true, edit: true, delete: true, isSuperAdmin: true });
+  assert.deepEqual(c, { view: true, maker: true, approver: true, delete: true, isSuperAdmin: true });
 });
 test("Super Admin lewat roles ganda juga dikenali", () => {
   assert.equal(resolveFinanceCaps({ role: "admin", roles: ["admin", "super_admin"] }, null).isSuperAdmin, true);
 });
 test("tanpa permission → tidak punya hak apa pun", () => {
   const c = resolveFinanceCaps({ role: "admin" }, undefined);
-  assert.deepEqual(c, { view: false, create: false, edit: false, delete: false, isSuperAdmin: false });
+  assert.deepEqual(c, { view: false, maker: false, approver: false, delete: false, isSuperAdmin: false });
   assert.equal(resolveFinanceCaps(null, null).view, false);
 });
 test("hak lebih tinggi otomatis boleh melihat; hak lain tidak ikut naik", () => {
-  const c = resolveFinanceCaps({ role: "admin" }, { create: true });
+  const c = resolveFinanceCaps({ role: "admin" }, { maker: true });
   assert.equal(c.view, true);
-  assert.equal(c.create, true);
-  assert.equal(c.edit, false);
+  assert.equal(c.maker, true);
+  assert.equal(c.approver, false);
   assert.equal(c.delete, false);
   assert.equal(c.isSuperAdmin, false); // bukan Super Admin → tak boleh lihat audit
+});
+test("Maker dan Approver terpisah: punya satu tidak membawa yang lain", () => {
+  const maker = resolveFinanceCaps({ role: "admin" }, { view: true, maker: true });
+  assert.equal(maker.maker, true);
+  assert.equal(maker.approver, false);
+  const appr = resolveFinanceCaps({ role: "admin" }, { view: true, approver: true });
+  assert.equal(appr.approver, true);
+  assert.equal(appr.maker, false);
+  const both = resolveFinanceCaps({ role: "admin" }, { maker: true, approver: true });
+  assert.equal(both.maker && both.approver, true);
+  assert.equal(both.delete, false);
+});
+test("hanya Lihat: tidak boleh membuat tagihan maupun memverifikasi", () => {
+  const c = resolveFinanceCaps({ role: "admin" }, { view: true });
+  assert.deepEqual([c.view, c.maker, c.approver, c.delete], [true, false, false, false]);
+});
+test("kunci maker/approver yang tertulis false mengalahkan create/edit lama", () => {
+  const c = resolveFinanceCaps({ role: "admin" }, { view: true, maker: false, approver: false, create: true, edit: true });
+  assert.deepEqual([c.maker, c.approver], [false, false]);
+});
+test("user lama tanpa maker/approver: create → maker, edit → approver", () => {
+  const c = resolveFinanceCaps({ role: "admin" }, { view: true, create: true, edit: false });
+  assert.deepEqual([c.maker, c.approver], [true, false]);
+  const d = resolveFinanceCaps({ role: "admin" }, { view: true, create: false, edit: true });
+  assert.deepEqual([d.maker, d.approver], [false, true]);
 });
 test("nilai bukan boolean true tidak dianggap hak (mis. string 'true')", () => {
   const c = resolveFinanceCaps({ role: "admin" }, { view: "true" as unknown as boolean });
@@ -262,7 +287,7 @@ const form = (over: Record<string, string> = {}) => {
 
 console.log("isian pembayaran (parsePaymentFields)");
 test("isian lengkap → diterima dan dirapikan", () => {
-  const r = parsePaymentFields(form(), { edit: false });
+  const r = parsePaymentFields(form(), { maker: false });
   assert.equal(r.ok, true);
   if (!r.ok) return;
   assert.deepEqual(r.value, {
@@ -271,7 +296,7 @@ test("isian lengkap → diterima dan dirapikan", () => {
   });
 });
 test("isian opsional kosong → null; teks panjang dipotong", () => {
-  const r = parsePaymentFields(form({ reference_no: "", payer_name: "  ", note: "x".repeat(900) }), { edit: false });
+  const r = parsePaymentFields(form({ reference_no: "", payer_name: "  ", note: "x".repeat(900) }), { maker: false });
   assert.equal(r.ok, true);
   if (!r.ok) return;
   assert.equal(r.value.reference, null);
@@ -280,26 +305,26 @@ test("isian opsional kosong → null; teks panjang dipotong", () => {
 });
 test("nominal: harus angka bulat > 0 tanpa titik/koma/minus/huruf", () => {
   for (const amount of ["", "0", "-5", "1.5", "1,000", "1e6", "abc", " ", "9999999999999", "100000000001"]) {
-    const r = parsePaymentFields(form({ amount }), { edit: true });
+    const r = parsePaymentFields(form({ amount }), { maker: true });
     assert.equal(r.ok, false, `amount=${JSON.stringify(amount)}`);
   }
-  assert.equal(parsePaymentFields(form({ amount: "100000000000" }), { edit: true }).ok, true);
+  assert.equal(parsePaymentFields(form({ amount: "100000000000" }), { maker: true }).ok, true);
 });
 test("pesanan, akun, metode, tanggal tidak valid ditolak", () => {
-  assert.equal(parsePaymentFields(form({ order_id: "x" }), { edit: true }).ok, false);
-  assert.equal(parsePaymentFields(form({ account_id: "" }), { edit: true }).ok, false);
-  assert.equal(parsePaymentFields(form({ method: "cek" }), { edit: true }).ok, false);
-  assert.equal(parsePaymentFields(form({ paid_at: "2026-02-30" }), { edit: true }).ok, false);
+  assert.equal(parsePaymentFields(form({ order_id: "x" }), { maker: true }).ok, false);
+  assert.equal(parsePaymentFields(form({ account_id: "" }), { maker: true }).ok, false);
+  assert.equal(parsePaymentFields(form({ method: "cek" }), { maker: true }).ok, false);
+  assert.equal(parsePaymentFields(form({ paid_at: "2026-02-30" }), { maker: true }).ok, false);
   for (const method of ["transfer", "tunai", "qris", "lainnya"]) {
-    assert.equal(parsePaymentFields(form({ method }), { edit: false }).ok, true, method);
+    assert.equal(parsePaymentFields(form({ method }), { maker: false }).ok, true, method);
   }
 });
-test("jenis: hanya kosong atau refund; refund butuh hak verifikasi (403)", () => {
-  assert.equal(parsePaymentFields(form({ kind: "dp" }), { edit: true }).ok, false);
-  assert.equal(parsePaymentFields(form({ kind: "pelunasan" }), { edit: true }).ok, false);
-  const denied = parsePaymentFields(form({ kind: "refund" }), { edit: false });
+test("jenis: hanya kosong atau refund; refund butuh hak Maker (403)", () => {
+  assert.equal(parsePaymentFields(form({ kind: "dp" }), { maker: true }).ok, false);
+  assert.equal(parsePaymentFields(form({ kind: "pelunasan" }), { maker: true }).ok, false);
+  const denied = parsePaymentFields(form({ kind: "refund" }), { maker: false });
   assert.deepEqual(denied.ok === false && denied.status, 403);
-  const ok = parsePaymentFields(form({ kind: "refund" }), { edit: true });
+  const ok = parsePaymentFields(form({ kind: "refund" }), { maker: true });
   assert.equal(ok.ok && ok.value.kind, "refund");
 });
 
@@ -659,16 +684,16 @@ test("peringatan kelengkapan: tanpa biaya, biaya belum ditautkan, rugi, dan norm
 });
 
 console.log("panduan (guideTasks.ts)");
-const capsOf = (c: Partial<Record<"view" | "create" | "edit" | "delete", boolean>>, isSuperAdmin = false) => ({
-  view: true, create: false, edit: false, delete: false, ...c, isSuperAdmin,
+const capsOf = (c: Partial<Record<"view" | "maker" | "approver" | "delete", boolean>>, isSuperAdmin = false) => ({
+  view: true, maker: false, approver: false, delete: false, ...c, isSuperAdmin,
 });
 test("tugas disaring menurut hak: lihat saja, hanya-create, hanya-edit, Super Admin", () => {
   const ids = (c: ReturnType<typeof capsOf>) => tasksFor(c).map((t) => t.id).sort();
   assert.deepEqual(ids(capsOf({})), ["w-aging"]);
-  assert.deepEqual(ids(capsOf({ create: true })), ["d-expense", "d-invoice", "d-payment", "w-aging", "w-complete", "w-unbilled"]);
-  assert.deepEqual(ids(capsOf({ edit: true })), ["d-approve", "d-verify", "m-reconcile", "m-report", "w-aging"]);
-  assert.equal(ids(capsOf({ create: true, edit: true, delete: true }, true)).length, TASKS.length);
-  assert.equal(canDo(TASKS.find((t) => t.id === "m-audit")!, capsOf({ create: true, edit: true, delete: true })), false);
+  assert.deepEqual(ids(capsOf({ maker: true })), ["d-expense", "d-invoice", "d-payment", "w-aging", "w-complete", "w-unbilled"]);
+  assert.deepEqual(ids(capsOf({ approver: true })), ["d-approve", "d-verify", "m-reconcile", "m-report", "w-aging"]);
+  assert.equal(ids(capsOf({ maker: true, approver: true, delete: true }, true)).length, TASKS.length);
+  assert.equal(canDo(TASKS.find((t) => t.id === "m-audit")!, capsOf({ maker: true, approver: true, delete: true })), false);
   assert.equal(canDo(TASKS.find((t) => t.id === "m-audit")!, capsOf({}, true)), true);
 });
 test("isi panduan konsisten: id unik, langkah ada, tab tujuan sah, FAQ/aturan/belum-tersedia terisi", () => {
@@ -691,7 +716,7 @@ test("periodKey: harian = tanggal, mingguan = Senin minggu itu (juga lintas tahu
   assert.equal(periodKey("weekly", new Date(2026, 0, 1)), "2025-12-29"); // 1 Jan 2026 (Kamis)
 });
 test("pruneDone: centang periode berjalan dipertahankan; periode lama & tugas yang tak berlaku dibuang", () => {
-  const caps = capsOf({ create: true, edit: true });
+  const caps = capsOf({ maker: true, approver: true });
   const tasks = tasksFor(caps);
   const now = new Date(2026, 9, 22);
   const t = tasks.find((x) => x.id === "d-payment")!;

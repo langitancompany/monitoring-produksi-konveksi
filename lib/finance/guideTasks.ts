@@ -8,7 +8,7 @@ import type { FinCaps } from "./caps";
 
 export type GuideTarget = "overview" | "invoices" | "payments" | "verify" | "expenses" | "report" | "audit" | "info";
 export type Freq = "daily" | "weekly" | "monthly";
-export type Needs = "create" | "edit" | "super_admin";
+export type Needs = "maker" | "approver" | "super_admin";
 
 export interface GuideTask {
   id: string;
@@ -27,7 +27,7 @@ export const FREQ_PERIOD_HINT: Record<Freq, string> = { daily: "hari ini", weekl
 export const TASKS: GuideTask[] = [
   // ───────────── Harian ─────────────
   {
-    id: "d-verify", freq: "daily", needs: "edit",
+    id: "d-verify", freq: "daily", needs: "approver",
     title: "Proses antrean verifikasi pembayaran",
     why: "Pembayaran baru belum dihitung sebagai uang masuk sampai diverifikasi.",
     steps: [
@@ -39,7 +39,7 @@ export const TASKS: GuideTask[] = [
     go: { tab: "verify", label: "Buka antrean" },
   },
   {
-    id: "d-approve", freq: "daily", needs: "edit",
+    id: "d-approve", freq: "daily", needs: "approver",
     title: "Setujui atau tolak pengeluaran",
     why: "Pengeluaran yang belum disetujui tidak dihitung di laporan.",
     steps: [
@@ -50,7 +50,7 @@ export const TASKS: GuideTask[] = [
     go: { tab: "expenses", pending: true, label: "Buka antrean" },
   },
   {
-    id: "d-invoice", freq: "daily", needs: "create",
+    id: "d-invoice", freq: "daily", needs: "maker",
     title: "Terbitkan tagihan untuk pesanan baru",
     why: "Pembayaran hanya bisa dicatat pada pesanan yang sudah punya tagihan.",
     steps: [
@@ -62,7 +62,7 @@ export const TASKS: GuideTask[] = [
     go: { tab: "invoices", label: "Buka Tagihan" },
   },
   {
-    id: "d-payment", freq: "daily", needs: "create",
+    id: "d-payment", freq: "daily", needs: "maker",
     title: "Catat pembayaran yang masuk",
     why: "Uang yang diterima tetapi tidak dicatat tidak akan muncul di laporan.",
     steps: [
@@ -74,7 +74,7 @@ export const TASKS: GuideTask[] = [
     go: { tab: "invoices", label: "Buka Tagihan" },
   },
   {
-    id: "d-expense", freq: "daily", needs: "create",
+    id: "d-expense", freq: "daily", needs: "maker",
     title: "Catat pengeluaran hari ini",
     why: "Biaya yang tidak dicatat membuat laba terlihat lebih besar dari kenyataan.",
     steps: [
@@ -99,7 +99,7 @@ export const TASKS: GuideTask[] = [
     go: { tab: "overview", label: "Buka Ringkasan" },
   },
   {
-    id: "w-unbilled", freq: "weekly", needs: "create",
+    id: "w-unbilled", freq: "weekly", needs: "maker",
     title: "Tagih pesanan yang belum ditagih",
     why: "Pesanan tanpa tagihan tidak tercatat sebagai pendapatan.",
     steps: [
@@ -109,7 +109,7 @@ export const TASKS: GuideTask[] = [
     go: { tab: "invoices", label: "Buka Tagihan" },
   },
   {
-    id: "w-complete", freq: "weekly", needs: "create",
+    id: "w-complete", freq: "weekly", needs: "maker",
     title: "Pastikan pengeluaran minggu ini lengkap",
     why: "Laporan laba hanya seakurat kelengkapan biaya yang dicatat.",
     steps: [
@@ -120,7 +120,7 @@ export const TASKS: GuideTask[] = [
   },
   // ───────────── Bulanan ─────────────
   {
-    id: "m-reconcile", freq: "monthly", needs: "edit",
+    id: "m-reconcile", freq: "monthly", needs: "approver",
     title: "Cocokkan kas dan bank dengan mutasi",
     why: "Selisih menandakan ada transaksi yang belum dicatat atau salah catat.",
     steps: [
@@ -131,7 +131,7 @@ export const TASKS: GuideTask[] = [
     go: { tab: "overview", label: "Buka Ringkasan" },
   },
   {
-    id: "m-report", freq: "monthly", needs: "edit",
+    id: "m-report", freq: "monthly", needs: "approver",
     title: "Periksa laporan bulan ini",
     why: "Mendeteksi biaya yang belum lengkap dan pesanan yang merugi.",
     steps: [
@@ -168,7 +168,7 @@ export const FAQ: { q: string; a: string }[] = [
   { q: "Harga pada tagihan salah.",
     a: "Klik Revisi tagihan pada pesanan itu dan isi alasannya. Versi lama tetap tersimpan di Riwayat tagihan." },
   { q: "Pelanggan meminta uangnya dikembalikan.",
-    a: "Catat sebagai Refund lewat kotak centang pada form pembayaran. Hanya pemegang hak Verifikasi yang bisa, dan nominalnya tidak boleh melebihi uang yang sudah terverifikasi." },
+    a: "Catat sebagai Refund lewat kotak centang pada form pembayaran. Bisa dicatat oleh Maker (lalu diverifikasi Approver), dan nominalnya tidak boleh melebihi uang yang sudah terverifikasi." },
   { q: "Pembayaran sudah dicatat tetapi Terbayar belum bertambah.",
     a: "Pembayaran masih menunggu verifikasi. Nominalnya baru dihitung setelah diverifikasi." },
   { q: "Laba di laporan terlihat terlalu besar.",

@@ -59,11 +59,11 @@ export default function OrderFinancePanel({
   }, [load, version]);
 
   useEffect(() => {
-    if (autoOpenInvoice && detail && caps.create && !autoOpened.current) {
+    if (autoOpenInvoice && detail && caps.maker && !autoOpened.current) {
       autoOpened.current = true;
       setShowInvoice(true);
     }
-  }, [autoOpenInvoice, detail, caps.create]);
+  }, [autoOpenInvoice, detail, caps.maker]);
 
   const changed = useCallback(() => {
     void load();
@@ -98,7 +98,7 @@ export default function OrderFinancePanel({
       {detail.invoice_stale && (
         <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-md px-3 py-2">
           Rincian item pesanan berubah sejak tagihan terbit, jadi tagihan ini mungkin tidak sesuai lagi.
-          {caps.create ? " Terbitkan revisi tagihan." : " Minta bagian keuangan merevisinya."}
+          {caps.maker ? " Terbitkan revisi tagihan." : " Minta bagian keuangan merevisinya."}
         </p>
       )}
 
@@ -162,12 +162,12 @@ export default function OrderFinancePanel({
       ) : (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Pesanan ini belum ditagih.{" "}
-          {caps.create ? "Terbitkan tagihan untuk mulai mencatat pembayaran." : "Hubungi bagian keuangan."}
+          {caps.maker ? "Terbitkan tagihan untuk mulai mencatat pembayaran." : "Hubungi bagian keuangan."}
         </p>
       )}
 
       <div className="flex flex-wrap gap-2">
-        {caps.create && (
+        {caps.maker && (
           <button
             onClick={() => setShowInvoice(true)}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-150"
@@ -176,7 +176,7 @@ export default function OrderFinancePanel({
             {hasInvoice ? "Revisi tagihan" : "Terbitkan tagihan"}
           </button>
         )}
-        {caps.create && hasInvoice && (
+        {caps.maker && hasInvoice && (
           <button
             onClick={() => setShowRecord(true)}
             className={`${smallPrimaryBtnCls} !text-xs !px-3 !py-2 !gap-1.5`}

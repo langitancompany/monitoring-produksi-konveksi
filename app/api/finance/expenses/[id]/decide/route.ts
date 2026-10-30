@@ -1,5 +1,5 @@
 // POST /api/finance/expenses/:id/decide   body: { action: 'approve' | 'reject', reason?: string }
-// Izin: keuangan.edit. Super Admin dikecualikan dari aturan "pencatat ≠ penyetuju".
+// Izin: Approver keuangan. Super Admin dikecualikan dari aturan "pencatat ≠ penyetuju".
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireFinance, finFail, bad, isUuid } from "@/lib/finance/server";
@@ -7,7 +7,7 @@ import { requireFinance, finFail, bad, isUuid } from "@/lib/finance/server";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const guard = await requireFinance(req, "edit");
+  const guard = await requireFinance(req, "approver");
   if (!guard.ok) return guard.response;
   const { actor } = guard;
 

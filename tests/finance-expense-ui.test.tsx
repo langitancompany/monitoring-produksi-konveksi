@@ -38,7 +38,7 @@ const meta = (over: Partial<FinanceMeta> = {}, createCap = true): FinanceMeta =>
     auto_verify_own_payment: false, auto_approve_own_expense: false, expense_proof_required_above: 500_000,
     salary_default_account_code: "KAS",
   },
-  caps: { view: true, create: createCap, edit: true, delete: true, isSuperAdmin: false },
+  caps: { view: true, maker: createCap, approver: true, delete: true, isSuperAdmin: false },
   pending_count: 0,
   pending_expense_count: 0,
   user_id: "u1",
