@@ -22,7 +22,7 @@ Stack sama dengan aplikasi sablon: Next.js 16, React 19, Tailwind 4, Supabase
 | Kerangka halaman | `app/page.tsx` (baru, ringkas), `Sidebar`, `Header` |
 | Profil (nama, alamat, tgl lahir, **no WA**, foto) | `ProfileModal.tsx`, `hooks/useAuth.ts` |
 | Pengaturan → Pengguna, Pengumuman, Notifikasi, Backup | `app/components/settings/*` |
-| Hak akses per modul | `types/index.ts`, `PermissionTable.tsx` |
+| Hak akses per modul | `types/index.ts`, `lib/permissionModules.ts`, `PermissionMatrix.tsx` |
 | Notifikasi (lonceng + push) | `hooks/useNotifications.ts`, `FCMManager.tsx`, `lib/notificationHelper.ts`, `/api/send-notification` |
 | Pindah unit usaha untuk direksi | `UnitSwitcher.tsx`, `hooks/useUnitAccess.ts` (tampil di Header) |
 | Tentang App (2 kolom + sosial media) | `AboutView.tsx`, `lib/changelog.ts` |
@@ -123,7 +123,7 @@ login Supabase Auth **dan** profil `users` dibuat dalam satu langkah. Aturannya:
 3. `Sidebar.tsx` — tambah item menu (ada contoh di komentar).
 4. `app/page.tsx` — render halamannya di bagian "Isi tab".
 5. `Header.tsx` — tambah judul halaman di `pageTitles`.
-6. `PermissionTable.tsx` — baris hak akses (sudah ada untuk modul di atas).
+6. `lib/permissionModules.ts` — tambah modul di `MODULE_DEFS` (muncul di matriks dan modal "Tambah Akses Modul").
 
 Tipe pesanan/produksi konveksi dibuat sendiri di `types/` — jangan menyalin
 `Order` dari sablon (isinya DTF, gesut, merchandise).

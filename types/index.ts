@@ -57,7 +57,7 @@ interface ModuleTrash {
 // ─── Definisi Hak Akses ──────────────────────────────────────────────────────
 // CARA MENAMBAH MODUL BARU (mis. "gudang"):
 //   1. tambah key di sini + di DEFAULT_PERMISSIONS di bawah
-//   2. tambah baris di MODULES — app/components/settings/PermissionTable.tsx
+//   2. tambah satu objek di MODULE_DEFS — lib/permissionModules.ts
 //   3. tambah menu di Sidebar — app/components/layout/Sidebar.tsx
 //   4. tambah id tab di lib/tabs.ts dan render-nya di app/page.tsx
 // User lama otomatis dapat nilai default modul baru (lihat resolvePermissions).

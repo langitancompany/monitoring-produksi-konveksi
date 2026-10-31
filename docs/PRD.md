@@ -64,7 +64,7 @@ penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.
 5. **Tahapan produksi hanya didefinisikan di `lib/steps.ts`.** Status pesanan
    selalu dihitung `deriveStatus()`, tidak pernah diisi manual.
 6. **Menambah modul/halaman:** `types/index.ts` (hak akses) → `lib/tabs.ts` →
-   `Sidebar.tsx` → `Header.tsx` (judul) → `PermissionTable.tsx` → render di
+   `Sidebar.tsx` → `Header.tsx` (judul) → `lib/permissionModules.ts` (MODULE_DEFS) → render di
    `app/page.tsx`.
 7. **Verifikasi tiap bagian:** `npm install`, `npx tsc --noEmit` (wajib bersih).
    `next build` butuh akses Google Fonts; di lingkungan offline matikan font

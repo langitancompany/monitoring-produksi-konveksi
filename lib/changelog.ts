@@ -26,6 +26,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       "Izin Keuangan kini punya dua peran terpisah di tabel hak akses: Maker dan Approver. Maker boleh menerbitkan/merevisi tagihan dan mencatat pembayaran & pengeluaran. Approver boleh memverifikasi atau menolak pembayaran & pengeluaran, serta melihat Laporan. Refund dicatat oleh Maker dan tetap harus diverifikasi Approver.",
       "Punya akses menu Keuangan (Lihat) saja tidak lagi otomatis boleh membuat tagihan atau memverifikasi. Pemisahan ini dicek di server, bukan hanya menyembunyikan tombol.",
+      "Tampilan Pengaturan → Pengguna dirombak: daftar user (cari + halaman) dengan ikon kunci \"Lihat Akses\", lalu halaman detail berisi Informasi Pengguna dan Hak Akses Modul berbentuk toggle. Maker dan Approver satu baris dengan Keuangan.",
+      "Modul ditambahkan lewat modal \"Tambah Akses Modul\": pilih satu atau banyak modul sekaligus (atau Pilih Semua), tentukan izin awal, lalu simpan. Ikon sampah di tiap baris mencabut akses modul itu. Perubahan baru tersimpan setelah klik Simpan Perubahan.",
       "User yang sebelumnya punya Keuangan: Buat otomatis menjadi Maker, dan yang punya Keuangan: Edit menjadi Approver, sehingga akses mereka tidak berubah. Jalankan migration 020 agar tersimpan permanen.",
     ],
   },
