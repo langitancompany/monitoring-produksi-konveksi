@@ -34,6 +34,12 @@ export interface TariffTier {
   label: string;
   /** ukuran yang termasuk kelompok ini, mis. ["S","M"] */
   ukuran: string[];
+  /**
+   * @deprecated Kelompok tidak lagi menyimpan harga — harga diisi per pesanan di form tagihan (migration 022).
+   * Field ini hanya ada supaya kode lama yang masih membacanya tetap bisa dikompilasi; nilainya SELALU 0 dan
+   * tidak dipakai perhitungan apa pun.
+   */
+  harga: number;
   sort_order?: number;
 }
 

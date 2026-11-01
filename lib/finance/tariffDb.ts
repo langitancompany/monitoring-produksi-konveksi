@@ -10,7 +10,7 @@ type DbError = { message?: string; code?: string };
 export async function loadTariff(): Promise<{ tariff: Tariff; error: DbError | null; missing: boolean }> {
   const admin = getSupabaseAdmin();
   const [t, a] = await Promise.all([
-    admin.from("finance_price_tiers").select("id, jenis_produksi, varian, label, ukuran, sort_order").order("sort_order", { ascending: true }),
+    admin.from("finance_price_tiers").select("id, jenis_produksi, varian, label, ukuran, harga, sort_order").order("sort_order", { ascending: true }),
     admin.from("finance_price_addons").select("id, jenis_produksi, keyword, label, tambahan, sort_order").order("sort_order", { ascending: true }),
   ]);
   const err = t.error || a.error;
@@ -20,8 +20,9 @@ export async function loadTariff(): Promise<{ tariff: Tariff; error: DbError | n
   }
   return {
     tariff: {
-      tiers: ((t.data ?? []) as TariffTier[]).map((r) => ({
+      tiers: ((t.data ?? []) as (Omit<TariffTier, "harga"> & { harga?: number | string | null })[]).map((r) => ({
         ...r,
+        harga: 0, // tidak dipakai lagi (lihat TariffTier.harga)
         ukuran: Array.isArray(r.ukuran) ? r.ukuran.map(String) : [],
       })),
       addons: ((a.data ?? []) as (Omit<TariffAddon, "tambahan"> & { tambahan: number | string })[]).map((r) => ({

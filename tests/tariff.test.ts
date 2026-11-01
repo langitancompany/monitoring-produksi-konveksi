@@ -23,7 +23,7 @@ function test(name: string, fn: () => void) {
 
 let tierSeq = 0;
 const tier = (jenis: string, label: string, ukuran: string[], varian: string | null = null): TariffTier => ({
-  id: `t${++tierSeq}`, jenis_produksi: jenis, varian, label, ukuran,
+  id: `t${++tierSeq}`, jenis_produksi: jenis, varian, label, ukuran, harga: 0,
 });
 
 const tariff: Tariff = {
