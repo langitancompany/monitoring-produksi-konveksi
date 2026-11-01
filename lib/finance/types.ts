@@ -4,6 +4,7 @@
 
 import type { FinanceSettings } from "./validate";
 import type { InvoiceLine } from "./pricing";
+import type { Tariff } from "./tariff";
 import type { OrderItem } from "@/types/order";
 export type { FinanceSettings } from "./validate";
 
@@ -103,6 +104,8 @@ export interface OrderFinanceDetail {
   payments: PaymentRow[];
   /** true bila item pesanan berubah setelah tagihan aktif terbit → sarankan revisi */
   invoice_stale: boolean;
+  /** daftar harga per kelompok ukuran (pratinjau tagihan); kosong = semua item memakai harga manual */
+  tariff?: Tariff;
 }
 
 export const PAYMENT_STATUS_LABEL: Record<OrderPaymentStatus, string> = {
@@ -317,7 +320,7 @@ export interface AuditRow {
 }
 
 /** Jenis catatan yang saat ini ditulis fungsi database (bertambah di langkah 6.7–6.8). */
-export const AUDIT_ENTITIES = ["payment", "invoice", "expense", "vendor", "export", "settings"] as const;
+export const AUDIT_ENTITIES = ["payment", "invoice", "expense", "vendor", "export", "settings", "tariff"] as const;
 
 export const AUDIT_ENTITY_LABEL: Record<string, string> = {
   payment: "Pembayaran",
@@ -326,6 +329,7 @@ export const AUDIT_ENTITY_LABEL: Record<string, string> = {
   vendor: "Vendor",
   export: "Ekspor data",
   settings: "Pengaturan",
+  tariff: "Daftar harga",
 };
 
 export const AUDIT_ACTION_LABEL: Record<string, string> = {
@@ -342,6 +346,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "vendor.create": "Tambah vendor",
   "export.excel": "Ekspor Excel",
   "settings.invoice": "Ubah pengaturan invoice",
+  "tariff.save": "Ubah daftar harga",
 };
 
 /** Respons GET /api/finance/todo (dihitung database oleh fin_todo). */

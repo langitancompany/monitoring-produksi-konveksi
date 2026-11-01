@@ -18,7 +18,9 @@ import {
   alignRincian,
   emptyRincian,
   hasUkuran,
+  hasModel,
   hasVarian,
+  hasWarna,
   isCustomType,
   newItemId,
   ukuranList,
@@ -348,7 +350,10 @@ function RincianBlocks({
   onChange: (r: ItemRincian[]) => void;
 }) {
   const withVarian = hasVarian(type);
+  const withModel = hasModel(type);
+  const withWarna = hasWarna(type);
   const varianList = type?.varian ?? [];
+  const warnaList = type?.varian_warna ?? [];
 
   const patch = (idx: number, p: Partial<ItemRincian>) =>
     onChange(rincian.map((r, i) => (i === idx ? { ...r, ...p } : r)));
@@ -367,18 +372,20 @@ function RincianBlocks({
       ),
     );
 
-  // Varian biasa hanya boleh dipakai satu blok; "Lainnya" boleh berkali-kali (nama bebas).
-  const takenElsewhere = (idx: number) =>
+  // Kombinasi varian + warna yang sama hanya boleh satu blok; "Lainnya" boleh berkali-kali (nama bebas).
+  const warnaTaken = (idx: number) =>
     new Set(
       rincian
-        .filter((_, i) => i !== idx)
-        .map((r) => r.varian)
-        .filter((v) => v && v !== VARIAN_LAINNYA),
+        .filter((x, i) => i !== idx && x.varian === rincian[idx]?.varian)
+        .map((x) => x.warna)
+        .filter((w) => w && w !== VARIAN_LAINNYA),
     );
+  const modelOpts = withModel ? varianList : [undefined];
+  const warnaOpts = withWarna ? warnaList : [undefined];
   const allVarianUsed =
-    varianList.every((v) =>
-      v === VARIAN_LAINNYA ? false : rincian.some((r) => r.varian === v),
-    ) && !varianList.includes(VARIAN_LAINNYA);
+    !varianList.includes(VARIAN_LAINNYA) &&
+    !warnaList.includes(VARIAN_LAINNYA) &&
+    modelOpts.every((m) => warnaOpts.every((w) => rincian.some((r) => (r.varian ?? undefined) === m && (r.warna ?? undefined) === w)));
 
   return (
     <div className="space-y-3">
@@ -389,47 +396,71 @@ function RincianBlocks({
         >
           {withVarian && (
             <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-              <div
-                className={`grid gap-2 ${r.varian === VARIAN_LAINNYA ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}
-              >
-                <div>
-                  <label className={labelCls}>Varian</label>
-                  <select
-                    disabled={disabled}
-                    className={inputCls}
-                    value={r.varian ?? ""}
-                    onChange={(e) =>
-                      patch(idx, {
-                        varian: e.target.value || undefined,
-                        varian_lain: undefined,
-                      })
-                    }
-                  >
-                    <option value="">Pilih varian…</option>
-                    {varianList
-                      .filter(
-                        (v) =>
-                          v === VARIAN_LAINNYA || !takenElsewhere(idx).has(v),
-                      )
-                      .map((v) => (
-                        <option key={v} value={v}>
-                          {v}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                {r.varian === VARIAN_LAINNYA && (
-                  <div>
-                    <label className={labelCls}>Nama varian</label>
-                    <input
-                      disabled={disabled}
-                      className={inputCls}
-                      value={r.varian_lain ?? ""}
-                      onChange={(e) =>
-                        patch(idx, { varian_lain: e.target.value })
-                      }
-                      placeholder="mis. Hijau, Cokelat"
-                    />
+              <div className={`grid gap-2 grid-cols-1 ${withModel && withWarna ? "sm:grid-cols-2" : ""}`}>
+                {withModel && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className={labelCls}>Varian</label>
+                      <select
+                        disabled={disabled}
+                        className={inputCls}
+                        value={r.varian ?? ""}
+                        onChange={(e) => patch(idx, { varian: e.target.value || undefined, varian_lain: undefined })}
+                      >
+                        <option value="">Pilih varian…</option>
+                        {varianList.map((v) => (
+                          <option key={v} value={v}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {r.varian === VARIAN_LAINNYA && (
+                      <div>
+                        <label className={labelCls}>Nama varian</label>
+                        <input
+                          disabled={disabled}
+                          className={inputCls}
+                          value={r.varian_lain ?? ""}
+                          onChange={(e) => patch(idx, { varian_lain: e.target.value })}
+                          placeholder="mis. 3/4"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {withWarna && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className={labelCls}>Warna</label>
+                      <select
+                        disabled={disabled}
+                        className={inputCls}
+                        value={r.warna ?? ""}
+                        onChange={(e) => patch(idx, { warna: e.target.value || undefined, warna_lain: undefined })}
+                      >
+                        <option value="">Pilih warna…</option>
+                        {warnaList
+                          .filter((w) => w === VARIAN_LAINNYA || !warnaTaken(idx).has(w))
+                          .map((w) => (
+                            <option key={w} value={w}>
+                              {w}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    {r.warna === VARIAN_LAINNYA && (
+                      <div>
+                        <label className={labelCls}>Nama warna</label>
+                        <input
+                          disabled={disabled}
+                          className={inputCls}
+                          value={r.warna_lain ?? ""}
+                          onChange={(e) => patch(idx, { warna_lain: e.target.value })}
+                          placeholder="mis. Hijau, Cokelat"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

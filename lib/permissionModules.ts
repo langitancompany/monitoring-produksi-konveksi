@@ -65,7 +65,7 @@ export const MODULE_DEFS: ModuleDef[] = [
       delete: "Void (batalkan) transaksi",
     },
   },
-  { key: "config_harga", label: "Config Harga", columns: { edit: "Edit rate gaji" } },
+  { key: "config_harga", label: "Config Harga", columns: { edit: "Edit rate gaji & harga" } },
   { key: "logs", label: "Log Aktivitas", columns: {} },
   { key: "trash", label: "Sampah", columns: { delete: "Hapus permanen" } },
   {

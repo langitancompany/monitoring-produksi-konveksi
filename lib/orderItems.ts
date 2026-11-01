@@ -57,8 +57,17 @@ export function hasUkuran(type: ProductionTypeData | undefined, item?: Pick<Orde
   return ukuranList(type, item).length > 0;
 }
 
-export function hasVarian(type: ProductionTypeData | undefined): boolean {
+/** Varian 1 (model: Panjang/Pendek/1/3). */
+export function hasModel(type: ProductionTypeData | undefined): boolean {
   return !isCustomType(type) && (type?.varian?.length ?? 0) > 0;
+}
+/** Varian 2 (warna). */
+export function hasWarna(type: ProductionTypeData | undefined): boolean {
+  return !isCustomType(type) && (type?.varian_warna?.length ?? 0) > 0;
+}
+/** Jenis ini punya salah satu dari Varian 1 / Varian 2, jadi rincian dipecah per blok varian. */
+export function hasVarian(type: ProductionTypeData | undefined): boolean {
+  return hasModel(type) || hasWarna(type);
 }
 
 /** Judul item untuk tampilan: nama model untuk pesanan umum, selain itu nama jenisnya. */
@@ -68,23 +77,85 @@ export function itemTitle(it: OrderItem, types: ProductionTypeData[]): string {
   return name;
 }
 
-/** Nama varian untuk ditampilkan ("Lainnya" + nama bebas → "Lainnya: Hijau"). */
-export function varianLabel(r: Pick<ItemRincian, "varian" | "varian_lain">): string {
-  if (!r.varian) return "";
-  const lain = r.varian_lain?.trim();
-  return r.varian === VARIAN_LAINNYA && lain ? `${VARIAN_LAINNYA}: ${lain}` : r.varian;
+/** Pilihan siap pakai di Pengaturan → Jenis Produksi. Varian 1 memengaruhi harga; Varian 2 (warna) tidak. */
+export const VARIAN_MODEL_CATALOG = ["Lengan Panjang", "Lengan Panjang Rib", "Pendek", "1/3"];
+export const VARIAN_WARNA_CATALOG = ["Abu-abu", "Coklat", "Biru", "Putih", "Pramuka"];
+
+/**
+ * Data lama menyimpan semua varian (termasuk warna, mis. Celana Sekolah: Abu-abu, Pramuka, Biru, Lainnya) dalam satu daftar.
+ * Pisahkan untuk form baru: nilai yang ada di katalog warna → Varian 2, sisanya → Varian 1. "Lainnya" ikut Varian 2
+ * bila semua varian lain adalah warna. Bila `warna` sudah terisi (sudah memakai format baru), tidak ada yang dipindah.
+ */
+export function splitLegacyVarian(varian: string[] | null | undefined, warna: string[] | null | undefined): { model: string[]; warna: string[] } {
+  const v = varian ?? [];
+  const w = warna ?? [];
+  if (w.length > 0) return { model: [...v], warna: [...w] };
+  const canon = (x: string) => VARIAN_WARNA_CATALOG.find((c) => sameNameLoose(c, x));
+  const others = v.filter((x) => x !== VARIAN_LAINNYA);
+  const lainnyaIsWarna = others.length > 0 && others.every((x) => canon(x));
+  const model: string[] = [];
+  const out: string[] = [];
+  for (const x of v) {
+    const c = canon(x);
+    if (c) out.push(c);
+    else if (x === VARIAN_LAINNYA && lainnyaIsWarna) out.push(x);
+    else model.push(x);
+  }
+  return { model, warna: out };
+}
+const sameNameLoose = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+const lainLabel = (v: string | undefined, lain: string | undefined): string => {
+  if (!v) return "";
+  const l = lain?.trim();
+  return v === VARIAN_LAINNYA && l ? `${VARIAN_LAINNYA}: ${l}` : v;
+};
+
+/** Nama Varian 1 saja ("Lainnya" + nama bebas → "Lainnya: Hijau"). */
+export function modelLabel(r: Pick<ItemRincian, "varian" | "varian_lain">): string {
+  return lainLabel(r.varian, r.varian_lain);
+}
+/** Nama Varian 2 (warna) saja. */
+export function warnaLabel(r: Pick<ItemRincian, "warna" | "warna_lain">): string {
+  return lainLabel(r.warna, r.warna_lain);
 }
 
-/** Kunci pembeda blok varian (untuk mencegah varian yang sama dua kali). */
+/** Nama varian untuk ditampilkan: Varian 1 + warna, mis. "Panjang · Abu-abu". */
+export function varianLabel(r: Pick<ItemRincian, "varian" | "varian_lain" | "warna" | "warna_lain">): string {
+  return [modelLabel(r), warnaLabel(r)].filter(Boolean).join(" · ");
+}
+
+/** Kunci pembeda blok varian (untuk mencegah kombinasi varian + warna yang sama dua kali). */
 function varianKey(r: ItemRincian): string {
-  return `${r.varian ?? ""}|${r.varian === VARIAN_LAINNYA ? (r.varian_lain ?? "").trim().toLowerCase() : ""}`;
+  const m = `${r.varian ?? ""}|${r.varian === VARIAN_LAINNYA ? (r.varian_lain ?? "").trim().toLowerCase() : ""}`;
+  const w = `${r.warna ?? ""}|${r.warna === VARIAN_LAINNYA ? (r.warna_lain ?? "").trim().toLowerCase() : ""}`;
+  return `${m}#${w}`;
+}
+
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * Pesanan lama (sebelum ada Varian 2) menyimpan warna di `varian`. Bila jenisnya kini punya daftar warna dan nilai itu
+ * ada di sana (bukan di Varian 1), pindahkan ke `warna` supaya harga tidak ikut terpecah per warna.
+ */
+export function normalizeRincianVarian(r: ItemRincian, type: ProductionTypeData | undefined): ItemRincian {
+  if (!hasWarna(type) || !r.varian || r.warna) return r;
+  const models = type?.varian ?? [];
+  const warna = type?.varian_warna ?? [];
+  if (models.some((m) => sameName(m, r.varian!))) return r;
+  const hit = warna.find((w) => sameName(w, r.varian!));
+  if (!hit) return r;
+  const { varian: _v, varian_lain, ...rest } = r;
+  void _v;
+  return { ...rest, warna: hit, ...(varian_lain ? { warna_lain: varian_lain } : {}) };
 }
 
 /** Blok rincian kosong (semua ukuran jumlah 0). `ukuran` bawaan = ukuran jenisnya; pesanan umum mengisi ukuran bagian. */
-export function emptyRincian(type: ProductionTypeData | undefined, varian?: string, ukuran?: string[]): ItemRincian {
+export function emptyRincian(type: ProductionTypeData | undefined, varian?: string, ukuran?: string[], warna?: string): ItemRincian {
   return {
     id: newItemId(),
     ...(varian ? { varian } : {}),
+    ...(warna ? { warna } : {}),
     ukuran: (ukuran ?? type?.ukuran ?? []).map((u) => ({ ukuran: u, jumlah: 0 })),
   };
 }
@@ -96,7 +167,8 @@ export function emptyRincian(type: ProductionTypeData | undefined, varian?: stri
  */
 export function alignRincian(rincian: ItemRincian[], type: ProductionTypeData | undefined, item?: Pick<OrderItem, "bagian">): ItemRincian[] {
   const master = ukuranList(type, item);
-  return rincian.map((r) => {
+  return rincian.map((r0) => {
+    const r = normalizeRincianVarian(r0, type);
     const byName = new Map(r.ukuran.map((u) => [u.ukuran, u.jumlah]));
     const ordered: UkuranQty[] = master.map((u) => ({ ukuran: u, jumlah: byName.get(u) ?? 0 }));
     const extra = r.ukuran.filter((u) => !master.includes(u.ukuran) && (Number(u.jumlah) || 0) > 0);
@@ -173,10 +245,16 @@ export function validateItems(
     if (rincian.length > 0) {
       const keys = new Set<string>();
       for (const r of rincian) {
-        if (hasVarian(type)) {
+        if (hasModel(type)) {
           if (!r.varian) return `Pilih varian untuk setiap blok ${name}.`;
           if (r.varian === VARIAN_LAINNYA && !r.varian_lain?.trim()) {
             return `Tulis nama varian "Lainnya" untuk ${name}.`;
+          }
+        }
+        if (hasWarna(type)) {
+          if (!r.warna) return `Pilih warna untuk setiap blok ${name}.`;
+          if (r.warna === VARIAN_LAINNYA && !r.warna_lain?.trim()) {
+            return `Tulis nama warna "Lainnya" untuk ${name}.`;
           }
         }
         const k = varianKey(r);
@@ -188,7 +266,7 @@ export function validateItems(
           }
         }
         if (sumUkuran(r.ukuran) < 1) {
-          return `${name}${r.varian ? ` (${varianLabel(r)})` : ""}: isi minimal satu ukuran, atau hapus blok yang kosong.`;
+          return `${name}${varianLabel(r) ? ` (${varianLabel(r)})` : ""}: isi minimal satu ukuran, atau hapus blok yang kosong.`;
         }
       }
       continue;
@@ -210,10 +288,13 @@ export function cleanItems(items: OrderItem[]): OrderItem[] {
     const rincian: ItemRincian[] = (it.rincian ?? [])
       .map((r) => {
         const lain = r.varian === VARIAN_LAINNYA ? r.varian_lain?.trim() : "";
+        const warnaLain = r.warna === VARIAN_LAINNYA ? r.warna_lain?.trim() : "";
         return {
           id: r.id,
           ...(r.varian ? { varian: r.varian } : {}),
           ...(lain ? { varian_lain: lain } : {}),
+          ...(r.warna ? { warna: r.warna } : {}),
+          ...(warnaLain ? { warna_lain: warnaLain } : {}),
           ukuran: r.ukuran
             .filter((u) => (Number(u.jumlah) || 0) > 0)
             .map((u) => ({ ukuran: u.ukuran, jumlah: Number(u.jumlah) })),

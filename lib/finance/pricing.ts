@@ -7,6 +7,7 @@
 // SQL — ubah salah satu, ubah keduanya (migration 010).
 
 import type { OrderItem } from "@/types/order";
+import { itemUsesTariff, tariffLines, type Tariff, type TierPrices } from "./tariff";
 
 /** Satu baris tagihan (disimpan dibekukan di order_invoices.pricing_snapshot). */
 export interface InvoiceLine {
@@ -16,6 +17,14 @@ export interface InvoiceLine {
   jumlah: number;
   harga_per_pcs: number;
   subtotal: number;
+  /** true = dihitung per kelompok ukuran (harga dasar diisi di form tagihan + tambahan varian); satu item bisa punya beberapa baris */
+  auto?: boolean;
+  /** hanya baris auto: kunci grup (varian × kelompok), dipakai mengisi ulang harga saat revisi */
+  group_key?: string;
+  /** hanya baris auto: harga dasar per pcs yang diisi di form tagihan (sebelum tambahan varian) */
+  harga_dasar?: number;
+  /** hanya baris auto: biaya tambahan varian per pcs (harga_per_pcs = harga_dasar + tambahan) */
+  tambahan?: number;
 }
 
 export interface InvoiceCalc {
@@ -38,12 +47,18 @@ const isPrice = (v: unknown): v is number =>
  * @param items    baris item pesanan saat ini
  * @param prices   { id item: harga per pcs }
  * @param nameOf   nama tampilan jenis produksi (untuk pesan galat & rincian); bawaan: kode jenisnya
+ * @param tariff   kelompok ukuran & biaya tambahan; item yang punya rincian ukuran & jenisnya sudah punya
+ *                 kelompok dihitung per kelompok (harga di `prices` untuk item itu diabaikan), sisanya harga manual
+ * @param tierPrices harga dasar per grup (varian × kelompok) untuk item yang dihitung per kelompok:
+ *                 { id item: { group_key: harga } }
  */
 export function calcInvoice(
   items: OrderItem[],
   prices: Record<string, unknown>,
   discount: unknown = 0,
   nameOf: (jenis: string) => string = (j) => j,
+  tariff?: Tariff | null,
+  tierPrices: TierPrices = {},
 ): InvoiceCalcResult {
   if (!Array.isArray(items) || items.length === 0) {
     return { ok: false, error: "Pesanan belum punya rincian item. Isi item di Edit Pesanan dulu." };
@@ -61,6 +76,16 @@ export function calcInvoice(
       return { ok: false, error: "Jumlah item pesanan tidak valid." };
     }
     const nama = nameOf(it.jenis_produksi);
+    if (tariff && itemUsesTariff(it, tariff)) {
+      const t = tariffLines(it, tariff, nama, tierPrices?.[it.id] ?? {});
+      if (!t.ok) return { ok: false, error: t.error };
+      for (const l of t.lines) {
+        lines.push(l);
+        subtotal += l.subtotal;
+      }
+      totalPcs += it.jumlah;
+      continue;
+    }
     const price = prices[it.id];
     if (price === undefined || price === null || price === "") {
       return { ok: false, error: `Harga untuk item "${nama}" belum diisi.` };
@@ -80,7 +105,7 @@ export function calcInvoice(
   }
 
   const ids = new Set(items.map((i) => i.id));
-  if (Object.keys(prices).some((k) => !ids.has(k))) {
+  if (Object.keys(prices).some((k) => !ids.has(k)) || Object.keys(tierPrices ?? {}).some((k) => !ids.has(k))) {
     return { ok: false, error: "Rincian item pesanan sudah berubah. Muat ulang lalu isi harga lagi." };
   }
 
@@ -99,10 +124,16 @@ export function calcInvoice(
  */
 export function invoiceIsStale(lines: InvoiceLine[] | null | undefined, items: OrderItem[]): boolean {
   if (!lines || !Array.isArray(lines)) return false;
-  if (lines.length !== items.length) return true;
-  const byId = new Map(lines.map((l) => [l.item_id, l]));
+  // Satu item bisa punya beberapa baris (tarif per kelompok ukuran): jumlahkan per item.
+  const byId = new Map<string, { jumlah: number; jenis: string }>();
+  for (const l of lines) {
+    const cur = byId.get(l.item_id);
+    if (cur) cur.jumlah += l.jumlah;
+    else byId.set(l.item_id, { jumlah: l.jumlah, jenis: l.jenis_produksi });
+  }
+  if (byId.size !== items.length) return true;
   return items.some((it) => {
     const l = byId.get(it.id);
-    return !l || l.jumlah !== it.jumlah || l.jenis_produksi !== it.jenis_produksi;
+    return !l || l.jumlah !== it.jumlah || l.jenis !== it.jenis_produksi;
   });
 }

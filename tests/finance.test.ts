@@ -734,7 +734,7 @@ console.log("kontrak audit: label harus mencakup semua aksi yang ditulis databas
 test("setiap aksi di migration & API punya label, dan jenisnya terdaftar di AUDIT_ENTITIES", () => {
   const dir = join(process.cwd(), "supabase", "migrations");
   const sql = readdirSync(dir).filter((f) => f.endsWith(".sql")).map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
-  const found = new Set([...sql.matchAll(/'((?:invoice|payment|expense|vendor|export|settings)\.[a-z_]+)'/g)].map((m) => m[1]));
+  const found = new Set([...sql.matchAll(/'((?:invoice|payment|expense|vendor|export|settings|tariff)\.[a-z_]+)'/g)].map((m) => m[1]));
   // Aksi yang ditulis route API lewat fin_audit (p_action: "x.y") — dipindai otomatis supaya tak ada yang terlewat.
   const walk = (d: string): string[] =>
     readdirSync(d).flatMap((f) => {

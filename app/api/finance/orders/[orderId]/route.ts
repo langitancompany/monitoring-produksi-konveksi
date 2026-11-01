@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireFinance, finFail, bad, isUuid } from "@/lib/finance/server";
 import { invoiceIsStale } from "@/lib/finance/pricing";
+import { loadTariff } from "@/lib/finance/tariffDb";
 import { PAYMENT_COLUMNS } from "@/lib/finance/payments";
 import { hydratePayments } from "@/lib/finance/paymentsDb";
 import type { OrderFinanceDetail, InvoiceRow } from "@/lib/finance/types";
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ orderId: st
   if (!isUuid(orderId)) return bad("Pesanan tidak valid");
 
   const admin = getSupabaseAdmin();
-  const [fin, order, inv, pay] = await Promise.all([
+  const [fin, order, inv, pay, tar] = await Promise.all([
     admin.from("v_order_finance").select("*").eq("order_id", orderId).maybeSingle(),
     admin
       .from("orders")
@@ -36,8 +37,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ orderId: st
       .eq("order_id", orderId)
       .order("paid_at", { ascending: false })
       .order("recorded_at", { ascending: false }),
+    loadTariff(),
   ]);
-  const err = fin.error || order.error || inv.error || pay.error;
+  const err = fin.error || order.error || inv.error || pay.error || tar.error;
   if (err) return finFail(err);
   if (!fin.data || !order.data) return bad("Pesanan tidak ditemukan", 404);
 
@@ -49,6 +51,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ orderId: st
     invoices,
     payments: await hydratePayments(admin, pay.data ?? []),
     invoice_stale: invoiceIsStale(active?.pricing_snapshot, order.data.items ?? []),
+    tariff: tar.tariff,
   };
   return NextResponse.json(body);
 }

@@ -1,12 +1,16 @@
 // GET  /api/finance/invoices  -> posisi keuangan semua pesanan (tagihan, terbayar, sisa, status)
 // POST /api/finance/invoices  -> terbitkan / revisi tagihan (total DIHITUNG di database)
 //
-// Body POST: { order_id, prices: { "<id item>": harga per pcs }, discount?, due_date?, reason?,
-//              acknowledge_mismatch? }. Revisi (pesanan sudah punya tagihan aktif) WAJIB beralasan.
+// Body POST: { order_id,
+//              prices: { "<id item>": harga per pcs } — hanya item yang TIDAK dihitung per kelompok ukuran,
+//              tier_prices: { "<id item>": { "<group_key>": harga dasar per pcs } } — item yang dihitung per kelompok ukuran
+//                (harga diisi per pesanan di form tagihan; biaya tambahan varian ditambahkan otomatis),
+//              discount?, due_date?, reason?, acknowledge_mismatch? }. Revisi (pesanan sudah punya tagihan aktif) WAJIB beralasan.
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireFinance, finFail, bad, isUuid, isDate } from "@/lib/finance/server";
 import { calcInvoice } from "@/lib/finance/pricing";
+import { loadTariff } from "@/lib/finance/tariffDb";
 import type { OrderItem } from "@/types/order";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +36,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body || !isUuid(body.order_id)) return bad("Pesanan tidak valid");
   if (!body.prices || typeof body.prices !== "object" || Array.isArray(body.prices)) return bad("Harga per item wajib diisi");
+  if (body.tier_prices != null && (typeof body.tier_prices !== "object" || Array.isArray(body.tier_prices))) {
+    return bad("Harga per kelompok ukuran tidak valid");
+  }
+  const tierPrices = (body.tier_prices ?? {}) as Record<string, Record<string, unknown>>;
+  if (Object.values(tierPrices).some((v) => !v || typeof v !== "object" || Array.isArray(v))) {
+    return bad("Harga per kelompok ukuran tidak valid");
+  }
   if (body.due_date != null && !isDate(body.due_date)) return bad("Tanggal jatuh tempo tidak valid");
   const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : "";
 
@@ -45,7 +56,10 @@ export async function POST(req: NextRequest) {
   if (!order || order.deleted_at) return bad("Pesanan tidak ditemukan", 404);
 
   // Pemeriksaan awal (aturan sama dengan fungsi SQL) supaya pesan galat jelas. Angka tetap dihitung ulang database.
-  const calc = calcInvoice((order.items ?? []) as OrderItem[], body.prices, body.discount ?? 0);
+  // Kelompok ukuran + harga dasar per grup dari form tagihan; angka resmi tetap dihitung database dari tabel yang sama.
+  const { tariff, error: tErr } = await loadTariff();
+  if (tErr) return finFail(tErr);
+  const calc = calcInvoice((order.items ?? []) as OrderItem[], body.prices, body.discount ?? 0, undefined, tariff, tierPrices);
   if (!calc.ok) return bad(calc.error);
   if (order.jumlah !== calc.calc.totalPcs && body.acknowledge_mismatch !== true) {
     return bad(
@@ -60,6 +74,7 @@ export async function POST(req: NextRequest) {
     p_actor: actor.userId,
     p_actor_name: actor.name,
     p_prices: body.prices,
+    p_tier_prices: tierPrices,
     p_discount: body.discount ?? 0,
     p_reason: reason || null,
     p_due_date: body.due_date ?? null,

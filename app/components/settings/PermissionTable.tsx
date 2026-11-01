@@ -119,7 +119,7 @@ const MODULES: ModuleDef[] = [
     hasCreate: false,
     hasEdit: true,
     hasDelete: false,
-    editLabel: "Edit rate gaji",
+    editLabel: "Edit rate gaji & harga",
   },
   {
     key: "logs",

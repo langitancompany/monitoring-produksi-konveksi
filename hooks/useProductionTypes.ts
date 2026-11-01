@@ -28,7 +28,7 @@ export function useProductionTypes({ supabase, showAlert, showConfirm }: Props) 
 
   /** Tambah (tanpa id) atau ubah nama (dengan id). `value` dibuat otomatis & tidak berubah. */
   const handleSaveType = useCallback(
-    async (t: { id?: string; name: string; kategori: OrderKategori; varian?: string[]; ukuran?: string[]; is_custom?: boolean; bagian?: BagianUkuran[] }) => {
+    async (t: { id?: string; name: string; kategori: OrderKategori; varian?: string[]; varian_warna?: string[]; ukuran?: string[]; is_custom?: boolean; bagian?: BagianUkuran[] }) => {
       const name = t.name.trim();
       if (!name) {
         showAlert("Gagal", "Nama wajib diisi", "error");
@@ -37,6 +37,7 @@ export function useProductionTypes({ supabase, showAlert, showConfirm }: Props) 
       if (t.id) {
         const patch: Record<string, unknown> = { name };
         if (t.varian) patch.varian = t.varian;
+        if (t.varian_warna) patch.varian_warna = t.varian_warna;
         if (t.ukuran) patch.ukuran = t.ukuran;
         if (t.is_custom) patch.bagian = t.bagian ?? [];
         const { error } = await supabase.from("production_types").update(patch).eq("id", t.id);
@@ -51,7 +52,7 @@ export function useProductionTypes({ supabase, showAlert, showConfirm }: Props) 
           ...productionTypes.filter((p) => p.kategori === t.kategori).map((p) => p.sort_order ?? 0),
         );
         const { error } = await supabase.from("production_types").insert([
-          { name, value, kategori: t.kategori, sort_order: maxSort + 1, ...(t.varian ? { varian: t.varian } : {}), ...(t.ukuran ? { ukuran: t.ukuran } : {}), ...(t.is_custom ? { is_custom: true, bagian: t.bagian ?? [] } : {}) },
+          { name, value, kategori: t.kategori, sort_order: maxSort + 1, ...(t.varian ? { varian: t.varian } : {}), ...(t.varian_warna ? { varian_warna: t.varian_warna } : {}), ...(t.ukuran ? { ukuran: t.ukuran } : {}), ...(t.is_custom ? { is_custom: true, bagian: t.bagian ?? [] } : {}) },
         ]);
         if (error) return showAlert("Gagal", error.message, "error");
       }

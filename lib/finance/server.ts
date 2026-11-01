@@ -42,6 +42,35 @@ export async function requireFinance(req: NextRequest, action: FinAction): Promi
   return { ok: true, actor: { userId: auth.userId, name: row.name || "User", caps } };
 }
 
+/**
+ * Daftar harga (tab Harga di menu Config Harga) mengikuti izin menu Config Harga, BUKAN menu Keuangan:
+ * "view" = Lihat, "edit" = Edit. Super Admin selalu lolos. Dicek ke database, bukan ke klien.
+ */
+export async function requireConfigHarga(req: NextRequest, action: "view" | "edit"): Promise<GuardResult> {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth;
+
+  const { data: row, error } = await getSupabaseAdmin()
+    .from("users")
+    .select("name, role, roles, permissions")
+    .eq("id", auth.userId)
+    .maybeSingle();
+  if (error || !row) {
+    return { ok: false, response: NextResponse.json({ error: "Pengguna tidak ditemukan" }, { status: 403 }) };
+  }
+
+  const caps = resolveFinanceCaps(row, row.permissions?.keuangan);
+  const perm = row.permissions?.config_harga as { view?: boolean; edit?: boolean } | undefined;
+  const allowed = caps.isSuperAdmin || (action === "edit" ? perm?.edit === true : perm?.view === true || perm?.edit === true);
+  if (!allowed) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Anda tidak memiliki hak akses ke Config Harga" }, { status: 403 }),
+    };
+  }
+  return { ok: true, actor: { userId: auth.userId, name: row.name || "User", caps } };
+}
+
 /** Error "FIN: ..." dari fungsi database diteruskan ke pengguna; error lain disamarkan. */
 export function finFail(error: { message?: string; code?: string } | null | undefined, fallback?: string) {
   const r = finError(error, fallback);

@@ -1,17 +1,21 @@
 // app/components/finance/InvoiceModal.tsx
 //
 // Terbitkan tagihan baru, atau revisi tagihan aktif (revisi WAJIB beralasan).
-// Beda dengan Sablon: dasar tagihan = BARIS ITEM pesanan (jenis × jumlah × harga per pcs) − diskon,
-// bukan harga dasar + biaya ukuran/lengan. Total di sini hanya pratinjau; angka resmi dihitung
-// ulang database (fin_issue_invoice) dari orders.items saat disimpan.
+// Dasar tagihan = BARIS ITEM pesanan − diskon. HARGA DIISI DI SINI, per pesanan:
+//   • Item yang punya rincian ukuran dan jenisnya sudah punya kelompok ukuran (Config Harga → Harga) dipecah per
+//     (varian × kelompok ukuran); tiap grup diisi harga dasarnya di sini. Biaya tambahan varian (lengan panjang, rib)
+//     ditambahkan otomatis dari Config Harga.
+//   • Item lain memakai satu harga per pcs yang diisi di sini.
+// Total di sini hanya pratinjau; angka resmi dihitung ulang database (fin_issue_invoice) dari orders.items saat disimpan.
 "use client";
 
 import React, { useMemo, useState } from "react";
 import { useDialog } from "@/app/components/ui/DialogProvider";
 import { FinanceApiError, postJson, errMsg } from "@/hooks/useFinanceApi";
 import { calcInvoice } from "@/lib/finance/pricing";
+import { itemUsesTariff, tariffGroups, type TariffGroup } from "@/lib/finance/tariff";
 import type { OrderFinanceDetail } from "@/lib/finance/types";
-import { initialPrices } from "@/lib/finance/view";
+import { initialPrices, initialTierPrices } from "@/lib/finance/view";
 import type { ProductionTypeData } from "@/types/order";
 import { typeLabel } from "@/lib/utils";
 import { CurrencyInput } from "./CurrencyInput";
@@ -35,6 +39,10 @@ export default function InvoiceModal({
   const items = detail.order.items;
 
   const [prices, setPrices] = useState<Record<string, number>>(() => initialPrices(items, active?.pricing_snapshot));
+  // Harga dasar per grup (varian × kelompok ukuran), per item: { id item: { group_key: harga } }
+  const [tierPrices, setTierPrices] = useState<Record<string, Record<string, number>>>(() =>
+    initialTierPrices(items, active?.pricing_snapshot),
+  );
   const [discount, setDiscount] = useState(active?.discount ?? 0);
   const [dueDate, setDueDate] = useState(active?.due_date ?? "");
   const [reason, setReason] = useState("");
@@ -42,22 +50,54 @@ export default function InvoiceModal({
   const [saving, setSaving] = useState(false);
 
   const nameOf = (jenis: string) => typeLabel(jenis, productionTypes);
+  const tariff = detail.tariff;
+
+  // Item yang dihitung per kelompok ukuran: grup per (varian × kelompok), atau galatnya bila ada ukuran yang belum masuk kelompok.
+  const autoRows = useMemo(() => {
+    const m = new Map<string, { groups: TariffGroup[] } | { error: string }>();
+    if (!tariff) return m;
+    for (const it of items) {
+      if (!itemUsesTariff(it, tariff)) continue;
+      const r = tariffGroups(it, tariff, typeLabel(it.jenis_produksi, productionTypes));
+      m.set(it.id, r.ok ? { groups: r.groups } : { error: r.error });
+    }
+    return m;
+  }, [items, tariff, productionTypes]);
+
+  const setTierPrice = (itemId: string, key: string, v: number) =>
+    setTierPrices((p) => ({ ...p, [itemId]: { ...(p[itemId] ?? {}), [key]: v } }));
 
   // Pratinjau: aturan sama dengan fungsi SQL (lib/finance/pricing.ts).
   const calc = useMemo(
-    () => calcInvoice(items, prices, discount, (j) => typeLabel(j, productionTypes)),
-    [items, prices, discount, productionTypes],
+    () => calcInvoice(items, prices, discount, (j) => typeLabel(j, productionTypes), tariff, tierPrices),
+    [items, prices, discount, productionTypes, tariff, tierPrices],
   );
-  const partialSubtotal = items.reduce((n, it) => n + (prices[it.id] ?? 0) * it.jumlah, 0);
+  const partialSubtotal = items.reduce((n, it) => {
+    const a = autoRows.get(it.id);
+    if (a) {
+      if (!("groups" in a)) return n;
+      return n + a.groups.reduce((m, g) => {
+        const base = tierPrices[it.id]?.[g.key] ?? 0;
+        return m + (base > 0 ? (base + g.tambahan) * g.jumlah : 0);
+      }, 0);
+    }
+    return n + (prices[it.id] ?? 0) * it.jumlah;
+  }, 0);
   const totalPcs = items.reduce((n, it) => n + it.jumlah, 0);
 
   const canSubmit = calc.ok && (!isRevision || reason.trim().length >= 3);
 
   // Pesan yang lebih jelas daripada galat umum saat ada harga yang masih kosong.
-  const firstMissing = items.find((it) => !((prices[it.id] ?? 0) > 0));
+  const firstMissing = items.find((it) => !autoRows.has(it.id) && !((prices[it.id] ?? 0) > 0));
+  const firstMissingGroup = items.flatMap((it) => {
+    const a = autoRows.get(it.id);
+    return a && "groups" in a ? a.groups.filter((g) => !((tierPrices[it.id]?.[g.key] ?? 0) > 0)) : [];
+  })[0];
   const hint = firstMissing
     ? `Harga untuk item "${nameOf(firstMissing.jenis_produksi)}" belum diisi.`
-    : !calc.ok
+    : firstMissingGroup
+      ? `Harga untuk "${firstMissingGroup.nama}" belum diisi.`
+      : !calc.ok
       ? calc.error
       : null;
 
@@ -67,6 +107,7 @@ export default function InvoiceModal({
       await postJson("/api/finance/invoices", {
         order_id: detail.order.id,
         prices,
+        tier_prices: tierPrices,
         discount,
         due_date: dueDate || undefined,
         reason: reason.trim() || undefined,
@@ -113,8 +154,8 @@ export default function InvoiceModal({
       <div className="space-y-4">
         {detail.invoice_stale && (
           <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-md px-3 py-2">
-            Rincian item pesanan berubah sejak tagihan terakhir terbit. Harga item yang tidak berubah sudah terisi; isi
-            harga untuk item baru lalu simpan sebagai revisi.
+            Rincian item pesanan berubah sejak tagihan terakhir terbit. Harga yang tidak berubah sudah terisi; isi
+            harga untuk item atau kelompok ukuran yang baru lalu simpan sebagai revisi.
           </p>
         )}
 
@@ -131,27 +172,73 @@ export default function InvoiceModal({
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {items.map((it) => (
-                <tr key={it.id}>
-                  <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200 align-middle">
-                    {nameOf(it.jenis_produksi)}
-                    {it.catatan && <span className="block text-[10px] text-zinc-400">{it.catatan}</span>}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums align-middle">{it.jumlah}</td>
-                  <td className="px-3 py-2 align-middle">
-                    <CurrencyInput
-                      compact
-                      label="Harga per pcs"
-                      ariaLabel={`Harga per pcs ${nameOf(it.jenis_produksi)}`}
-                      value={prices[it.id] ?? 0}
-                      onChange={(v) => setPrices((p) => ({ ...p, [it.id]: v }))}
-                    />
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums align-middle">
-                    {formatRupiah((prices[it.id] ?? 0) * it.jumlah)}
-                  </td>
-                </tr>
-              ))}
+              {items.map((it) => {
+                const auto = autoRows.get(it.id);
+                if (auto && "error" in auto) {
+                  return (
+                    <tr key={it.id}>
+                      <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200 align-middle">{nameOf(it.jenis_produksi)}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums align-middle">{it.jumlah}</td>
+                      <td colSpan={2} className="px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400 align-middle">
+                        {auto.error}
+                      </td>
+                    </tr>
+                  );
+                }
+                if (auto) {
+                  return auto.groups.map((g, i) => {
+                    const base = tierPrices[it.id]?.[g.key] ?? 0;
+                    return (
+                      <tr key={`${it.id}-${g.key}`}>
+                        <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200 align-middle">
+                          {g.nama}
+                          {i === 0 && <span className="block text-[10px] text-zinc-400">Isi harga per kelompok ukuran</span>}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums align-middle">{g.jumlah}</td>
+                        <td className="px-3 py-2 align-middle">
+                          <CurrencyInput
+                            compact
+                            label="Harga per pcs"
+                            ariaLabel={`Harga per pcs ${g.nama}`}
+                            value={base}
+                            onChange={(v) => setTierPrice(it.id, g.key, v)}
+                          />
+                          {g.tambahan > 0 && (
+                            <span className="block text-right text-[10px] text-zinc-400 pt-1">
+                              + {formatRupiah(g.tambahan)} tambahan varian
+                              {base > 0 && <> = {formatRupiah(base + g.tambahan)}</>}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums align-middle">
+                          {formatRupiah(base > 0 ? (base + g.tambahan) * g.jumlah : 0)}
+                        </td>
+                      </tr>
+                    );
+                  });
+                }
+                return (
+                  <tr key={it.id}>
+                    <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200 align-middle">
+                      {nameOf(it.jenis_produksi)}
+                      {it.catatan && <span className="block text-[10px] text-zinc-400">{it.catatan}</span>}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums align-middle">{it.jumlah}</td>
+                    <td className="px-3 py-2 align-middle">
+                      <CurrencyInput
+                        compact
+                        label="Harga per pcs"
+                        ariaLabel={`Harga per pcs ${nameOf(it.jenis_produksi)}`}
+                        value={prices[it.id] ?? 0}
+                        onChange={(v) => setPrices((p) => ({ ...p, [it.id]: v }))}
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums align-middle">
+                      {formatRupiah((prices[it.id] ?? 0) * it.jumlah)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

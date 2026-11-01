@@ -28,6 +28,7 @@ import {
 } from "@/lib/salary";
 import { formatDate, toLocalISODate, typeLabel } from "@/lib/utils";
 import { inputCls, labelCls } from "@/app/components/settings/settingsShared";
+import ConfigTariffPanel from "./ConfigTariffPanel";
 
 interface Props {
   supabase: SupabaseClient;
@@ -74,7 +75,7 @@ function MoneyInput({
   );
 }
 
-export default function ConfigPriceView({
+function SalaryRatesPanel({
   supabase,
   productionTypes,
   users,
@@ -221,7 +222,7 @@ export default function ConfigPriceView({
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Config Harga</h1>
+          <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Gaji produksi</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 max-w-xl">
             Rate gaji per pcs untuk tiap jenis produksi dan tahap. Perubahan disimpan sebagai riwayat baru; gaji
             yang sudah lewat tidak ikut berubah.
@@ -431,6 +432,68 @@ export default function ConfigPriceView({
             </table>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+type ConfigTab = "gaji" | "harga";
+
+/**
+ * Menu Config Harga: dua tab.
+ *  • Gaji  — rate gaji produksi per pcs (tarif yang DIBAYAR ke pekerja)
+ *  • Harga — daftar harga jual per kelompok ukuran + biaya tambahan varian (dasar tagihan di Keuangan)
+ */
+export default function ConfigPriceView(props: Props) {
+  const [tab, setTab] = useState<ConfigTab>("gaji");
+  const tabs: { id: ConfigTab; label: string }[] = [
+    { id: "gaji", label: "Gaji" },
+    { id: "harga", label: "Harga" },
+  ];
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    setTab((t) => (t === "gaji" ? "harga" : "gaji"));
+  };
+
+  return (
+    <div className="space-y-5 pb-20">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Config Harga</h1>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 max-w-xl">
+          Atur rate gaji produksi dan daftar harga jual (dasar tagihan di menu Keuangan).
+        </p>
+      </div>
+
+      <div
+        role="tablist"
+        aria-label="Menu config harga"
+        onKeyDown={onKeyDown}
+        className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-1.5 flex gap-1 w-fit"
+      >
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            id={`cfg-tab-${t.id}`}
+            role="tab"
+            type="button"
+            aria-selected={tab === t.id}
+            aria-controls={`cfg-panel-${t.id}`}
+            onClick={() => setTab(t.id)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors duration-150 ${
+              tab === t.id
+                ? "bg-[#124540] text-white"
+                : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div role="tabpanel" id={`cfg-panel-${tab}`} aria-labelledby={`cfg-tab-${tab}`}>
+        {tab === "gaji" && <SalaryRatesPanel {...props} />}
+        {tab === "harga" && <ConfigTariffPanel productionTypes={props.productionTypes} canEdit={props.canEdit} />}
       </div>
     </div>
   );

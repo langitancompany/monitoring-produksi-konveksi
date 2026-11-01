@@ -138,8 +138,8 @@ export default function OrderFinancePanel({
           {active && (
             <div className="rounded-md border border-zinc-200 dark:border-zinc-800 overflow-hidden">
               <ul className="divide-y divide-zinc-100 dark:divide-zinc-800 text-xs">
-                {active.pricing_snapshot.map((l) => (
-                  <li key={l.item_id} className="px-3 py-2 flex items-center justify-between gap-3">
+                {active.pricing_snapshot.map((l, i) => (
+                  <li key={`${l.item_id}-${i}`} className="px-3 py-2 flex items-center justify-between gap-3">
                     <span className="min-w-0 text-zinc-700 dark:text-zinc-200">
                       {l.nama}
                       <span className="block text-[10px] text-zinc-400 font-mono tabular-nums">

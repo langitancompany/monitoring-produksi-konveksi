@@ -962,3 +962,14 @@ Dibangun di atas kode terakhir (setelah 6.6); tidak ada zip baru dari pemilik se
 3. Bucket storage `production-proofs` (foto bukti) belum dibatasi per pesanan (di luar migration).
 4. Notifikasi lama yang sudah tersimpan di lonceng tidak dihapus.
 5. Pesanan tanpa PJ, tanpa tim, dan tanpa pembuat hanya terlihat pengelola (kueri pemeriksaan ada di komentar migration 017).
+
+
+---
+
+## Catatan perubahan: harga bertingkat diisi per tagihan (migration 022)
+
+- **Config Harga → Harga** hanya mengatur **kelompok ukuran** per jenis produksi (mis. S & M, L & XL, XXL; celana sekolah per kelipatan 5; kelompok khusus varian) dan **biaya tambahan varian** (kata kunci di nama varian → tambahan per pcs, dijumlahkan bila lebih dari satu cocok). Kelompok **tidak menyimpan harga**.
+- **Harga dasar** tiap grup (varian × kelompok ukuran) diisi **per pesanan** di form Terbitkan/Revisi tagihan. `harga_per_pcs` = harga dasar + biaya tambahan varian.
+- API `POST /api/finance/invoices`: `prices` ({id item: harga}) hanya untuk item yang tidak dihitung per kelompok; `tier_prices` ({id item: {group_key: harga dasar}}) untuk item yang dihitung per kelompok. `group_key` = `varian dirapikan | id kelompok` (sama di `lib/finance/tariff.ts` `groupKey()` dan `fin_item_lines` di SQL).
+- `fin_issue_invoice` kini punya parameter `p_tier_prices`; baris snapshot per kelompok menyimpan `group_key`, `harga_dasar`, `tambahan` supaya revisi bisa mengisi ulang harga. Pemeriksaan pembayaran terverifikasi dari migration 011 dikembalikan.
+- Kolom `finance_price_tiers.harga` dibiarkan (nilai 0) demi kompatibilitas, tidak dipakai lagi.

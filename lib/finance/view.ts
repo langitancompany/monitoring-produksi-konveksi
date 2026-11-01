@@ -67,8 +67,26 @@ export function isOverdue(
  * (cocok menurut id item). Item baru / tanpa riwayat = 0 (harus diisi). Tanpa tagihan aktif = semua 0.
  */
 export function initialPrices(items: OrderItem[], active: InvoiceLine[] | null | undefined): Record<string, number> {
-  const byId = new Map((active ?? []).map((l) => [l.item_id, l.harga_per_pcs]));
+  // Baris dari daftar harga (auto) tidak ikut: itu bukan harga satu item, dan dihitung ulang dari tarif.
+  const byId = new Map((active ?? []).filter((l) => !l.auto).map((l) => [l.item_id, l.harga_per_pcs]));
   return Object.fromEntries(items.map((it) => [it.id, byId.get(it.id) ?? 0]));
+}
+
+/**
+ * Harga dasar awal per grup (varian × kelompok ukuran) untuk item yang dihitung per kelompok, diambil dari
+ * tagihan aktif (revisi). Grup baru / tanpa riwayat tidak ada di hasil (harus diisi). Hasil: { id item: { group_key: harga } }.
+ */
+export function initialTierPrices(
+  items: OrderItem[],
+  active: InvoiceLine[] | null | undefined,
+): Record<string, Record<string, number>> {
+  const ids = new Set(items.map((i) => i.id));
+  const out: Record<string, Record<string, number>> = {};
+  for (const l of active ?? []) {
+    if (!l.auto || !l.group_key || !(typeof l.harga_dasar === "number" && l.harga_dasar > 0) || !ids.has(l.item_id)) continue;
+    (out[l.item_id] ??= {})[l.group_key] = l.harga_dasar;
+  }
+  return out;
 }
 
 /** Jumlah uang kas masuk bersih dari transaksi TERVERIFIKASI (refund mengurangi). */

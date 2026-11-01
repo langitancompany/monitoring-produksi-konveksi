@@ -8,12 +8,12 @@ import React, { useState } from "react";
 import { Trash2, Pencil, EyeOff, Eye } from "lucide-react";
 import type { OrderKategori, ProductionTypeData } from "@/types/order";
 import { inputCls, labelCls } from "@/app/components/settings/settingsShared";
-import { formatList, parseList } from "@/lib/orderItems";
+import { formatList, parseList, splitLegacyVarian, VARIAN_LAINNYA, VARIAN_MODEL_CATALOG, VARIAN_WARNA_CATALOG } from "@/lib/orderItems";
 import type { BagianUkuran } from "@/types/order";
 
 interface Props {
   productionTypes: ProductionTypeData[];
-  onSave: (t: { id?: string; name: string; kategori: OrderKategori; varian?: string[]; ukuran?: string[]; is_custom?: boolean; bagian?: BagianUkuran[] }) => void;
+  onSave: (t: { id?: string; name: string; kategori: OrderKategori; varian?: string[]; varian_warna?: string[]; ukuran?: string[]; is_custom?: boolean; bagian?: BagianUkuran[] }) => void;
   onToggle: (t: ProductionTypeData) => void;
   onDelete: (id: string) => void;
 }
@@ -28,12 +28,101 @@ const SECTIONS: { kategori: OrderKategori; title: string; desc: string }[] = [
   { kategori: "non_utama", title: "Kategori Pesanan Non-Utama", desc: "Dipilih saat membuat pesanan non-utama (selempang, permak, dst.)" },
 ];
 
+/** Satu kelompok varian: dicentang untuk dipakai, lalu pilihannya muncul sebagai kotak centang. */
+function VarianGroup({
+  title,
+  hint,
+  catalog,
+  enabled,
+  options,
+  onChange,
+}: {
+  title: string;
+  hint: string;
+  catalog: string[];
+  enabled: boolean;
+  options: string[];
+  onChange: (enabled: boolean, options: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const custom = options.filter((o) => !catalog.includes(o) && o !== VARIAN_LAINNYA);
+  const toggle = (name: string, on: boolean) =>
+    onChange(true, on ? (options.includes(name) ? options : [...options, name]) : options.filter((o) => o !== name));
+  const add = () => {
+    const v = draft.trim();
+    if (!v) return;
+    if (!options.some((o) => o.toLowerCase() === v.toLowerCase())) onChange(true, [...options, v]);
+    setDraft("");
+  };
+  return (
+    <div className="rounded-md border border-zinc-200 dark:border-zinc-800 p-3 space-y-2">
+      <label className="flex items-start gap-2 text-xs text-zinc-700 dark:text-zinc-200">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={enabled}
+          onChange={(e) => onChange(e.target.checked, e.target.checked && options.length === 0 ? [...catalog] : options)}
+        />
+        <span>
+          <span className="font-semibold">{title}</span>
+          <span className="block text-[11px] text-zinc-400 dark:text-zinc-500">{hint}</span>
+        </span>
+      </label>
+      {enabled && (
+        <div className="space-y-2 pl-6">
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {catalog.map((c) => (
+              <label key={c} className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+                <input type="checkbox" checked={options.includes(c)} onChange={(e) => toggle(c, e.target.checked)} />
+                {c}
+              </label>
+            ))}
+            {custom.map((c) => (
+              <label key={c} className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+                <input type="checkbox" checked onChange={() => toggle(c, false)} />
+                {c}
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              className={inputCls}
+              value={draft}
+              maxLength={40}
+              placeholder="Tambah pilihan lain…"
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  add();
+                }
+              }}
+            />
+            <button type="button" onClick={add} className="text-xs font-semibold text-[#124540] dark:text-[#49BFB4] shrink-0 px-2">
+              + Tambah
+            </button>
+          </div>
+          <label className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+            <input type="checkbox" checked={options.includes(VARIAN_LAINNYA)} onChange={(e) => toggle(VARIAN_LAINNYA, e.target.checked)} />
+            Admin boleh mengetik pilihan sendiri (&quot;{VARIAN_LAINNYA}&quot;)
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProductionTypesTab({ productionTypes, onSave, onToggle, onDelete }: Props) {
   const [editing, setEditing] = useState<{
     id?: string;
     name: string;
     kategori: OrderKategori;
-    varianText: string;
+    /** Varian 1 (model: Panjang/Pendek/1/3) dipakai? — daftar pilihannya disimpan walau dimatikan, supaya bisa dinyalakan lagi */
+    modelOn: boolean;
+    modelOpts: string[];
+    /** Varian 2 (warna) */
+    warnaOn: boolean;
+    warnaOpts: string[];
     ukuranText: string;
     /** pesanan umum: desain khusus per pesanan, ukuran ditentukan bagian */
     isCustom: boolean;
@@ -43,16 +132,21 @@ export default function ProductionTypesTab({ productionTypes, onSave, onToggle, 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editing) {
-      const { varianText, ukuranText, bagianRows, isCustom, ...rest } = editing;
+      const { modelOn, modelOpts, warnaOn, warnaOpts, ukuranText, bagianRows, isCustom, ...rest } = editing;
       if (editing.kategori === "utama" && isCustom) {
         const bagian = bagianRows
           .map((b) => ({ nama: b.nama.trim(), ukuran: parseList(b.ukuranText) }))
           .filter((b) => b.nama);
-        onSave({ ...rest, is_custom: true, bagian, varian: [], ukuran: [] });
+        onSave({ ...rest, is_custom: true, bagian, varian: [], varian_warna: [], ukuran: [] });
       } else {
         onSave(
           editing.kategori === "utama"
-            ? { ...rest, varian: parseList(varianText), ukuran: parseList(ukuranText) }
+            ? {
+                ...rest,
+                varian: modelOn ? modelOpts : [],
+                varian_warna: warnaOn ? warnaOpts : [],
+                ukuran: parseList(ukuranText),
+              }
             : rest,
         );
       }
@@ -73,7 +167,7 @@ export default function ProductionTypesTab({ productionTypes, onSave, onToggle, 
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{desc}</p>
                 </div>
                 <button
-                  onClick={() => setEditing({ name: "", kategori, varianText: "", ukuranText: "", isCustom: false, bagianRows: DEFAULT_BAGIAN })}
+                  onClick={() => setEditing({ name: "", kategori, modelOn: false, modelOpts: [...VARIAN_MODEL_CATALOG], warnaOn: false, warnaOpts: [...VARIAN_WARNA_CATALOG], ukuranText: "", isCustom: false, bagianRows: DEFAULT_BAGIAN })}
                   className="bg-[#124540] hover:bg-[#0d332f] text-white px-3 py-1.5 rounded-md text-xs font-semibold transition-colors duration-150 shrink-0"
                 >
                   + Tambah
@@ -98,20 +192,28 @@ export default function ProductionTypesTab({ productionTypes, onSave, onToggle, 
                             ? `Pesanan umum · ${(pt.bagian ?? []).map((b) => `${b.nama}: ${formatList(b.ukuran)}`).join(" · ") || "bagian belum diatur"}`
                             : (pt.ukuran?.length ?? 0) > 0 ? `Ukuran: ${formatList(pt.ukuran)}` : "Ukuran belum diatur"}
                           {!pt.is_custom && (pt.varian?.length ?? 0) > 0 && ` · Varian: ${formatList(pt.varian)}`}
+                          {!pt.is_custom && (pt.varian_warna?.length ?? 0) > 0 && ` · Warna: ${formatList(pt.varian_warna)}`}
                         </p>
                       )}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <button
-                        onClick={() => setEditing({
+                        onClick={() => {
+                          // data lama menyimpan warna di daftar varian; pisahkan ke Varian 1 / Varian 2
+                          const split = splitLegacyVarian(pt.varian, pt.varian_warna);
+                          setEditing({
                           id: pt.id,
                           name: pt.name,
                           kategori: pt.kategori,
-                          varianText: formatList(pt.varian),
+                          modelOn: split.model.length > 0,
+                          modelOpts: split.model.length > 0 ? split.model : [...VARIAN_MODEL_CATALOG],
+                          warnaOn: split.warna.length > 0,
+                          warnaOpts: split.warna.length > 0 ? split.warna : [...VARIAN_WARNA_CATALOG],
                           ukuranText: formatList(pt.ukuran),
                           isCustom: pt.is_custom === true,
                           bagianRows: (pt.bagian ?? []).map((b) => ({ nama: b.nama, ukuranText: formatList(b.ukuran) })),
-                        })}
+                          });
+                        }}
                         title="Ubah"
                         className="p-1.5 text-zinc-300 dark:text-zinc-600 hover:text-[#124540] dark:hover:text-[#49BFB4] hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors duration-150"
                       >
@@ -239,17 +341,27 @@ export default function ProductionTypesTab({ productionTypes, onSave, onToggle, 
                       Pisahkan dengan koma. Rentang angka boleh ditulis 25-43. Kosongkan bila jumlah cukup satu angka.
                     </p>
                   </div>
-                  <div>
+                  <div className="space-y-2">
                     <label className={labelCls}>Varian (opsional)</label>
-                    <textarea
-                      rows={2}
-                      className={inputCls}
-                      value={editing.varianText}
-                      onChange={(e) => setEditing({ ...editing, varianText: e.target.value })}
-                      placeholder="mis. Abu-abu, Pramuka, Biru, Lainnya"
+                    <VarianGroup
+                      title="Varian 1 — Lengan Panjang / Lengan Panjang Rib / Pendek / 1/3"
+                      hint="Memengaruhi harga: Lengan Panjang Rib otomatis = tambahan lengan panjang + tambahan rib di Config Harga. Nama lain (mis. Panjang untuk celana) bisa ditambah lewat kolom di bawah."
+                      catalog={VARIAN_MODEL_CATALOG}
+                      enabled={editing.modelOn}
+                      options={editing.modelOpts}
+                      onChange={(on, opts) => setEditing({ ...editing, modelOn: on, modelOpts: opts })}
                     />
-                    <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
-                      Tulis &quot;Lainnya&quot; bila admin boleh mengetik nama varian sendiri.
+                    <VarianGroup
+                      title="Varian 2 — Warna"
+                      hint="Abu-abu, Coklat, Biru, Putih, Pramuka. Tidak memengaruhi harga."
+                      catalog={VARIAN_WARNA_CATALOG}
+                      enabled={editing.warnaOn}
+                      options={editing.warnaOpts}
+                      onChange={(on, opts) => setEditing({ ...editing, warnaOn: on, warnaOpts: opts })}
+                    />
+                    <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                      Centang Varian 1 dan/atau Varian 2, lalu pilih yang tersedia untuk jenis ini. Saat membuat Approval, admin memilih
+                      dari daftar ini. Perubahan tidak memengaruhi pesanan yang sudah dibuat.
                     </p>
                   </div>
                 </>

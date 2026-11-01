@@ -26,8 +26,10 @@ export interface ProductionTypeData {
   kategori: OrderKategori;
   is_active: boolean;
   sort_order?: number | null;
-  /** pilihan varian jenis ini (mis. Celana Sekolah: Abu-abu, Pramuka, Biru, Lainnya); kosong = tanpa varian */
+  /** Varian 1 (model/panjang) jenis ini, mis. Panjang, Pendek, 1/3; kosong = tanpa Varian 1. Memengaruhi harga. */
   varian?: string[] | null;
+  /** Varian 2 (warna) jenis ini, mis. Abu-abu, Coklat, Biru; kosong = tanpa Varian 2. Tidak memengaruhi harga. */
+  varian_warna?: string[] | null;
   /** daftar ukuran jenis ini (mis. 25–43); kosong = jumlah diisi satu angka saja */
   ukuran?: string[] | null;
   /**
@@ -57,10 +59,14 @@ export interface UkuranQty {
  */
 export interface ItemRincian {
   id: string;
-  /** salah satu nilai ProductionTypeData.varian; kosong bila jenis tanpa varian */
+  /** Varian 1 (model): salah satu nilai ProductionTypeData.varian; kosong bila jenis tanpa Varian 1 */
   varian?: string;
   /** nama bebas bila varian = "Lainnya" */
   varian_lain?: string;
+  /** Varian 2 (warna): salah satu nilai ProductionTypeData.varian_warna; kosong bila jenis tanpa warna */
+  warna?: string;
+  /** nama bebas bila warna = "Lainnya" */
+  warna_lain?: string;
   ukuran: UkuranQty[];
 }
 

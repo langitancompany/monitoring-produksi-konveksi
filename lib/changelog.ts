@@ -6,7 +6,7 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.20",
+  version: "V.1.22",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
@@ -20,6 +20,27 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.22",
+    date: "2026-10-31",
+    changes: [
+      "Perbaikan arah harga bertingkat: harga per kelompok ukuran kini diisi saat menerbitkan atau merevisi tagihan, jadi tiap pesanan boleh berbeda harga walau kelompok ukurannya sama.",
+      "Config Harga → Harga kini hanya untuk mengatur kelompok ukuran (S & M, L & XL, XXL, dst.) dan biaya tambahan varian (lengan panjang, rib). Kolom harga per kelompok dihapus dari layar itu.",
+      "Di form tagihan, item dipecah per varian dan kelompok ukuran dengan satu kolom harga masing-masing; biaya tambahan varian ditambahkan otomatis. Saat revisi, harga tagihan sebelumnya terisi kembali.",
+      "Config Harga → Harga kini sinkron dengan Pengaturan → Jenis Produksi: ukuran dan varian terbaca otomatis, kelompok awal jenis baru diusulkan dari ukurannya, tombol sinkron menambah ukuran yang belum tercakup (mis. 6XL, 7XL), dan varian bisa dipilih cepat sebagai biaya tambahan.",
+      "Varian jenis produksi kini berupa pilihan: centang Varian 1 (Lengan Panjang, Lengan Panjang Rib, Pendek, 1/3) dan/atau Varian 2 (warna: Abu-abu, Coklat, Biru, Putih, Pramuka), lalu pilih yang tersedia. Admin memilih varian dan warna per blok saat membuat Approval; harga hanya mengikuti Varian 1, warna tidak memecah harga. Perlu menjalankan migration 023.",
+      "Pemeriksaan \"revisi tagihan tidak boleh menurunkan total di bawah pembayaran terverifikasi\" dikembalikan (sempat hilang di versi 1.21). Perlu menjalankan migration 022 setelah 021.",
+    ],
+  },
+  {
+    version: "1.21",
+    date: "2026-10-31",
+    changes: [
+      "Config Harga → tab Harga (baru): harga dibedakan per kelompok ukuran — kaos polos, seragam sekolah, dan celana olahraga (S & M, L & XL, XXL, 3XL, dst. masing-masing sendiri), celana sekolah per kelipatan lima (21–25, 26–30, …).",
+      "Biaya tambahan menurut varian: lengan panjang +Rp5.000 untuk semua ukuran, dan +Rp3.000 lagi bila lengan panjangnya memakai rib; seragam sekolah dan celana olahraga (panjang/pendek) juga bisa diatur sendiri.",
+      "Tagihan otomatis dihitung per kelompok ukuran dari rincian pesanan; jenis yang belum diisi harganya tetap ditagih dengan satu harga per item. Perubahan harga dicatat di log audit. Perlu menjalankan migration 021.",
+    ],
+  },
   {
     version: "1.20",
     date: "2026-10-30",
