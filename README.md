@@ -67,6 +67,29 @@ Health check Coolify: `/api/health`. Dockerfile sama dengan sablon (standalone).
 
 ---
 
+## Login sidik jari / passkey (opsional)
+
+Pengguna bisa masuk dengan **passkey**: sidik jari, Face ID, atau kunci layar
+perangkat (mengikuti yang dimiliki perangkat). Aplikasi tidak pernah menerima
+data biometriknya.
+
+- **Mendaftar:** login → **Edit Profil** → bagian **Sidik jari & passkey** →
+  **Daftarkan perangkat ini**. Login berikutnya: tombol **Masuk dengan passkey**.
+  Email & password tetap jadi cadangan.
+- **Syarat server:** Supabase Auth >= v2.190.0 dengan
+  `GOTRUE_PASSKEY_ENABLED=true`, `GOTRUE_WEBAUTHN_RP_ID`,
+  `GOTRUE_WEBAUTHN_RP_DISPLAY_NAME`, dan `GOTRUE_WEBAUTHN_RP_ORIGINS` yang
+  memuat `https://konveksi.langitan.co`. Supabase dipakai bersama semua unit,
+  jadi satu `RP_ID` (mis. `langitan.co`) dan semua alamat unit di `RP_ORIGINS`
+  (dipisah koma). Jangan ganti `RP_ID` setelah ada yang mendaftar.
+- **Lintas unit:** passkey tersimpan di akun login Supabase, jadi berlaku di
+  semua unit yang alamatnya ada di `RP_ORIGINS`; menghapusnya di satu unit
+  menghapusnya di semua.
+- **Uji lokal:** passkey tidak jalan di `localhost` kalau `RP_ID` berisi domain
+  asli. Uji di domain yang sudah dideploy.
+- Butuh `@supabase/supabase-js` >= 2.117 (passkey aktif tanpa opt-in);
+  `package-lock.json` sudah 2.118.0.
+
 ## Menyiapkan Supabase (WAJIB sebelum bisa login)
 
 Aplikasi memakai **satu Supabase** dengan **schema terpisah per unit**

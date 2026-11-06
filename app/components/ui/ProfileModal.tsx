@@ -17,6 +17,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import imageCompression from "browser-image-compression";
 import Cropper from "react-easy-crop";
+import PasskeyPanel from "@/app/components/ui/PasskeyPanel";
 import { Point, Area } from "react-easy-crop";
 
 interface Props {
@@ -454,6 +455,9 @@ export default function ProfileModal({ user, isOpen, onClose, onSave }: Props) {
                   />
                 </div>
               </div>
+
+              {/* ── BARU (login passkey) ── Daftar & kelola sidik jari/passkey. */}
+              <PasskeyPanel />
 
               <button
                 onClick={handleSaveWrapper}
