@@ -21,6 +21,7 @@ import type {
   ProductionStep,
 } from "@/types/order";
 import { buildInitialSteps, deriveStatus } from "@/lib/steps";
+import { stripInvPrefix } from "@/lib/inventory/validate";
 import { triggerOrderNotifications } from "@/lib/orderLogic";
 import { cleanItems, sumItems } from "@/lib/orderItems";
 import { teamLabel } from "@/lib/teams";
@@ -213,7 +214,9 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
       setIsCreating(true);
       try {
         const isNon = input.kategori === "non_utama";
-        const steps = buildInitialSteps(input.kategori, isNon ? ["detail"] : [], currentUser.name);
+        // Produksi untuk stok: hanya kategori utama; tahap berhenti di QC (lib/steps.ts)
+        const tujuan = !isNon && input.tujuan === "stok" ? "stok" : "pelanggan";
+        const steps = buildInitialSteps(input.kategori, isNon ? ["detail"] : [], currentUser.name, tujuan);
         const items = isNon && input.jenis_produksi
           ? [{ id: "item-1", jenis_produksi: input.jenis_produksi, jumlah: input.jumlah }]
           : [];
@@ -231,12 +234,14 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
           steps,
           kendala: [],
           created_by: currentUser.id,
+          // Hanya dikirim untuk pesanan stok, supaya pesanan biasa tetap bisa dibuat walau migration 024 belum dijalankan.
+          ...(tujuan === "stok" ? { tujuan } : {}),
           // Hanya dikirim bila tim dipilih — pesanan tanpa tim tetap bisa dibuat
           // walau migration 006 (kolom team_id) belum dijalankan.
           ...(input.team_id ? { team_id: input.team_id } : {}),
           ...(input.assigned_to ? { assigned_to: input.assigned_to } : {}),
         };
-        const status = deriveStatus({ kategori: input.kategori, steps, kendala: [] });
+        const status = deriveStatus({ kategori: input.kategori, tujuan, steps, kendala: [] });
 
         // Dua kali coba: kalau nomor urut bentrok (dua admin menyimpan bersamaan), ambil nomor baru.
         let created: any = null;
@@ -263,7 +268,7 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
           order,
           category: "STATUS",
           event: "Pesanan Dibuat",
-          ket: `Pesanan ${order.kode_produksi} (${input.kategori === "utama" ? "utama" : "non-utama"}) dibuat${
+          ket: `Pesanan ${order.kode_produksi} (${tujuan === "stok" ? "utama, produksi untuk stok" : input.kategori === "utama" ? "utama" : "non-utama"}) dibuat${
             input.team_id ? `, tim ${teamLabel(teams, input.team_id)}` : ""
           }${input.assigned_to ? `, PJ ${userLabel(users, input.assigned_to)}` : ""}`,
         });
@@ -297,7 +302,7 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
       try {
         const steps = change.steps ?? order.steps;
         const kendala = change.kendala ?? order.kendala;
-        const status = deriveStatus({ kategori: order.kategori, steps, kendala });
+        const status = deriveStatus({ kategori: order.kategori, tujuan: order.tujuan, steps, kendala });
         const updates = { ...(change.fields ?? {}), steps, kendala, status };
 
         let q = supabase.from("orders").update(updates).eq("id", order.id);
@@ -305,7 +310,8 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
         const { data, error } = await q.select();
 
         if (error) {
-          showAlert("Gagal menyimpan", error.message, "error");
+          // Pesan "INV: ..." dari database (mis. QC pesanan stok yang sudah diverifikasi tidak bisa dibatalkan)
+          showAlert("Gagal menyimpan", stripInvPrefix(error.message), "error");
           return false;
         }
         if (!data || data.length === 0) {
@@ -601,7 +607,7 @@ export function useOrders({ supabase, currentUser, fetchNotifications, showAlert
           .not("deleted_at", "is", null)
           .select("id");
         if (delError) {
-          showAlert("Gagal menghapus", delError.message, "error");
+          showAlert("Gagal menghapus", stripInvPrefix(delError.message), "error");
           return false;
         }
         if (!deleted || deleted.length === 0) {

@@ -21,7 +21,9 @@ import { can, canAny } from "@/lib/access";
 import { canOperateOrder } from "@/lib/orderAccess";
 import { teamLabel, teamMembers } from "@/lib/teams";
 import TeamAvatars from "@/app/components/ui/TeamAvatars";
-import { canUndoStep, stepPosition, stepUndoPerms, stepWorkPerms } from "@/lib/steps";
+import { canUndoStep, isStokOrder, stepPosition, stepUndoPerms, stepWorkPerms } from "@/lib/steps";
+import StokBadge from "@/app/components/inventory/StokBadge";
+import StokStatusCard from "@/app/components/inventory/StokStatusCard";
 import { formatDate, getDeadlineStatus, getStatusColor, openWA, userLabel } from "@/lib/utils";
 import type { StepCtx } from "./detail/stepUi";
 import StepApproval from "./detail/StepApproval";
@@ -60,6 +62,8 @@ interface Props {
   showConfirm: (title: string, message: string, onConfirm: () => void) => void;
   onBack: () => void;
   onEdit: () => void;
+  /** buka menu Stok Barang Jadi (dari kartu Status stok pesanan stok) */
+  onOpenInventory?: () => void;
   /** dipanggil setelah konfirmasi; menghapus = pindah ke Sampah */
   onDelete: (order: Order) => void;
 }
@@ -75,8 +79,9 @@ export default function OrderDetail(props: Props) {
   const {
     supabase, order, productionTypes, teams, users, currentUser, isSaving, isUploading,
     applyStepUpdate, applyKendalaUpdate, uploadProof, showAlert, showConfirm,
-    onBack, onEdit, onDelete,
+    onBack, onEdit, onDelete, onOpenInventory,
   } = props;
+  const stok = isStokOrder(order);
 
   const detail = useOrderDetail({
     order, productionTypes, currentUser, applyStepUpdate, applyKendalaUpdate, uploadProof, showAlert, showConfirm,
@@ -118,7 +123,7 @@ export default function OrderDetail(props: Props) {
   const confirmDelete = () =>
     showConfirm(
       "Hapus pesanan?",
-      `Pesanan ${order.kode_produksi} (${order.nama_pemesan}) akan dipindah ke Sampah. Data tidak hilang dan bisa dipulihkan.`,
+      `Pesanan ${order.kode_produksi} (${stok ? "produksi stok" : order.nama_pemesan}) akan dipindah ke Sampah. Data tidak hilang dan bisa dipulihkan.`,
       () => onDelete(order),
     );
 
@@ -167,7 +172,10 @@ export default function OrderDetail(props: Props) {
       {/* Info pesanan */}
       <div className="bg-white dark:bg-zinc-950 p-5 md:p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex-1">
-          <h1 className="text-xl md:text-2xl font-semibold text-zinc-900 dark:text-white mb-1">{order.nama_pemesan}</h1>
+          <h1 className="text-xl md:text-2xl font-semibold text-zinc-900 dark:text-white mb-1 flex items-center gap-2 flex-wrap">
+            {stok ? "Produksi Stok" : order.nama_pemesan}
+            {stok && <StokBadge className="text-[10px]" />}
+          </h1>
           <div className="text-xs md:text-sm text-zinc-500 dark:text-zinc-400 font-medium flex flex-wrap gap-2 md:gap-3 items-center">
             <span className="font-mono tabular-nums bg-zinc-100 dark:bg-zinc-900 px-2 py-0.5 rounded-md text-zinc-600 dark:text-zinc-300">
               #{order.kode_produksi}
@@ -176,7 +184,7 @@ export default function OrderDetail(props: Props) {
             <span className={isLate ? "font-mono tabular-nums text-red-600 dark:text-red-400 font-semibold" : "font-mono tabular-nums"}>
               {formatDate(order.deadline)}
             </span>
-            <span className="text-[10px] uppercase tracking-wide">{order.kategori === "utama" ? "Pesanan Utama" : "Non-Utama"}</span>
+            <span className="text-[10px] uppercase tracking-wide">{stok ? "Produksi untuk stok" : order.kategori === "utama" ? "Pesanan Utama" : "Non-Utama"}</span>
           </div>
         </div>
         <div className="flex flex-col gap-2 items-end w-full md:w-auto">
@@ -195,14 +203,18 @@ export default function OrderDetail(props: Props) {
       <div className="bg-white dark:bg-zinc-950 p-5 md:p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Row label="Tanggal masuk">{formatDate(order.tanggal_masuk)}</Row>
-          <Row label="No. HP">
-            {order.no_hp ? (
-              <button onClick={() => openWA(order.no_hp)} className="inline-flex items-center gap-1 font-mono tabular-nums text-[#124540] dark:text-[#49BFB4] underline underline-offset-2">
-                <Phone className="w-3 h-3" /> {order.no_hp}
-              </button>
-            ) : "-"}
-          </Row>
-          <Row label="Alamat">{order.alamat_pemesan || "-"}</Row>
+          {!stok && (
+            <>
+              <Row label="No. HP">
+                {order.no_hp ? (
+                  <button onClick={() => openWA(order.no_hp)} className="inline-flex items-center gap-1 font-mono tabular-nums text-[#124540] dark:text-[#49BFB4] underline underline-offset-2">
+                    <Phone className="w-3 h-3" /> {order.no_hp}
+                  </button>
+                ) : "-"}
+              </Row>
+              <Row label="Alamat">{order.alamat_pemesan || "-"}</Row>
+            </>
+          )}
         </div>
 
         <Row label="Penanggung jawab (PJ)">
@@ -261,6 +273,10 @@ export default function OrderDetail(props: Props) {
         {order.catatan_pesanan && <Row label="Catatan">{order.catatan_pesanan}</Row>}
       </div>
 
+      {stok && can(currentUser, "inventori", "view") && onOpenInventory && (
+        <StokStatusCard orderId={order.id} refreshKey={`${order.updated_at ?? ""}|${order.status}`} onOpenInventory={onOpenInventory} />
+      )}
+
       </div>
 
       <div className="lg:col-span-7 xl:col-span-8 space-y-4 md:space-y-6 min-w-0">
@@ -284,7 +300,7 @@ export default function OrderDetail(props: Props) {
       <StepFinishing ctx={ctx} onQC={detail.submitQC} notes={notes} />
 
       {/* Harga & Pembayaran — hanya untuk yang punya izin Keuangan (Bagian 6, langkah 6.4) */}
-      {can(currentUser, "keuangan", "view") && (
+      {can(currentUser, "keuangan", "view") && !stok && (
         <OrderFinanceSection orderId={order.id} productionTypes={productionTypes} />
       )}
       </div>

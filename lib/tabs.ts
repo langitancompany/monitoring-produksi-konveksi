@@ -9,6 +9,7 @@ export const VALID_TABS = [
   "orders_utama",
   "orders_lain",
   "completed_orders",
+  "inventori",
   "calendar",
   "meeting_notes",
   "salary",

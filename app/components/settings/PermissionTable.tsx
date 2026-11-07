@@ -122,6 +122,15 @@ const MODULES: ModuleDef[] = [
     editLabel: "Edit rate gaji & harga",
   },
   {
+    key: "inventori",
+    label: "Stok Barang Jadi",
+    viewLabel: "Membuka menu Stok Barang Jadi: melihat stok, daftar verifikasi, dan riwayat.",
+    hasCreate: false,
+    hasEdit: true,
+    hasDelete: false,
+    editLabel: "Verifikasi stok masuk",
+  },
+  {
     key: "logs",
     label: "Log Aktivitas",
     hasCreate: false,

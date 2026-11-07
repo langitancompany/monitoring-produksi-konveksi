@@ -18,8 +18,10 @@ import {
   Wallet,
   Tags,
   Landmark,
+  Boxes,
 } from "lucide-react";
 import { UserData } from "@/types";
+import { can } from "@/lib/access";
 import { getUserRoles, roleLabel } from "@/lib/roles";
 import { APP_INFO } from "@/lib/changelog";
 import ThemedLogo from "@/app/components/ui/ThemedLogo";
@@ -32,6 +34,8 @@ interface SidebarProps {
   handleNav: (tab: any) => void;
   onLogout: () => void;
   onOpenProfile: () => void;
+  /** jumlah catatan stok menunggu verifikasi (lencana menu Stok Barang Jadi) */
+  inventoryPending?: number;
 }
 
 export default function Sidebar({
@@ -42,6 +46,7 @@ export default function Sidebar({
   handleNav,
   onLogout,
   onOpenProfile,
+  inventoryPending = 0,
 }: SidebarProps) {
   const p = currentUser.permissions;
 
@@ -77,6 +82,13 @@ export default function Sidebar({
           label: "Pesanan Selesai",
           icon: CheckCircle2,
           visible: p?.orders?.view,
+        },
+        {
+          id: "inventori",
+          label: "Stok Barang Jadi",
+          icon: Boxes,
+          visible: can(currentUser, "inventori", "view"),
+          badge: can(currentUser, "inventori", "edit") ? inventoryPending : 0,
         },
         {
           id: "calendar",
@@ -216,6 +228,7 @@ export default function Sidebar({
                     key={item.id}
                     item={item}
                     isActive={activeTab === item.id}
+                    badge={"badge" in item ? Number(item.badge) || 0 : 0}
                     onClick={() => handleNav(item.id)}
                   />
                 ))}
@@ -240,10 +253,12 @@ const MenuItemMemo = memo(
   ({
     item,
     isActive,
+    badge = 0,
     onClick,
   }: {
     item: any;
     isActive: boolean;
+    badge?: number;
     onClick: () => void;
   }) => (
     <button
@@ -258,11 +273,25 @@ const MenuItemMemo = memo(
       <item.icon
         className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-zinc-400 dark:text-zinc-500"}`}
       />
-      {item.label}
+      <span className="flex-1 text-left">{item.label}</span>
+      {badge > 0 && (
+        <span
+          className={`min-w-5 h-5 px-1.5 rounded-full text-[10px] font-semibold tabular-nums flex items-center justify-center ${
+            isActive
+              ? "bg-white text-[#124540]"
+              : "bg-[#124540] text-white dark:bg-[#49BFB4] dark:text-zinc-950"
+          }`}
+          aria-label={`${badge} menunggu verifikasi`}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </button>
   ),
   (prev, next) =>
-    prev.isActive === next.isActive && prev.item.id === next.item.id,
+    prev.isActive === next.isActive &&
+    prev.item.id === next.item.id &&
+    prev.badge === next.badge,
 );
 MenuItemMemo.displayName = "MenuItemMemo";
 

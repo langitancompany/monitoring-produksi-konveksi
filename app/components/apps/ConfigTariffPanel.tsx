@@ -15,12 +15,24 @@ import { errMsg } from "@/hooks/useFinanceApi";
 import { useTariff } from "@/hooks/useTariff";
 import type { ProductionTypeData } from "@/types/order";
 import {
-  deriveAddonKeywords, keywordMatchesVarian, parseSizes, sizesText, suggestTiers, type Tariff,
+  deriveAddonKeywords,
+  keywordMatchesVarian,
+  parseSizes,
+  sizesText,
+  suggestTiers,
+  type Tariff,
 } from "@/lib/finance/tariff";
+import { isFreeTextList } from "@/lib/orderItems";
 import { CurrencyInput } from "@/app/components/finance/CurrencyInput";
 import { formatRupiah } from "@/app/components/finance/utils";
 import {
-  cardCls, sectionLabelCls, inputCls, labelCls, PrimaryButton, GhostButton, smallGhostBtnCls,
+  cardCls,
+  sectionLabelCls,
+  inputCls,
+  labelCls,
+  PrimaryButton,
+  GhostButton,
+  smallGhostBtnCls,
 } from "@/app/components/finance/ui";
 
 interface TierDraft {
@@ -41,10 +53,18 @@ interface AddonDraft {
 let seq = 0;
 const nextKey = () => `d${++seq}`;
 
-function draftsFor(tariff: Tariff, type: ProductionTypeData): { tiers: TierDraft[]; addons: AddonDraft[]; fromJenis: boolean } {
-  const savedAddons = tariff.addons.filter((a) => a.jenis_produksi === type.value);
+function draftsFor(
+  tariff: Tariff,
+  type: ProductionTypeData,
+): { tiers: TierDraft[]; addons: AddonDraft[]; fromJenis: boolean } {
+  const savedAddons = tariff.addons.filter(
+    (a) => a.jenis_produksi === type.value,
+  );
   // Setiap varian jenis ini otomatis punya baris biaya tambahan (nominal 0 sampai Anda isi).
-  const derived = deriveAddonKeywords(type.varian ?? [], savedAddons.map((a) => a.keyword));
+  const derived = deriveAddonKeywords(
+    type.varian ?? [],
+    savedAddons.map((a) => a.keyword),
+  );
   const jenis = type.value;
   // Jenis yang belum pernah diatur: kelompok langsung diusulkan dari ukuran di Pengaturan → Jenis Produksi (belum tersimpan).
   const saved = tariff.tiers.some((t) => t.jenis_produksi === jenis);
@@ -52,13 +72,34 @@ function draftsFor(tariff: Tariff, type: ProductionTypeData): { tiers: TierDraft
   return {
     fromJenis,
     tiers: fromJenis
-      ? suggestTiers(type.ukuran ?? []).map((g) => ({ key: nextKey(), varian: "", label: g.label, ukuran: sizesText(g.ukuran) }))
+      ? suggestTiers(type.ukuran ?? []).map((g) => ({
+          key: nextKey(),
+          varian: "",
+          label: g.label,
+          ukuran: sizesText(g.ukuran),
+        }))
       : tariff.tiers
-      .filter((t) => t.jenis_produksi === jenis)
-      .map((t) => ({ key: nextKey(), varian: t.varian ?? "", label: t.label, ukuran: sizesText(t.ukuran) })),
+          .filter((t) => t.jenis_produksi === jenis)
+          .map((t) => ({
+            key: nextKey(),
+            varian: t.varian ?? "",
+            label: t.label,
+            ukuran: sizesText(t.ukuran),
+          })),
     addons: [
-      ...savedAddons.map((a) => ({ key: nextKey(), keyword: a.keyword, label: a.label, tambahan: a.tambahan })),
-      ...derived.map((d) => ({ key: nextKey(), keyword: d.keyword, label: d.label, tambahan: 0, auto: true })),
+      ...savedAddons.map((a) => ({
+        key: nextKey(),
+        keyword: a.keyword,
+        label: a.label,
+        tambahan: a.tambahan,
+      })),
+      ...derived.map((d) => ({
+        key: nextKey(),
+        keyword: d.keyword,
+        label: d.label,
+        tambahan: 0,
+        auto: true,
+      })),
     ],
   };
 }
@@ -72,16 +113,22 @@ export default function ConfigTariffPanel({
 }) {
   const { tariff, error, migrationMissing, save } = useTariff();
   const jenisList = useMemo(
-    () => productionTypes.filter((p) => p.kategori === "utama" && !p.is_custom && p.is_active !== false),
+    () =>
+      productionTypes.filter(
+        (p) => p.kategori === "utama" && !p.is_custom && p.is_active !== false,
+      ),
     [productionTypes],
   );
   const [jenis, setJenis] = useState<string>("");
   const selected = jenis || jenisList[0]?.value || "";
 
-  if (error) return <p className="text-xs text-red-600 dark:text-red-400">{error}</p>;
-  if (!tariff) return <p className="text-xs text-zinc-500 dark:text-zinc-400">Memuat…</p>;
+  if (error)
+    return <p className="text-xs text-red-600 dark:text-red-400">{error}</p>;
+  if (!tariff)
+    return <p className="text-xs text-zinc-500 dark:text-zinc-400">Memuat…</p>;
 
-  const configured = (v: string) => tariff.tiers.some((t) => t.jenis_produksi === v);
+  const configured = (v: string) =>
+    tariff.tiers.some((t) => t.jenis_produksi === v);
 
   return (
     <div className="space-y-4">
@@ -89,28 +136,39 @@ export default function ConfigTariffPanel({
         <p className={sectionLabelCls}>Cara kerja</p>
         <ul className="text-xs text-zinc-600 dark:text-zinc-300 space-y-1 list-disc pl-4 leading-relaxed">
           <li>
-            Di sini hanya mengatur <b>kelompok ukuran</b> (mis. S &amp; M, L &amp; XL, XXL) dan <b>biaya tambahan</b> varian.
-            <b> Harga tidak diisi di sini</b> — harga tiap kelompok diisi saat <b>menerbitkan tagihan</b>, jadi setiap pesanan
-            boleh berbeda harga walau kelompok ukurannya sama.
+            Di sini hanya mengatur <b>kelompok ukuran</b> (mis. S &amp; M, L
+            &amp; XL, XXL) dan <b>biaya tambahan</b> varian.
+            <b> Harga tidak diisi di sini</b> — harga tiap kelompok diisi saat{" "}
+            <b>menerbitkan tagihan</b>, jadi setiap pesanan boleh berbeda harga
+            walau kelompok ukurannya sama.
           </li>
           <li>
-            <b>Biaya tambahan</b> ditambahkan ke harga yang diisi di tagihan bila <i>nama varian</i> memuat kata kuncinya. Contoh:
-            kata kunci &quot;lengan panjang&quot; +Rp5.000 dan &quot;rib&quot; +Rp3.000 → varian &quot;Lengan Panjang Rib&quot; = +Rp8.000.
-            Yang dihitung hanya <b>Varian 1</b> (Panjang, Pendek, 1/3, dst.) dari Pengaturan → Jenis Produksi; <b>warna</b> tidak memengaruhi harga.
+            <b>Biaya tambahan</b> ditambahkan ke harga yang diisi di tagihan
+            bila <i>nama varian</i> memuat kata kuncinya. Contoh: kata kunci
+            &quot;lengan panjang&quot; +Rp5.000 dan &quot;rib&quot; +Rp3.000 →
+            varian &quot;Lengan Panjang Rib&quot; = +Rp8.000. Yang dihitung
+            hanya <b>Varian 1</b> (Panjang, Pendek, 1/3, dst.) dari Pengaturan →
+            Jenis Produksi; <b>warna</b> tidak memengaruhi harga.
           </li>
           <li>
-            Setiap jenis produksi utama yang Anda buat di Pengaturan → Jenis Produksi otomatis muncul di sini; ukuran dan
-            variannya terbaca langsung, dan kelompok awalnya diusulkan dari ukuran tersebut.
+            Setiap jenis produksi utama yang Anda buat di Pengaturan → Jenis
+            Produksi otomatis muncul di sini; ukuran dan variannya terbaca
+            langsung, dan kelompok awalnya diusulkan dari ukuran tersebut.
           </li>
           <li>
-            Jenis yang belum punya kelompok tetap ditagih dengan satu harga per item. Setelah kelompok dibuat, ukuran yang
-            belum masuk kelompok mana pun akan ditolak saat menerbitkan tagihan.
+            Jenis yang belum punya kelompok tetap ditagih dengan satu harga per
+            item. Setelah kelompok dibuat, ukuran yang belum masuk kelompok mana
+            pun akan ditolak saat menerbitkan tagihan.
           </li>
-          <li>Tagihan yang sudah terbit tidak berubah; perubahan kelompok atau biaya tambahan berlaku untuk tagihan/revisi berikutnya.</li>
+          <li>
+            Tagihan yang sudah terbit tidak berubah; perubahan kelompok atau
+            biaya tambahan berlaku untuk tagihan/revisi berikutnya.
+          </li>
         </ul>
         {migrationMissing && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            Tabel pengaturan harga belum ada atau belum diperbarui. Jalankan migration 021 lalu 022 di SQL Editor Supabase, lalu muat ulang.
+            Tabel pengaturan harga belum ada atau belum diperbarui. Jalankan
+            migration 021 lalu 022 di SQL Editor Supabase, lalu muat ulang.
           </p>
         )}
       </div>
@@ -128,7 +186,9 @@ export default function ConfigTariffPanel({
             }`}
           >
             {p.name}
-            <span className={`ml-1.5 text-[10px] ${configured(p.value) ? "opacity-80" : "opacity-50"}`}>
+            <span
+              className={`ml-1.5 text-[10px] ${configured(p.value) ? "opacity-80" : "opacity-50"}`}
+            >
               {configured(p.value) ? "✓" : "belum diatur"}
             </span>
           </button>
@@ -165,8 +225,10 @@ function JenisEditor({
   const [addons, setAddons] = useState<AddonDraft[]>(initial.addons);
   const [saving, setSaving] = useState(false);
 
-  const patchTier = (key: string, p: Partial<TierDraft>) => setTiers((l) => l.map((t) => (t.key === key ? { ...t, ...p } : t)));
-  const patchAddon = (key: string, p: Partial<AddonDraft>) => setAddons((l) => l.map((a) => (a.key === key ? { ...a, ...p } : a)));
+  const patchTier = (key: string, p: Partial<TierDraft>) =>
+    setTiers((l) => l.map((t) => (t.key === key ? { ...t, ...p } : t)));
+  const patchAddon = (key: string, p: Partial<AddonDraft>) =>
+    setAddons((l) => l.map((a) => (a.key === key ? { ...a, ...p } : a)));
 
   const ukuranJenis = type.ukuran ?? [];
   const varianJenis = (type.varian ?? []).filter((v) => v.trim());
@@ -174,16 +236,24 @@ function JenisEditor({
   // Ukuran jenis ini (Pengaturan → Jenis Produksi) yang belum masuk kelompok umum — pengingat saja.
   const covered = useMemo(() => {
     const s = new Set<string>();
-    for (const t of tiers) if (!t.varian.trim()) parseSizes(t.ukuran).forEach((u) => s.add(u));
+    for (const t of tiers)
+      if (!t.varian.trim()) parseSizes(t.ukuran).forEach((u) => s.add(u));
     return s;
   }, [tiers]);
-  const uncovered = (type.ukuran ?? []).filter((u) => !covered.has(u.trim().toUpperCase()));
+  const uncovered = (type.ukuran ?? []).filter(
+    (u) => !covered.has(u.trim().toUpperCase()),
+  );
 
   // Sinkron dengan Pengaturan → Jenis Produksi: tambahkan kelompok untuk ukuran yang belum tercakup.
   const syncSizes = () =>
     setTiers((cur) => [
       ...cur,
-      ...suggestTiers(uncovered).map((g) => ({ key: nextKey(), varian: "", label: g.label, ukuran: sizesText(g.ukuran) })),
+      ...suggestTiers(uncovered).map((g) => ({
+        key: nextKey(),
+        varian: "",
+        label: g.label,
+        ukuran: sizesText(g.ukuran),
+      })),
     ]);
 
   const onSave = async () => {
@@ -196,9 +266,16 @@ function JenisEditor({
           label: t.label.trim(),
           ukuran: parseSizes(t.ukuran),
         })),
-        addons: addons.map((a) => ({ keyword: a.keyword.trim(), label: a.label.trim() || a.keyword.trim(), tambahan: a.tambahan })),
+        addons: addons.map((a) => ({
+          keyword: a.keyword.trim(),
+          label: a.label.trim() || a.keyword.trim(),
+          tambahan: a.tambahan,
+        })),
       });
-      notify("Pengaturan kelompok & biaya tambahan disimpan.", { type: "success", title: "Berhasil" });
+      notify("Pengaturan kelompok & biaya tambahan disimpan.", {
+        type: "success",
+        title: "Berhasil",
+      });
     } catch (e) {
       notify(errMsg(e), { title: "Gagal menyimpan pengaturan" });
     } finally {
@@ -214,23 +291,40 @@ function JenisEditor({
         <div className="flex items-center justify-between gap-2">
           <p className={sectionLabelCls}>Kelompok ukuran — {type.name}</p>
           {canEdit && uncovered.length > 0 && (
-            <button type="button" onClick={syncSizes} className={smallGhostBtnCls}>
+            <button
+              type="button"
+              onClick={syncSizes}
+              className={smallGhostBtnCls}
+            >
               + Sinkronkan {uncovered.length} ukuran dari Jenis Produksi
             </button>
           )}
         </div>
 
         <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-          Dari Pengaturan → Jenis Produksi — Ukuran: {ukuranJenis.length ? ukuranJenis.join(", ") : "belum diisi"}
+          Dari Pengaturan → Jenis Produksi — Ukuran:{" "}
+          {ukuranJenis.length ? ukuranJenis.join(", ") : "belum diisi"}
           {varianJenis.length > 0 && <> · Varian 1: {varianJenis.join(", ")}</>}
-          {(type.varian_warna ?? []).length > 0 && <> · Warna: {(type.varian_warna ?? []).join(", ")} (tidak memengaruhi harga)</>}
+          {(type.varian_warna ?? []).length > 0 && (
+            <>
+              {" "}
+              · Warna:{" "}
+              {isFreeTextList(type.varian_warna)
+                ? "ketik bebas"
+                : (type.varian_warna ?? []).join(", ")}{" "}
+              (tidak memengaruhi harga)
+            </>
+          )}
         </p>
         {initial.fromJenis && tiers.length > 0 && (
           <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
-            Kelompok di bawah diusulkan otomatis dari ukuran jenis ini. Periksa, ubah bila perlu, lalu simpan.
+            Kelompok di bawah diusulkan otomatis dari ukuran jenis ini. Periksa,
+            ubah bila perlu, lalu simpan.
           </p>
         )}
-        {tiers.length === 0 && <p className="text-xs text-zinc-400">Belum ada kelompok.</p>}
+        {tiers.length === 0 && (
+          <p className="text-xs text-zinc-400">Belum ada kelompok.</p>
+        )}
 
         <datalist id={`varian-${type.value}`}>
           {varianJenis.map((v) => (
@@ -273,7 +367,9 @@ function JenisEditor({
                   value={t.varian}
                   disabled={disabled}
                   maxLength={60}
-                  placeholder={varianJenis[0] ? `mis. ${varianJenis[0]}` : "mis. Panjang"}
+                  placeholder={
+                    varianJenis[0] ? `mis. ${varianJenis[0]}` : "mis. Panjang"
+                  }
                   onChange={(e) => patchTier(t.key, { varian: e.target.value })}
                 />
               </div>
@@ -281,7 +377,9 @@ function JenisEditor({
                 <button
                   type="button"
                   aria-label={`Hapus kelompok ${t.label}`}
-                  onClick={() => setTiers((l) => l.filter((x) => x.key !== t.key))}
+                  onClick={() =>
+                    setTiers((l) => l.filter((x) => x.key !== t.key))
+                  }
                   className="p-2 text-zinc-400 hover:text-red-600 transition-colors duration-150"
                 >
                   <Trash2 size={15} />
@@ -294,7 +392,12 @@ function JenisEditor({
         {canEdit && (
           <button
             type="button"
-            onClick={() => setTiers((l) => [...l, { key: nextKey(), varian: "", label: "", ukuran: "" }])}
+            onClick={() =>
+              setTiers((l) => [
+                ...l,
+                { key: nextKey(), varian: "", label: "", ukuran: "" },
+              ])
+            }
             className={smallGhostBtnCls}
           >
             <Plus size={12} /> Tambah kelompok
@@ -303,19 +406,25 @@ function JenisEditor({
 
         {uncovered.length > 0 && tiers.length > 0 && (
           <p className="text-[11px] text-amber-600 dark:text-amber-400">
-            Ukuran {uncovered.join(", ")} (dari Pengaturan → Jenis Produksi) belum masuk kelompok umum. Bila dipesan, tagihan
-            akan ditolak sampai kelompoknya dibuat.
+            Ukuran {uncovered.join(", ")} (dari Pengaturan → Jenis Produksi)
+            belum masuk kelompok umum. Bila dipesan, tagihan akan ditolak sampai
+            kelompoknya dibuat.
           </p>
         )}
         <p className="text-[10px] text-zinc-400">
-          Satu ukuran hanya boleh di satu kelompok. Kelompok khusus varian didahulukan dari kelompok umum (misalnya celana
-          panjang vs pendek bila dibuat sebagai varian). Harga tiap kelompok diisi di form tagihan.
+          Satu ukuran hanya boleh di satu kelompok. Kelompok khusus varian
+          didahulukan dari kelompok umum (misalnya celana panjang vs pendek bila
+          dibuat sebagai varian). Harga tiap kelompok diisi di form tagihan.
         </p>
       </div>
 
       <div className={`${cardCls} p-4 space-y-3`}>
-        <p className={sectionLabelCls}>Biaya tambahan menurut varian (harga tetap) — {type.name}</p>
-        {addons.length === 0 && <p className="text-xs text-zinc-400">Tidak ada biaya tambahan.</p>}
+        <p className={sectionLabelCls}>
+          Biaya tambahan menurut varian (harga tetap) — {type.name}
+        </p>
+        {addons.length === 0 && (
+          <p className="text-xs text-zinc-400">Tidak ada biaya tambahan.</p>
+        )}
         <div className="space-y-3">
           {addons.map((a) => (
             <div
@@ -325,7 +434,11 @@ function JenisEditor({
               <div>
                 <span className={labelCls}>
                   Kata kunci di nama varian
-                  {a.auto && <span className="ml-1.5 normal-case tracking-normal text-emerald-700 dark:text-emerald-400">· dari varian</span>}
+                  {a.auto && (
+                    <span className="ml-1.5 normal-case tracking-normal text-emerald-700 dark:text-emerald-400">
+                      · dari varian
+                    </span>
+                  )}
                 </span>
                 <input
                   className={inputCls}
@@ -333,7 +446,9 @@ function JenisEditor({
                   disabled={disabled}
                   maxLength={40}
                   placeholder="mis. lengan panjang"
-                  onChange={(e) => patchAddon(a.key, { keyword: e.target.value })}
+                  onChange={(e) =>
+                    patchAddon(a.key, { keyword: e.target.value })
+                  }
                 />
               </div>
               <div>
@@ -362,7 +477,9 @@ function JenisEditor({
                 <button
                   type="button"
                   aria-label={`Hapus biaya ${a.label}`}
-                  onClick={() => setAddons((l) => l.filter((x) => x.key !== a.key))}
+                  onClick={() =>
+                    setAddons((l) => l.filter((x) => x.key !== a.key))
+                  }
                   className="p-2 text-zinc-400 hover:text-red-600 transition-colors duration-150"
                 >
                   <Trash2 size={15} />
@@ -371,23 +488,42 @@ function JenisEditor({
             </div>
           ))}
         </div>
-        {varianJenis.length > 0 && addons.some((a) => a.keyword.trim() && !keywordMatchesVarian(a.keyword, varianJenis)) && (
-          <p className="text-[11px] text-amber-600 dark:text-amber-400">
-            Kata kunci {addons.filter((a) => a.keyword.trim() && !keywordMatchesVarian(a.keyword, varianJenis)).map((a) => `"${a.keyword.trim()}"`).join(", ")}{" "}
-            tidak cocok dengan varian mana pun di Jenis Produksi ({varianJenis.join(", ")}), jadi tambahannya tidak akan pernah terpakai.
-            Samakan dengan nama varian.
-          </p>
-        )}
+        {varianJenis.length > 0 &&
+          addons.some(
+            (a) =>
+              a.keyword.trim() && !keywordMatchesVarian(a.keyword, varianJenis),
+          ) && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400">
+              Kata kunci{" "}
+              {addons
+                .filter(
+                  (a) =>
+                    a.keyword.trim() &&
+                    !keywordMatchesVarian(a.keyword, varianJenis),
+                )
+                .map((a) => `"${a.keyword.trim()}"`)
+                .join(", ")}{" "}
+              tidak cocok dengan varian mana pun di Jenis Produksi (
+              {varianJenis.join(", ")}), jadi tambahannya tidak akan pernah
+              terpakai. Samakan dengan nama varian.
+            </p>
+          )}
         {addons.some((a) => a.auto) && (
           <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
-            Baris bertanda &quot;dari varian&quot; ditambahkan otomatis dari varian jenis ini (Pengaturan → Jenis Produksi). Isi nominalnya
-            (0 bila tidak ada tambahan), lalu simpan.
+            Baris bertanda &quot;dari varian&quot; ditambahkan otomatis dari
+            varian jenis ini (Pengaturan → Jenis Produksi). Isi nominalnya (0
+            bila tidak ada tambahan), lalu simpan.
           </p>
         )}
         {canEdit && (
           <button
             type="button"
-            onClick={() => setAddons((l) => [...l, { key: nextKey(), keyword: "", label: "", tambahan: 0 }])}
+            onClick={() =>
+              setAddons((l) => [
+                ...l,
+                { key: nextKey(), keyword: "", label: "", tambahan: 0 },
+              ])
+            }
             className={smallGhostBtnCls}
           >
             <Plus size={12} /> Tambah biaya lain
@@ -398,16 +534,25 @@ function JenisEditor({
             Contoh: varian yang namanya memuat{" "}
             {addons
               .filter((a) => a.keyword.trim() && a.tambahan > 0)
-              .map((a) => `"${a.keyword.trim()}" (+${formatRupiah(a.tambahan)})`)
+              .map(
+                (a) => `"${a.keyword.trim()}" (+${formatRupiah(a.tambahan)})`,
+              )
               .join(" dan ")}{" "}
-            dikenai tambahan tersebut; bila memuat lebih dari satu kata kunci, tambahannya dijumlahkan.
+            dikenai tambahan tersebut; bila memuat lebih dari satu kata kunci,
+            tambahannya dijumlahkan.
           </p>
         )}
       </div>
 
       {canEdit ? (
         <div className="flex gap-2">
-          <GhostButton onClick={() => { setTiers(initial.tiers); setAddons(initial.addons); }} disabled={saving}>
+          <GhostButton
+            onClick={() => {
+              setTiers(initial.tiers);
+              setAddons(initial.addons);
+            }}
+            disabled={saving}
+          >
             Batalkan perubahan
           </GhostButton>
           <PrimaryButton onClick={onSave} loading={saving}>
@@ -416,7 +561,8 @@ function JenisEditor({
         </div>
       ) : (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Anda hanya bisa melihat pengaturan ini (tanpa izin edit di Config Harga).
+          Anda hanya bisa melihat pengaturan ini (tanpa izin edit di Config
+          Harga).
         </p>
       )}
     </div>

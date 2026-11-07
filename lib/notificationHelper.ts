@@ -55,6 +55,8 @@ export const sendNotification = async (
 async function notifyServer(payload: {
   roles?: string[];
   all?: boolean;
+  /** pemegang izin tertentu (+ Super Admin), tanpa disaring per pesanan */
+  permission?: "inventori_verify";
   title: string;
   message: string;
   orderId?: string;
@@ -82,6 +84,11 @@ export const sendToRoles = async (
   orderId?: string
 ) => {
   await notifyServer({ roles, title, message: body, orderId });
+};
+
+/** Pemegang izin Verifikasi stok masuk dan Super Admin (hasil produksi stok menunggu verifikasi). */
+export const sendToInventoryVerifiers = async (title: string, body: string, orderId?: string) => {
+  await notifyServer({ permission: "inventori_verify", title, message: body, orderId });
 };
 
 export const sendToAllUsers = async (

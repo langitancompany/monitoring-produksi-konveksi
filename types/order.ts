@@ -7,6 +7,12 @@ import type { CrewSnapshot } from "@/types/salary";
 /** utama = jahitan reguler (seragam, celana, kaos, ...); non_utama = selempang wisuda, permak, dst. */
 export type OrderKategori = "utama" | "non_utama";
 
+/**
+ * Tujuan pesanan: `pelanggan` (bawaan) atau `stok` ("Produksi untuk stok", hasilnya masuk menu Stok Barang Jadi).
+ * Tidak bisa diubah setelah dibuat (dijaga trigger database, migration 024). `kategori` pesanan stok tetap `utama`.
+ */
+export type OrderTujuan = "pelanggan" | "stok";
+
 export type OrderStatus =
   | "Pesanan Masuk"
   | "On Process"
@@ -139,6 +145,8 @@ export interface Order {
   updated_at?: string;
   kode_produksi: string;
   kategori: OrderKategori;
+  /** kosong / `pelanggan` = pesanan biasa; `stok` = produksi untuk stok (migration 024) */
+  tujuan?: OrderTujuan;
   nama_pemesan: string;
   no_hp: string;
   alamat_pemesan?: string | null;
@@ -167,6 +175,8 @@ export interface Order {
 /** Data dari form "Pesanan baru". */
 export interface NewOrderInput {
   kategori: OrderKategori;
+  /** `stok` hanya untuk kategori utama: nama pemesan otomatis "Stok Gudang", tahap berhenti di QC */
+  tujuan?: OrderTujuan;
   nama_pemesan: string;
   no_hp: string;
   alamat_pemesan: string;

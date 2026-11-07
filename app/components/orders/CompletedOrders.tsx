@@ -9,6 +9,7 @@
 //  - tanpa grafik (recharts belum dipasang; masuk Bagian 7 — Dashboard)
 "use client";
 
+import StokBadge from "@/app/components/inventory/StokBadge";
 import React, { useMemo, useState } from "react";
 import { Calendar, CheckCircle2, ChevronDown, Eye, Package, Scissors, Search, Shirt } from "lucide-react";
 import type { Order, OrderKategori, ProductionTypeData } from "@/types/order";
@@ -200,6 +201,7 @@ export default function CompletedOrders({ orders, productionTypes, onSelectOrder
                             <Shirt className="w-3 h-3 text-zinc-400 shrink-0" aria-label="Utama" />
                           )}
                           {order.nama_pemesan}
+                          {order.tujuan === "stok" && <StokBadge />}
                         </span>
                       </td>
                       <td className="px-4 py-3 md:px-6 md:py-4">

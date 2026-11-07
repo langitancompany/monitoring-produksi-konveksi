@@ -5,6 +5,7 @@
 // urut paling mendesak, dan tombol hapus (pindah ke Sampah).
 "use client";
 
+import StokBadge from "@/app/components/inventory/StokBadge";
 import React, { useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -216,8 +217,9 @@ function MobileCard({
         </div>
       </div>
 
-      <p className="font-semibold text-sm text-zinc-900 dark:text-white line-clamp-1 mb-1 leading-tight">
+      <p className="font-semibold text-sm text-zinc-900 dark:text-white line-clamp-1 mb-1 leading-tight flex items-center gap-1.5">
         {order.nama_pemesan}
+        {order.tujuan === "stok" && <StokBadge />}
       </p>
 
       <StepProgress order={order} overdue={overdue} />
@@ -340,6 +342,7 @@ function KanbanCard({
 
       <p className="font-semibold text-xs text-zinc-900 dark:text-white line-clamp-2 leading-tight mb-2">
         {order.nama_pemesan}
+        {order.tujuan === "stok" && <StokBadge className="ml-1.5 align-middle" />}
       </p>
 
       <StepProgress order={order} overdue={overdue} compact />

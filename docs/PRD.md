@@ -4,7 +4,7 @@
 > **baca dokumen ini dulu**, lalu kerjakan bagian berikutnya di tabel *Status*.
 > Perbarui tabel Status dan changelog setiap selesai satu bagian.
 
-Terakhir diperbarui: 22 Oktober 2026 · Versi aplikasi: V.1.17 (Bagian 6 langkah 6.7 — invoice pelanggan, bagikan, ekspor Excel — selesai di kode: 87 uji keuangan + 27 uji asap layar lulus, cek tipe bersih; **tanpa migration baru, tetapi ada 3 paket npm baru** (`xlsx`, `jspdf`, `html-to-image`) sehingga wajib `npm install`. **Pembuatan PDF, dialog cetak, dan unduhan Excel hanya berjalan di browser dan belum pernah dicoba di browser pemilik**; rincian & daftar uji di §21.10. Migration `012` dan `013` (langkah 6.5–6.6) juga masih menunggu dijalankan/diuji pemilik bila belum. Bagian lain: lihat tabel Status dan §14–§21 — Bagian 5, 7, 8 juga masih menunggu uji pemilik.)
+Terakhir diperbarui: 22 Oktober 2026 · Versi aplikasi: V.1.24 (Stok Barang Jadi, lihat tabel Status baris 9 dan docs/PRD-inventori.md). Catatan lama berikut dari V.1.17 (Bagian 6 langkah 6.7 — invoice pelanggan, bagikan, ekspor Excel — selesai di kode: 87 uji keuangan + 27 uji asap layar lulus, cek tipe bersih; **tanpa migration baru, tetapi ada 3 paket npm baru** (`xlsx`, `jspdf`, `html-to-image`) sehingga wajib `npm install`. **Pembuatan PDF, dialog cetak, dan unduhan Excel hanya berjalan di browser dan belum pernah dicoba di browser pemilik**; rincian & daftar uji di §21.10. Migration `012` dan `013` (langkah 6.5–6.6) juga masih menunggu dijalankan/diuji pemilik bila belum. Bagian lain: lihat tabel Status dan §14–§21 — Bagian 5, 7, 8 juga masih menunggu uji pemilik.)
 
 ---
 
@@ -43,6 +43,8 @@ dan **Pesanan Non-Utama**.
 | 6 | Keuangan | Tagihan → pembayaran → verifikasi (ikuti Keuangan v2 Sablon). **Dibangun bertahap, 8 langkah (6.1–6.8)** — rencana & status tiap langkah di §21 | 🟡 **6.1–6.7 selesai di kode** (6.1–6.4 sudah dijalankan & diuji pemilik; 6.5–6.7 lolos tes otomatis, belum dijalankan/dilihat di Supabase dan browser pemilik); 6.8 belum |
 | 7 | Dashboard & finishing | Dashboard ringkasan, tampilan Kanban, pengetatan RLS, rapikan lint | ✅ selesai di kode, **belum diuji** (migration `005`, Dashboard di browser) — rincian & sisa pekerjaan di §18 |
 | 8 | Tim Produksi | Pengaturan → Tim (kartu + avatar anggota), pilihan Tim di Pesanan Baru/Edit, tampil di Detail Pesanan, migration `006` | ✅ selesai di kode, migration diuji di Postgres lokal, **belum diuji** di Supabase & browser pemilik — rincian di §19 |
+
+| 9 | Stok Barang Jadi | Menu Stok Barang Jadi (Stok, Verifikasi, Riwayat), pesanan \"Produksi untuk stok\" (tahap berhenti di QC), verifikasi hitungan fisik, buku besar stok hanya-tambah, izin `inventori`, migration `024`. Rancangan: `docs/PRD-inventori.md` | 🟡 **selesai di kode (langkah 1–5 PRD-inventori §15)**: cek tipe bersih, `tests/inventory.test.ts` lulus. **Migration `024` dan semua layar belum dijalankan/diuji** di Supabase dan browser pemilik; daftar uji manual di PRD-inventori §16.2 |
 
 Urutan berikutnya: **Bagian 6 (Keuangan), langkah 6.8 (gaji → Keuangan, tutup periode, transfer antar akun, layar pengaturan keuangan, hapus data pesanan)** — lihat §21. Sebelum itu, jalankan migration `012` dan `013`, jalankan `npm install`, dan uji layar 6.5–6.7 di browser (§21.8–§21.10).
 penuh (kode + `npx tsc --noEmit` bersih + changelog + tabel ini) sebelum lanjut.

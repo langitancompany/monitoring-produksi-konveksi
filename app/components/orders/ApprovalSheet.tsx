@@ -500,7 +500,7 @@ export default function ApprovalSheet({ order, productionTypes, pjName, teamName
               >
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>FORM APPROVAL</div>
                 <div style={{ fontSize: 11.5 }}>
-                  <b>#{order.kode_produksi}</b> · {order.nama_pemesan} · Deadline {fmtDate(order.deadline) || "—"}
+                  <b>#{order.kode_produksi}</b> · {order.tujuan === "stok" ? "Produksi Stok" : order.nama_pemesan} · Deadline {fmtDate(order.deadline) || "—"}
                 </div>
               </div>
             )}
@@ -532,9 +532,15 @@ export default function ApprovalSheet({ order, productionTypes, pjName, teamName
                     }}
                   >
                     <div style={{ flex: 1.25, minWidth: 0 }}>
-                      <Field label="Nama Customer" value={order.nama_pemesan} bold />
-                      <Field label="WA Customer" value={order.no_hp} />
-                      <Field label="Alamat" value={alamat} clamp={2} />
+                      {order.tujuan === "stok" ? (
+                        <Field label="Tujuan" value="Produksi Stok" bold />
+                      ) : (
+                        <>
+                          <Field label="Nama Customer" value={order.nama_pemesan} bold />
+                          <Field label="WA Customer" value={order.no_hp} />
+                          <Field label="Alamat" value={alamat} clamp={2} />
+                        </>
+                      )}
                     </div>
                     <div style={{ width: 1, background: LINE }} />
                     <div style={{ flex: 1, minWidth: 0 }}>

@@ -5,7 +5,8 @@
 // Notifikasi tersimpan di tabel `notifications` + push FCM lewat notificationHelper.
 
 import type { Order } from "@/types/order";
-import { sendToRoles, sendToAllUsers } from "./notificationHelper";
+import { sendToRoles, sendToAllUsers, sendToInventoryVerifiers } from "./notificationHelper";
+import { isStokOrder } from "./steps";
 import { daysUntil } from "./utils";
 
 export const triggerOrderNotifications = async (
@@ -48,6 +49,15 @@ export const triggerOrderNotifications = async (
         await sendToRoles(["admin", "super_admin"], title, "Pesanan siap dikirim.", orderId);
         break;
       case "Selesai":
+        // Pesanan stok selesai di QC: kabari petugas verifikasi, bukan semua orang.
+        if (isStokOrder(orderData)) {
+          await sendToInventoryVerifiers(
+            "Stok menunggu verifikasi",
+            `Order ${orderData.kode_produksi} lolos QC. Cocokkan hasil produksi dengan hitungan fisik di menu Stok Barang Jadi.`,
+            orderId,
+          );
+          break;
+        }
         await sendToAllUsers("✅ Pesanan Selesai", `Order ${orderData.kode_produksi} telah selesai sepenuhnya!`, orderId);
         break;
     }

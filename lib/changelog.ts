@@ -6,7 +6,7 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.23",
+  version: "V.1.24",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.24",
+    date: "2026-11-08",
+    changes: [
+      "Menu baru \"Stok Barang Jadi\" dengan tab Stok, Verifikasi, dan Riwayat. Stok dicatat per jenis produksi, varian, warna, dan ukuran sesuai rincian pesanan.",
+      "Form Pesanan Utama punya pilihan \"Produksi untuk stok\". Pesanan stok tanpa data pemesan, tahapnya berhenti di QC (tanpa Packing dan Pengiriman), dan berlabel STOK di daftar pesanan, kalender, Pesanan Selesai, dan Sampah.",
+      "Begitu QC pesanan stok lolos, catatan \"menunggu verifikasi\" muncul otomatis. Petugas mencocokkan hasil produksi dengan hitungan fisik; stok baru bertambah setelah diverifikasi, dan selisih wajib diberi alasan.",
+      "Stok disimpan sebagai buku besar yang hanya bisa bertambah baris (tidak bisa diubah atau dihapus), jadi setiap tambahan stok bisa ditelusuri ke pesanan, petugas, waktu, dan selisihnya.",
+      "Izin baru \"Stok Barang Jadi\" di Pengaturan → Pengguna: Lihat, dan Verifikasi stok masuk. Pemegang izin Verifikasi dan Super Admin mendapat notifikasi saat ada stok menunggu verifikasi.",
+      "Pesanan stok tidak muncul di tagihan dan laporan laba per pesanan Keuangan (ditolak juga di database); upah produksi dan QC tetap terhitung. Perlu menjalankan migration 024.",
+    ],
+  },
   {
     version: "1.23",
     date: "2026-11-07",

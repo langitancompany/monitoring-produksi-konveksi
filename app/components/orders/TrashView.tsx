@@ -5,6 +5,7 @@
 // Konfirmasi hapus permanen dilakukan pemanggil (app/page.tsx).
 "use client";
 
+import StokBadge from "@/app/components/inventory/StokBadge";
 import React from "react";
 import { Loader2, RefreshCw, Scissors, Shirt, Trash2 } from "lucide-react";
 import type { Order } from "@/types/order";
@@ -87,7 +88,7 @@ export default function TrashView({ orders, canRestore, canPurge, busy, onRestor
                 </div>
 
                 <h3 className="font-semibold text-sm text-zinc-900 dark:text-white line-clamp-1 mb-0.5 leading-tight">
-                  {order.nama_pemesan}
+                  {order.nama_pemesan}{order.tujuan === "stok" && <StokBadge className="ml-1.5 align-middle" />}
                 </h3>
                 <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-3 font-medium">
                   <span className="font-mono tabular-nums">{order.jumlah}</span> pcs · Dihapus{" "}

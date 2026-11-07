@@ -4,7 +4,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Boxes, Loader2 } from "lucide-react";
 import type { NewOrderInput, OrderKategori, ProductionTypeData } from "@/types/order";
 import type { UserData } from "@/types";
 import type { TeamData } from "@/types/team";
@@ -26,6 +26,9 @@ interface Props {
   onSubmit: (data: NewOrderInput) => void;
 }
 
+/** Nama pemesan otomatis untuk pesanan produksi stok. */
+export const NAMA_STOK = "Stok Gudang";
+
 export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isSubmitting, onCancel, onSubmit }: Props) {
   const isNon = kategori === "non_utama";
   const [form, setForm] = useState<NewOrderInput>({
@@ -38,10 +41,13 @@ export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isS
     deadline: "",
     catatan_pesanan: "",
     jenis_produksi: isNon ? nonUtamaTypes[0]?.value ?? "" : undefined,
+    tujuan: "pelanggan",
     team_id: null,
     assigned_to: null,
   });
   const [error, setError] = useState<string | null>(null);
+  // Produksi untuk stok: hanya pesanan utama. Data pemesan tidak dipakai (nama otomatis "Stok Gudang").
+  const isStok = !isNon && form.tujuan === "stok";
   const set = <K extends keyof NewOrderInput>(k: K, v: NewOrderInput[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = (e: React.FormEvent) => {
@@ -57,7 +63,11 @@ export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isS
     }
     setError(null);
     // Pesanan utama: jumlah belum ada, baru terisi dari rincian di tahap Approval.
-    onSubmit({ ...form, jumlah: isNon ? form.jumlah : 0 });
+    onSubmit(
+      isStok
+        ? { ...form, tujuan: "stok", nama_pemesan: NAMA_STOK, no_hp: "", alamat_pemesan: "", jumlah: 0 }
+        : { ...form, tujuan: "pelanggan", jumlah: isNon ? form.jumlah : 0 },
+    );
   };
 
   return (
@@ -77,25 +87,51 @@ export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isS
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             {isNon
               ? "Isi detail pemesan, jumlah, dan kategori pemesanan."
-              : "Isi data pemesan. Jenis jahitan, varian, ukuran, dan jumlah diisi admin saat membuat Approval."}
+              : isStok
+                ? "Hasil produksi masuk ke menu Stok Barang Jadi setelah QC lolos dan diverifikasi. Tahap berhenti di QC."
+                : "Isi data pemesan. Jenis jahitan, varian, ukuran, dan jumlah diisi admin saat membuat Approval."}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:col-span-2">
-          <div>
-            <label className={labelCls}>Nama pemesan *</label>
-            <input required className={inputCls} value={form.nama_pemesan} onChange={(e) => set("nama_pemesan", e.target.value)} placeholder="Nama pemesan / instansi" />
-          </div>
-          <div>
-            <label className={labelCls}>No. HP / WhatsApp</label>
-            <input inputMode="tel" className={inputCls} value={form.no_hp} onChange={(e) => set("no_hp", e.target.value)} placeholder="08xxxxxxxxxx" />
-          </div>
-        </div>
+        {!isNon && (
+          <label className="lg:col-span-2 flex items-start gap-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-[#124540]"
+              checked={isStok}
+              disabled={isSubmitting}
+              onChange={(e) => set("tujuan", e.target.checked ? "stok" : "pelanggan")}
+            />
+            <span>
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                <Boxes className="w-4 h-4 text-[#124540] dark:text-[#49BFB4]" /> Produksi untuk stok
+              </span>
+              <span className="block text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                Bukan pesanan pelanggan. Tanpa data pemesan, Packing, dan Pengiriman. Upah produksi dan QC tetap dibayar.
+              </span>
+            </span>
+          </label>
+        )}
 
-        <div>
-          <label className={labelCls}>Alamat</label>
-          <textarea rows={2} className={inputCls} value={form.alamat_pemesan} onChange={(e) => set("alamat_pemesan", e.target.value)} placeholder="Alamat pengiriman (opsional)" />
-        </div>
+        {!isStok && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:col-span-2">
+              <div>
+                <label className={labelCls}>Nama pemesan *</label>
+                <input required className={inputCls} value={form.nama_pemesan} onChange={(e) => set("nama_pemesan", e.target.value)} placeholder="Nama pemesan / instansi" />
+              </div>
+              <div>
+                <label className={labelCls}>No. HP / WhatsApp</label>
+                <input inputMode="tel" className={inputCls} value={form.no_hp} onChange={(e) => set("no_hp", e.target.value)} placeholder="08xxxxxxxxxx" />
+              </div>
+            </div>
+
+            <div>
+              <label className={labelCls}>Alamat</label>
+              <textarea rows={2} className={inputCls} value={form.alamat_pemesan} onChange={(e) => set("alamat_pemesan", e.target.value)} placeholder="Alamat pengiriman (opsional)" />
+            </div>
+          </>
+        )}
 
         <div>
           <label className={labelCls}>Catatan</label>
@@ -130,7 +166,7 @@ export default function CreateOrder({ kategori, nonUtamaTypes, teams, users, isS
             <input required type="date" className={inputCls} value={form.tanggal_masuk} onChange={(e) => set("tanggal_masuk", e.target.value)} />
           </div>
           <div>
-            <label className={labelCls}>Deadline *</label>
+            <label className={labelCls}>{isStok ? "Target selesai *" : "Deadline *"}</label>
             <input required type="date" min={form.tanggal_masuk} className={inputCls} value={form.deadline} onChange={(e) => set("deadline", e.target.value)} />
           </div>
         </div>

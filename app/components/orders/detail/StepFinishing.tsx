@@ -178,7 +178,8 @@ export default function StepFinishing({ ctx, onQC, notes }: Props) {
         <ProductionNotes section="finishing" api={notes} />
       </SectionCard>
 
-      {/* ── 04 PENGIRIMAN ── */}
+      {/* ── 04 PENGIRIMAN (pesanan stok berhenti di QC: tidak ada tahap ini) ── */}
+      {(kirim || terima) && (
       <SectionCard num="04" title="Pengiriman">
         <div className="p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-50/60 dark:bg-zinc-900/50 space-y-4">
           {/* Bukti Kirim */}
@@ -242,6 +243,7 @@ export default function StepFinishing({ ctx, onQC, notes }: Props) {
 
         <ProductionNotes section="pengiriman" api={notes} />
       </SectionCard>
+      )}
     </>
   );
 }

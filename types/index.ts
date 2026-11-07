@@ -76,6 +76,8 @@ export interface UserPermissions {
   /** Aplikasi terpisah /pengeluaran: hanya mencatat pengeluaran sendiri, TANPA akses menu Keuangan. */
   catat_pengeluaran: ModuleView;
   config_harga: ModuleViewEdit;
+  /** Stok Barang Jadi: `view` = melihat stok/verifikasi/riwayat, `edit` = verifikasi stok masuk. */
+  inventori: ModuleViewEdit;
   logs: ModuleView;
   trash: ModuleTrash;
   settings: ModuleFull;
@@ -90,6 +92,7 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   keuangan: { view: false, maker: false, approver: false, delete: false },
   catat_pengeluaran: { view: false },
   config_harga: { view: false, edit: false },
+  inventori: { view: false, edit: false },
   logs: { view: false },
   trash: { view: false, delete: false },
   settings: { view: false, create: false, edit: false, delete: false },

@@ -8,6 +8,9 @@
 // Alur (sesuai kebutuhan Konveksi):
 //  utama     : Approval → Potong Kain → Produksi Massal (Jahit) → QC → Packing → Pengiriman → Penerimaan
 //  non_utama : Detail Pesanan → Mockup → Produksi Massal → QC → Pengiriman → Penerimaan
+//  stok      : (pesanan utama dengan tujuan "stok") Approval → Potong Kain → Produksi Massal → QC
+//              Berhenti di QC; begitu QC lolos, database membuat catatan "menunggu verifikasi"
+//              di menu Stok Barang Jadi (PRD-inventori §4).
 //
 // Tampilan di Detail Pesanan dikelompokkan jadi 4 kartu seperti Sablon
 // (`section`): 1 Approval · 2 Produksi · 3 QC & Packing · 4 Pengiriman.
@@ -18,6 +21,7 @@ import type {
   Order,
   OrderKategori,
   OrderStatus,
+  OrderTujuan,
   ProductionStep,
   StepType,
 } from "@/types/order";
@@ -55,9 +59,26 @@ export const STEP_TEMPLATES: Record<OrderKategori, StepTemplate[]> = {
   ],
 };
 
+/** Pesanan stok: tahap lebih pendek, berhenti di QC (tanpa Packing, Pengiriman, Penerimaan). */
+export const STEP_TEMPLATES_STOK: StepTemplate[] = [
+  { key: "approval", name: "Approval & Jenis Produksi", type: "form", phase: "Pesanan Masuk", section: 1 },
+  { key: "potong_kain", name: "Potong Kain", type: "upload_image", phase: "On Process", section: 2 },
+  { key: "produksi_massal", name: "Produksi Massal (Jahit)", type: "upload_image", phase: "On Process", section: 2 },
+  { key: "qc", name: "QC", type: "qc", phase: "Finishing", section: 3 },
+];
+
+/** Pesanan stok hanya untuk kategori utama; kategori lain mengabaikan `tujuan`. */
+export const isStokOrder = (o: { kategori?: OrderKategori; tujuan?: OrderTujuan | null }): boolean =>
+  o.tujuan === "stok" && o.kategori !== "non_utama";
+
+/** Template tahap yang berlaku untuk kategori + tujuan pesanan. */
+export function templateFor(kategori: OrderKategori, tujuan?: OrderTujuan | null): StepTemplate[] {
+  return isStokOrder({ kategori, tujuan }) ? STEP_TEMPLATES_STOK : STEP_TEMPLATES[kategori];
+}
+
 /** Kartu (bagian) tempat sebuah tahap ditampilkan. */
-export function sectionOf(kategori: OrderKategori, key: string): StepSection {
-  return STEP_TEMPLATES[kategori].find((t) => t.key === key)?.section ?? 2;
+export function sectionOf(kategori: OrderKategori, key: string, tujuan?: OrderTujuan | null): StepSection {
+  return templateFor(kategori, tujuan).find((t) => t.key === key)?.section ?? 2;
 }
 
 /** Buat daftar tahap awal untuk pesanan baru. `completeKeys` = tahap yang langsung selesai. */
@@ -65,9 +86,10 @@ export function buildInitialSteps(
   kategori: OrderKategori,
   completeKeys: string[] = [],
   by?: string,
+  tujuan?: OrderTujuan | null,
 ): ProductionStep[] {
   const now = new Date().toISOString();
-  return STEP_TEMPLATES[kategori].map((t) => {
+  return templateFor(kategori, tujuan).map((t) => {
     const done = completeKeys.includes(t.key);
     return {
       id: `${t.key}`,
@@ -85,9 +107,9 @@ export function buildInitialSteps(
 }
 
 /** Template tahap milik pesanan (untuk membaca `phase`). */
-function phaseOf(kategori: OrderKategori, key: string): OrderStatus {
+function phaseOf(kategori: OrderKategori, key: string, tujuan?: OrderTujuan | null): OrderStatus {
   return (
-    STEP_TEMPLATES[kategori].find((t) => t.key === key)?.phase ?? "On Process"
+    templateFor(kategori, tujuan).find((t) => t.key === key)?.phase ?? "On Process"
   );
 }
 
@@ -100,7 +122,7 @@ function phaseOf(kategori: OrderKategori, key: string): OrderStatus {
  * "Telat" TIDAK disimpan; ditampilkan dari deadline (lihat getDeadlineStatus).
  */
 export function deriveStatus(
-  order: Pick<Order, "kategori" | "steps" | "kendala">,
+  order: Pick<Order, "kategori" | "steps" | "kendala"> & { tujuan?: OrderTujuan | null },
 ): OrderStatus {
   if (order.kendala?.some((k) => !k.isResolved)) return "Ada Kendala";
 
@@ -117,7 +139,7 @@ export function deriveStatus(
   }
 
   const active = steps.find((s) => !s.isCompleted);
-  return active ? phaseOf(order.kategori, active.key) : "Pesanan Masuk";
+  return active ? phaseOf(order.kategori, active.key, order.tujuan) : "Pesanan Masuk";
 }
 
 /**
@@ -127,10 +149,10 @@ export function deriveStatus(
  * pesanan bermasalah tetap tampil di kolom tahap yang sebenarnya.
  */
 export function currentPhase(
-  order: Pick<Order, "kategori" | "steps">,
+  order: Pick<Order, "kategori" | "steps"> & { tujuan?: OrderTujuan | null },
 ): OrderStatus {
   const active = (order.steps ?? []).find((s) => !s.isCompleted);
-  return active ? phaseOf(order.kategori, active.key) : "Selesai";
+  return active ? phaseOf(order.kategori, active.key, order.tujuan) : "Selesai";
 }
 
 /** Persentase tahap selesai (untuk progress bar). */

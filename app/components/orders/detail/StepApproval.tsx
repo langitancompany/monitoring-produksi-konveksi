@@ -8,6 +8,7 @@ import React, { useState } from "react";
 import { Eye, FileText } from "lucide-react";
 import type { ApprovalInput, ProductionTypeData } from "@/types/order";
 import { itemTitle } from "@/lib/orderItems";
+import { isStokOrder } from "@/lib/steps";
 import { ByLine, DoneBadge, SectionCard, StepCtx, UploadButton, getStep } from "./stepUi";
 import ApprovalForm from "./ApprovalForm";
 
@@ -32,7 +33,10 @@ const ViewLink = ({ href, children }: { href: string; children: React.ReactNode 
 export default function StepApproval({ ctx, productionTypes, onApproval }: Props) {
   const { order, disabled, busyKey } = ctx;
   const [showForm, setShowForm] = useState(false);
-  const utamaTypes = productionTypes.filter((t) => t.kategori === "utama");
+  // Pesanan stok tidak boleh memakai jenis pesanan umum (is_custom)
+  const utamaTypes = productionTypes.filter(
+    (t) => t.kategori === "utama" && !(isStokOrder(order) && t.is_custom),
+  );
 
   // ── Pesanan UTAMA ─────────────────────────────────────────────────────────
   if (order.kategori === "utama") {

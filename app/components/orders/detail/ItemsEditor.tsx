@@ -22,6 +22,7 @@ import {
   hasVarian,
   hasWarna,
   isCustomType,
+  isFreeTextList,
   newItemId,
   ukuranList,
   sumItems,
@@ -29,6 +30,7 @@ import {
   sumUkuran,
 } from "@/lib/orderItems";
 import { inputCls, labelCls } from "@/app/components/settings/settingsShared";
+import WarnaInput from "./WarnaInput";
 
 interface Props {
   items: OrderItem[];
@@ -354,6 +356,8 @@ function RincianBlocks({
   const withWarna = hasWarna(type);
   const varianList = type?.varian ?? [];
   const warnaList = type?.varian_warna ?? [];
+  // Hanya "Lainnya" yang dicentang di Pengaturan → isian teks langsung (tanpa dropdown & tulisan "Lainnya").
+  const warnaFree = withWarna && isFreeTextList(warnaList);
 
   const patch = (idx: number, p: Partial<ItemRincian>) =>
     onChange(rincian.map((r, i) => (i === idx ? { ...r, ...p } : r)));
@@ -385,7 +389,13 @@ function RincianBlocks({
   const allVarianUsed =
     !varianList.includes(VARIAN_LAINNYA) &&
     !warnaList.includes(VARIAN_LAINNYA) &&
-    modelOpts.every((m) => warnaOpts.every((w) => rincian.some((r) => (r.varian ?? undefined) === m && (r.warna ?? undefined) === w)));
+    modelOpts.every((m) =>
+      warnaOpts.every((w) =>
+        rincian.some(
+          (r) => (r.varian ?? undefined) === m && (r.warna ?? undefined) === w,
+        ),
+      ),
+    );
 
   return (
     <div className="space-y-3">
@@ -396,7 +406,9 @@ function RincianBlocks({
         >
           {withVarian && (
             <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-              <div className={`grid gap-2 grid-cols-1 ${withModel && withWarna ? "sm:grid-cols-2" : ""}`}>
+              <div
+                className={`grid gap-2 grid-cols-1 ${withModel && withWarna ? "sm:grid-cols-2" : ""}`}
+              >
                 {withModel && (
                   <div className="space-y-2">
                     <div>
@@ -405,7 +417,12 @@ function RincianBlocks({
                         disabled={disabled}
                         className={inputCls}
                         value={r.varian ?? ""}
-                        onChange={(e) => patch(idx, { varian: e.target.value || undefined, varian_lain: undefined })}
+                        onChange={(e) =>
+                          patch(idx, {
+                            varian: e.target.value || undefined,
+                            varian_lain: undefined,
+                          })
+                        }
                       >
                         <option value="">Pilih varian…</option>
                         {varianList.map((v) => (
@@ -422,14 +439,33 @@ function RincianBlocks({
                           disabled={disabled}
                           className={inputCls}
                           value={r.varian_lain ?? ""}
-                          onChange={(e) => patch(idx, { varian_lain: e.target.value })}
+                          onChange={(e) =>
+                            patch(idx, { varian_lain: e.target.value })
+                          }
                           placeholder="mis. 3/4"
                         />
                       </div>
                     )}
                   </div>
                 )}
-                {withWarna && (
+                {withWarna && warnaFree && (
+                  <div>
+                    <label className={labelCls}>Warna</label>
+                    <WarnaInput
+                      disabled={disabled}
+                      className={inputCls}
+                      value={r.warna}
+                      jenis={type?.value}
+                      siblings={rincian
+                        .filter((_, i) => i !== idx)
+                        .map((x) => x.warna)}
+                      onChange={(v) =>
+                        patch(idx, { warna: v, warna_lain: undefined })
+                      }
+                    />
+                  </div>
+                )}
+                {withWarna && !warnaFree && (
                   <div className="space-y-2">
                     <div>
                       <label className={labelCls}>Warna</label>
@@ -437,11 +473,19 @@ function RincianBlocks({
                         disabled={disabled}
                         className={inputCls}
                         value={r.warna ?? ""}
-                        onChange={(e) => patch(idx, { warna: e.target.value || undefined, warna_lain: undefined })}
+                        onChange={(e) =>
+                          patch(idx, {
+                            warna: e.target.value || undefined,
+                            warna_lain: undefined,
+                          })
+                        }
                       >
                         <option value="">Pilih warna…</option>
                         {warnaList
-                          .filter((w) => w === VARIAN_LAINNYA || !warnaTaken(idx).has(w))
+                          .filter(
+                            (w) =>
+                              w === VARIAN_LAINNYA || !warnaTaken(idx).has(w),
+                          )
                           .map((w) => (
                             <option key={w} value={w}>
                               {w}
@@ -456,7 +500,9 @@ function RincianBlocks({
                           disabled={disabled}
                           className={inputCls}
                           value={r.warna_lain ?? ""}
-                          onChange={(e) => patch(idx, { warna_lain: e.target.value })}
+                          onChange={(e) =>
+                            patch(idx, { warna_lain: e.target.value })
+                          }
                           placeholder="mis. Hijau, Cokelat"
                         />
                       </div>

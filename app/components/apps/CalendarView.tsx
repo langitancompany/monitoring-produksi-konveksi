@@ -8,6 +8,7 @@
 // (PRD aturan no. 4).
 "use client";
 
+import StokBadge from "@/app/components/inventory/StokBadge";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -460,6 +461,7 @@ export default function CalendarView({
                         className={`px-2 py-1 rounded-md border-l-[3px] text-[10px] font-semibold truncate opacity-90 text-left ${getStatusColor(o.status)}`}
                       >
                         {o.nama_pemesan}
+                        {o.tujuan === "stok" && <StokBadge className="ml-1" />}
                       </div>
                     ))}
                     {dayDeadlines.length > 3 && (
@@ -830,6 +832,7 @@ function OrderGroup({
             </div>
             <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 mb-1 group-hover:text-[#2589ff] transition-colors duration-150 line-clamp-1">
               {o.nama_pemesan}
+              {o.tujuan === "stok" && <StokBadge className="ml-1.5 align-middle" />}
             </h4>
             <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
               <span className="font-mono tabular-nums">{o.jumlah > 0 ? `${o.jumlah} pcs` : "Jumlah belum diisi"}</span>

@@ -23,6 +23,7 @@ const MODULE_LABEL: Record<string, string> = {
   keuangan: "Keuangan",
   catat_pengeluaran: "Catat Pengeluaran",
   config_harga: "Config Harga",
+  inventori: "Stok Barang Jadi",
   logs: "Log Aktivitas",
   trash: "Sampah",
   settings: "Pengaturan",

@@ -65,6 +65,17 @@ export function hasModel(type: ProductionTypeData | undefined): boolean {
 export function hasWarna(type: ProductionTypeData | undefined): boolean {
   return !isCustomType(type) && (type?.varian_warna?.length ?? 0) > 0;
 }
+/**
+ * Daftar pilihan yang isinya HANYA "Lainnya" (admin mengetik sendiri): form tampil sebagai isian teks langsung,
+ * dan yang tersimpan nama aslinya (mis. "Hitam"), bukan "Lainnya: Hitam".
+ */
+export function isFreeTextList(list: string[] | null | undefined): boolean {
+  return (list?.length ?? 0) > 0 && (list ?? []).every((x) => x === VARIAN_LAINNYA);
+}
+/** Varian 2 (warna) jenis ini berupa isian teks bebas. */
+export function isWarnaFreeText(type: ProductionTypeData | undefined): boolean {
+  return hasWarna(type) && isFreeTextList(type?.varian_warna);
+}
 /** Jenis ini punya salah satu dari Varian 1 / Varian 2, jadi rincian dipecah per blok varian. */
 export function hasVarian(type: ProductionTypeData | undefined): boolean {
   return hasModel(type) || hasWarna(type);
@@ -128,7 +139,7 @@ export function varianLabel(r: Pick<ItemRincian, "varian" | "varian_lain" | "war
 /** Kunci pembeda blok varian (untuk mencegah kombinasi varian + warna yang sama dua kali). */
 function varianKey(r: ItemRincian): string {
   const m = `${r.varian ?? ""}|${r.varian === VARIAN_LAINNYA ? (r.varian_lain ?? "").trim().toLowerCase() : ""}`;
-  const w = `${r.warna ?? ""}|${r.warna === VARIAN_LAINNYA ? (r.warna_lain ?? "").trim().toLowerCase() : ""}`;
+  const w = `${(r.warna ?? "").trim().toLowerCase()}|${r.warna === VARIAN_LAINNYA ? (r.warna_lain ?? "").trim().toLowerCase() : ""}`;
   return `${m}#${w}`;
 }
 
@@ -139,6 +150,11 @@ const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().t
  * ada di sana (bukan di Varian 1), pindahkan ke `warna` supaya harga tidak ikut terpecah per warna.
  */
 export function normalizeRincianVarian(r: ItemRincian, type: ProductionTypeData | undefined): ItemRincian {
+  // Warna isian bebas: data lama "Lainnya" + nama bebas dijadikan nama aslinya ("Hitam").
+  if (isWarnaFreeText(type) && r.warna === VARIAN_LAINNYA && r.warna_lain?.trim()) {
+    const { warna_lain, ...rest } = r;
+    return { ...rest, warna: warna_lain.trim() };
+  }
   if (!hasWarna(type) || !r.varian || r.warna) return r;
   const models = type?.varian ?? [];
   const warna = type?.varian_warna ?? [];
@@ -252,8 +268,9 @@ export function validateItems(
           }
         }
         if (hasWarna(type)) {
-          if (!r.warna) return `Pilih warna untuk setiap blok ${name}.`;
-          if (r.warna === VARIAN_LAINNYA && !r.warna_lain?.trim()) {
+          const free = isFreeTextList(type?.varian_warna);
+          if (!r.warna?.trim()) return free ? `Tulis warna untuk setiap blok ${name}.` : `Pilih warna untuk setiap blok ${name}.`;
+          if (!free && r.warna === VARIAN_LAINNYA && !r.warna_lain?.trim()) {
             return `Tulis nama warna "Lainnya" untuk ${name}.`;
           }
         }
@@ -289,11 +306,12 @@ export function cleanItems(items: OrderItem[]): OrderItem[] {
       .map((r) => {
         const lain = r.varian === VARIAN_LAINNYA ? r.varian_lain?.trim() : "";
         const warnaLain = r.warna === VARIAN_LAINNYA ? r.warna_lain?.trim() : "";
+        const warna = r.warna?.trim();
         return {
           id: r.id,
           ...(r.varian ? { varian: r.varian } : {}),
           ...(lain ? { varian_lain: lain } : {}),
-          ...(r.warna ? { warna: r.warna } : {}),
+          ...(warna ? { warna } : {}),
           ...(warnaLain ? { warna_lain: warnaLain } : {}),
           ukuran: r.ukuran
             .filter((u) => (Number(u.jumlah) || 0) > 0)

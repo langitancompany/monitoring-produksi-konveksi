@@ -52,17 +52,18 @@ export async function POST(request: NextRequest) {
   }
 
   const toAll = payload?.all === true;
+  const toVerifiers = payload?.permission === "inventori_verify";
   const roles: string[] = Array.isArray(payload?.roles) ? payload.roles : [];
   // Role harus dari daftar yang dikenal (juga mencegah karakter aneh masuk ke filter query)
-  if (!toAll && (roles.length === 0 || !roles.every((r) => VALID_ROLES.has(r)))) {
+  if (!toAll && !toVerifiers && (roles.length === 0 || !roles.every((r) => VALID_ROLES.has(r)))) {
     return NextResponse.json({ error: "roles tidak valid" }, { status: 400 });
   }
 
   try {
     const db = getSupabaseAdmin();
 
-    let query = db.from("users").select("id, role, permissions");
-    if (!toAll) {
+    let query = db.from("users").select("id, role, roles, permissions");
+    if (!toAll && !toVerifiers) {
       const list = roles.join(",");
       // Cek kolom `role` (utama) DAN `roles` (array, role ganda)
       query = query.or(`role.in.(${list}),roles.ov.{${list}}`);
@@ -74,8 +75,19 @@ export async function POST(request: NextRequest) {
     }
     let targets: any[] = users ?? [];
 
+    // Petugas verifikasi stok: Super Admin + pemegang izin inventori.edit. Tidak disaring per pesanan,
+    // karena petugas gudang belum tentu PJ atau anggota tim pesanan itu.
+    if (toVerifiers) {
+      targets = targets.filter(
+        (u) =>
+          u.role === "super_admin" ||
+          (Array.isArray(u.roles) && u.roles.includes("super_admin")) ||
+          u.permissions?.inventori?.edit === true,
+      );
+    }
+
     // Notifikasi pesanan: saring ke yang berhak tahu pesanan ini.
-    if (orderId && targets.length > 0) {
+    if (orderId && !toVerifiers && targets.length > 0) {
       const { data: order, error: orderError } = await db
         .from("orders")
         .select("created_by, assigned_to, team_id")

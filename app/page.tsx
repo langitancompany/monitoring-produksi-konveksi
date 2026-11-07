@@ -43,6 +43,8 @@ import { useProductionTypes } from "@/hooks/useProductionTypes";
 import { useTeams } from "@/hooks/useTeams";
 import { useUpload } from "@/hooks/useUpload";
 import { uploadMockups } from "@/lib/orderItems";
+import { invFetch } from "@/hooks/useInventoryApi";
+import type { InventoryMeta } from "@/lib/inventory/types";
 
 // ─── Layout & UI ─────────────────────────────────────────────────────────────
 import Sidebar from "@/app/components/layout/Sidebar";
@@ -59,10 +61,13 @@ const Spinner = () => (
   </div>
 );
 
-const Dashboard = dynamic(() => import("@/app/components/dashboard/Dashboard"), {
-  loading: Spinner,
-  ssr: false,
-});
+const Dashboard = dynamic(
+  () => import("@/app/components/dashboard/Dashboard"),
+  {
+    loading: Spinner,
+    ssr: false,
+  },
+);
 const SettingsPage = dynamic(
   () => import("@/app/components/settings/SettingsPage"),
   { loading: Spinner },
@@ -105,6 +110,10 @@ const ConfigPriceView = dynamic(
   () => import("@/app/components/apps/ConfigPriceView"),
   { loading: Spinner },
 );
+const InventoryModule = dynamic(
+  () => import("@/app/components/inventory/InventoryModule"),
+  { loading: Spinner },
+);
 const FinanceModule = dynamic(
   () => import("@/app/components/finance/FinanceModule"),
   { loading: Spinner },
@@ -113,7 +122,8 @@ const FinanceModule = dynamic(
 type OrderView = "list" | "detail" | "create" | "edit";
 const isOrderView = (v: string | null): v is OrderView =>
   v === "list" || v === "detail" || v === "create" || v === "edit";
-const isOrderTab = (t: ActiveTab) => t === "orders_utama" || t === "orders_lain";
+const isOrderTab = (t: ActiveTab) =>
+  t === "orders_utama" || t === "orders_lain";
 const kategoriOf = (t: ActiveTab): OrderKategori =>
   t === "orders_lain" ? "non_utama" : "utama";
 
@@ -143,13 +153,25 @@ export default function KonveksiApp() {
   // ─── Alert / konfirmasi ────────────────────────────────────────────────────
   const showAlert = useCallback(
     (title: string, message: string, type: "success" | "error" = "success") => {
-      setAlertState({ isOpen: true, title, message, type, onConfirm: undefined });
+      setAlertState({
+        isOpen: true,
+        title,
+        message,
+        type,
+        onConfirm: undefined,
+      });
     },
     [],
   );
   const showConfirm = useCallback(
     (title: string, message: string, onConfirm: () => void) => {
-      setAlertState({ isOpen: true, title, message, type: "confirm", onConfirm });
+      setAlertState({
+        isOpen: true,
+        title,
+        message,
+        type: "confirm",
+        onConfirm,
+      });
     },
     [],
   );
@@ -223,7 +245,14 @@ export default function KonveksiApp() {
     handleDeleteOrder,
     handleRestoreOrder,
     handlePermanentDelete,
-  } = useOrders({ supabase, currentUser, fetchNotifications, showAlert, teams, users: usersList });
+  } = useOrders({
+    supabase,
+    currentUser,
+    fetchNotifications,
+    showAlert,
+    teams,
+    users: usersList,
+  });
 
   const { isUploading, uploadProof } = useUpload({
     supabase,
@@ -235,8 +264,40 @@ export default function KonveksiApp() {
   // Muat data awal begitu login berhasil
   useEffect(() => {
     if (!currentUser?.id) return;
-    void Promise.all([fetchUsers(), fetchOrders(), fetchProductionTypes(), fetchTeams()]);
-  }, [currentUser?.id, fetchUsers, fetchOrders, fetchProductionTypes, fetchTeams]);
+    void Promise.all([
+      fetchUsers(),
+      fetchOrders(),
+      fetchProductionTypes(),
+      fetchTeams(),
+    ]);
+  }, [
+    currentUser?.id,
+    fetchUsers,
+    fetchOrders,
+    fetchProductionTypes,
+    fetchTeams,
+  ]);
+
+  // Lencana menu Stok Barang Jadi: jumlah catatan menunggu verifikasi (hanya untuk pemegang izin Verifikasi).
+  // Dimuat ulang tiap daftar pesanan berubah, karena QC lolos membuat catatan baru.
+  const canViewInventory = can(currentUser, "inventori", "view");
+  const [inventoryPending, setInventoryPending] = useState(0);
+  useEffect(() => {
+    if (!currentUser?.id || !canViewInventory) return;
+    let off = false;
+    invFetch<InventoryMeta>("/api/inventori/meta")
+      .then((m) => {
+        if (!off) setInventoryPending(m.pending_count);
+      })
+      .catch(() => {});
+    return () => {
+      off = true;
+    };
+  }, [currentUser?.id, canViewInventory, orders]);
+  const openableOrderIds = useMemo(
+    () => new Set(orders.map((o: Order) => o.id)),
+    [orders],
+  );
 
   const selectedOrder = useMemo(
     () => orders.find((o: Order) => o.id === selectedOrderId),
@@ -302,13 +363,21 @@ export default function KonveksiApp() {
       const target = orders.find((o: Order) => o.id === orderId);
       if (target) {
         setReturnTab(null);
-        setActiveTab(target.kategori === "non_utama" ? "orders_lain" : "orders_utama");
+        setActiveTab(
+          target.kategori === "non_utama" ? "orders_lain" : "orders_utama",
+        );
         setView("detail");
         setSelectedOrderId(orderId);
+      } else if (can(currentUser, "inventori", "view")) {
+        // Pesanan tidak ada di daftar pengguna ini (mis. petugas gudang yang bukan PJ): buka menu stok.
+        setReturnTab(null);
+        setView("list");
+        setSelectedOrderId(null);
+        setActiveTab("inventori");
       }
       setSidebarOpen(false);
     },
-    [markAsRead, orders],
+    [markAsRead, orders, currentUser],
   );
 
   // Buka detail pesanan dari menu lain (Pesanan Selesai, Kalender, Log Aktivitas)
@@ -324,7 +393,9 @@ export default function KonveksiApp() {
         return;
       }
       setReturnTab(from);
-      setActiveTab(target.kategori === "non_utama" ? "orders_lain" : "orders_utama");
+      setActiveTab(
+        target.kategori === "non_utama" ? "orders_lain" : "orders_utama",
+      );
       setSelectedOrderId(orderId);
       setView("detail");
     },
@@ -336,11 +407,17 @@ export default function KonveksiApp() {
     (orderId: string) => {
       const target = orders.find((o: Order) => o.id === orderId);
       if (!target) {
-        showAlert("Pesanan tidak ditemukan", "Pesanan ini mungkin sudah dihapus.", "error");
+        showAlert(
+          "Pesanan tidak ditemukan",
+          "Pesanan ini mungkin sudah dihapus.",
+          "error",
+        );
         return;
       }
       setReturnTab("salary");
-      setActiveTab(target.kategori === "non_utama" ? "orders_lain" : "orders_utama");
+      setActiveTab(
+        target.kategori === "non_utama" ? "orders_lain" : "orders_utama",
+      );
       setSelectedOrderId(orderId);
       setView("edit");
     },
@@ -442,14 +519,22 @@ export default function KonveksiApp() {
             onCancel={() => setView("detail")}
             onSubmit={async (data) => {
               let payload = data;
-              if (data.items && data.mockups && Object.keys(data.mockups).length > 0) {
-                const withMockups = await uploadMockups(data.items, data.mockups, (f, label) =>
-                  uploadProof(selectedOrder, f, label, { highRes: true }),
+              if (
+                data.items &&
+                data.mockups &&
+                Object.keys(data.mockups).length > 0
+              ) {
+                const withMockups = await uploadMockups(
+                  data.items,
+                  data.mockups,
+                  (f, label) =>
+                    uploadProof(selectedOrder, f, label, { highRes: true }),
                 );
                 if (!withMockups) return;
                 payload = { ...data, items: withMockups };
               }
-              if (await handleEditOrder(selectedOrder, payload)) setView("detail");
+              if (await handleEditOrder(selectedOrder, payload))
+                setView("detail");
             }}
           />
         );
@@ -472,6 +557,12 @@ export default function KonveksiApp() {
           showConfirm={showConfirm}
           onBack={backToList}
           onEdit={() => setView("edit")}
+          onOpenInventory={() => {
+            setReturnTab(null);
+            setView("list");
+            setSelectedOrderId(null);
+            setActiveTab("inventori");
+          }}
           onDelete={async (o) => {
             if (await handleDeleteOrder(o)) backToList();
           }}
@@ -532,6 +623,7 @@ export default function KonveksiApp() {
         setSidebarOpen={setSidebarOpen}
         currentUser={currentUser}
         activeTab={activeTab}
+        inventoryPending={inventoryPending}
         handleNav={(tab: ActiveTab) => {
           setActiveTab(tab);
           setView("list");
@@ -591,13 +683,23 @@ export default function KonveksiApp() {
               />
             )}
 
-            {isOrderTab(activeTab) && p?.orders?.view && renderOrders(activeTab)}
+            {isOrderTab(activeTab) &&
+              p?.orders?.view &&
+              renderOrders(activeTab)}
 
             {activeTab === "completed_orders" && p?.orders?.view && (
               <CompletedOrders
                 orders={completedOrders}
                 productionTypes={productionTypes}
                 onSelectOrder={(id) => openOrder(id, "completed_orders")}
+              />
+            )}
+
+            {activeTab === "inventori" && canViewInventory && (
+              <InventoryModule
+                onPendingChange={setInventoryPending}
+                openableOrderIds={openableOrderIds}
+                onOpenOrder={(id) => openOrder(id, "inventori")}
               />
             )}
 

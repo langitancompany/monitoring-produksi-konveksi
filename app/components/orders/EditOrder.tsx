@@ -10,6 +10,7 @@ import type { UserData } from "@/types";
 import type { TeamData } from "@/types/team";
 import { sumItems, validateItems } from "@/lib/orderItems";
 import { inputCls, labelCls } from "@/app/components/settings/settingsShared";
+import { isStokOrder } from "@/lib/steps";
 import ItemsEditor from "./detail/ItemsEditor";
 import TeamPicker from "./TeamPicker";
 import PJPicker from "./PJPicker";
@@ -56,7 +57,12 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
-  const utamaTypes = useMemo(() => productionTypes.filter((t) => t.kategori === "utama"), [productionTypes]);
+  const isStok = isStokOrder(order);
+  // Pesanan stok tidak boleh memakai jenis pesanan umum (is_custom): stok dicatat per varian/warna/ukuran.
+  const utamaTypes = useMemo(
+    () => productionTypes.filter((t) => t.kategori === "utama" && !(isStok && t.is_custom)),
+    [productionTypes, isStok],
+  );
   const nonUtamaOptions = useMemo(
     () => productionTypes.filter((t) => t.kategori === "non_utama" && (t.is_active || t.value === order.jenis_produksi)),
     [productionTypes, order.jenis_produksi],
@@ -114,21 +120,29 @@ export default function EditOrder({ order, productionTypes, teams, users, isSubm
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 font-mono tabular-nums">{order.kode_produksi}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:col-span-2">
-          <div>
-            <label className={labelCls}>Nama pemesan *</label>
-            <input required className={inputCls} value={form.nama_pemesan} onChange={(e) => set("nama_pemesan", e.target.value)} />
-          </div>
-          <div>
-            <label className={labelCls}>No. HP / WhatsApp</label>
-            <input inputMode="tel" className={inputCls} value={form.no_hp} onChange={(e) => set("no_hp", e.target.value)} />
-          </div>
-        </div>
+        {isStok ? (
+          <p className="lg:col-span-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300">
+            Pesanan produksi untuk stok: tidak punya data pemesan. Tujuan pesanan tidak bisa diubah setelah dibuat.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:col-span-2">
+              <div>
+                <label className={labelCls}>Nama pemesan *</label>
+                <input required className={inputCls} value={form.nama_pemesan} onChange={(e) => set("nama_pemesan", e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>No. HP / WhatsApp</label>
+                <input inputMode="tel" className={inputCls} value={form.no_hp} onChange={(e) => set("no_hp", e.target.value)} />
+              </div>
+            </div>
 
-        <div>
-          <label className={labelCls}>Alamat</label>
-          <textarea rows={2} className={inputCls} value={form.alamat_pemesan} onChange={(e) => set("alamat_pemesan", e.target.value)} />
-        </div>
+            <div>
+              <label className={labelCls}>Alamat</label>
+              <textarea rows={2} className={inputCls} value={form.alamat_pemesan} onChange={(e) => set("alamat_pemesan", e.target.value)} />
+            </div>
+          </>
+        )}
 
         <div>
           <label className={labelCls}>Catatan</label>

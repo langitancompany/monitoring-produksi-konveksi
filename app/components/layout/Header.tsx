@@ -207,6 +207,7 @@ export default function Header({
     orders_utama: "Pesanan Utama",
     orders_lain: "Pesanan Non-Utama",
     completed_orders: "Pesanan Selesai",
+    inventori: "Stok Barang Jadi",
     calendar: "Kalender",
     meeting_notes: "Catatan Rapat",
     salary: "Gaji & Upah",
