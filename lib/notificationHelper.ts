@@ -86,7 +86,7 @@ export const sendToRoles = async (
   await notifyServer({ roles, title, message: body, orderId });
 };
 
-/** Pemegang izin Verifikasi stok masuk dan Super Admin (hasil produksi stok menunggu verifikasi). */
+/** Pemegang izin edit Stok Barang Jadi dan Super Admin (hasil produksi stok menunggu verifikasi). */
 export const sendToInventoryVerifiers = async (title: string, body: string, orderId?: string) => {
   await notifyServer({ permission: "inventori_verify", title, message: body, orderId });
 };

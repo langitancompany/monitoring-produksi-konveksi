@@ -128,7 +128,7 @@ const MODULES: ModuleDef[] = [
     hasCreate: false,
     hasEdit: true,
     hasDelete: false,
-    editLabel: "Verifikasi stok masuk",
+    editLabel: "Verifikasi & penyesuaian stok",
   },
   {
     key: "logs",

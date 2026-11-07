@@ -1,4 +1,4 @@
-// GET /api/inventori/stock?jenis=&q=  -> saldo stok per SKU (jenis + varian + warna + ukuran) dan total pcs.
+// GET /api/inventori/stock?jenis=&q=&zero=1  -> saldo stok per SKU (jenis + varian + warna + ukuran) dan total pcs.
 import { NextRequest, NextResponse } from "next/server";
 import { requireInventori, invFail, loadStock } from "@/lib/inventory/server";
 
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   if (jenis && !/^[a-z0-9_]{1,80}$/.test(jenis)) return NextResponse.json({ error: "Filter jenis tidak valid" }, { status: 400 });
 
   try {
-    return NextResponse.json(await loadStock({ jenis, q: sp.get("q") }));
+    return NextResponse.json(await loadStock({ jenis, q: sp.get("q"), includeZero: sp.get("zero") === "1" }));
   } catch (e) {
     return invFail(e as { message?: string; code?: string });
   }

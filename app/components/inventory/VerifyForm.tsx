@@ -11,6 +11,8 @@ import type { ReceiptDetail } from "@/lib/inventory/types";
 import { MAX_NOTE, MIN_NOTE } from "@/lib/inventory/validate";
 import { formatDateTime } from "@/lib/utils";
 import { GhostButton, ModalShell, PrimaryButton, cardCls, inputCls, sectionLabelCls } from "@/app/components/finance/ui";
+import { countInputCls, md, tapCls } from "./responsive";
+import { skuLabel } from "@/lib/inventory/sku";
 
 interface Props {
   receiptId: string;
@@ -90,7 +92,7 @@ export default function VerifyForm({ receiptId, canVerify, onBack, onDone, onOpe
   if (!rec) {
     return (
       <div className="space-y-3">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors duration-150">
+        <button onClick={onBack} className={`flex items-center gap-1.5 ${tapCls} text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors duration-150`}>
           <ArrowLeft className="w-4 h-4" /> Kembali
         </button>
         {error ? (
@@ -106,11 +108,11 @@ export default function VerifyForm({ receiptId, canVerify, onBack, onDone, onOpe
 
   return (
     <div className="space-y-4">
-      <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors duration-150">
+      <button onClick={onBack} className={`flex items-center gap-1.5 ${tapCls} text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors duration-150`}>
         <ArrowLeft className="w-4 h-4" /> Kembali ke daftar
       </button>
 
-      <div className={`${cardCls} p-4 md:p-5`}>
+      <div className={`${cardCls} p-3 sm:p-4 md:p-5`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Verifikasi hasil produksi stok</h2>
@@ -122,14 +124,14 @@ export default function VerifyForm({ receiptId, canVerify, onBack, onDone, onOpe
             <button
               type="button"
               onClick={() => onOpenOrder(rec.order_id)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-[#124540] dark:text-[#49BFB4] hover:underline"
+              className={`flex items-center gap-1.5 ${tapCls} text-xs font-semibold text-[#124540] dark:text-[#49BFB4] hover:underline`}
             >
               <ExternalLink className="w-3.5 h-3.5" /> Buka pesanan
             </button>
           )}
         </div>
-        <dl className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div><dt className={sectionLabelCls}>Kode produksi</dt><dd className="mt-0.5 text-sm font-mono tabular-nums text-zinc-900 dark:text-zinc-100">{rec.kode_produksi}</dd></div>
+        <dl className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-4">
+          <div><dt className={sectionLabelCls}>Kode produksi</dt><dd className="mt-0.5 text-sm font-mono tabular-nums text-zinc-900 dark:text-zinc-100 break-all">{rec.kode_produksi}</dd></div>
           <div><dt className={sectionLabelCls}>QC lolos</dt><dd className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-100">{formatDateTime(rec.qc_done_at)}</dd></div>
           <div><dt className={sectionLabelCls}>PJ</dt><dd className="mt-0.5 text-sm text-zinc-900 dark:text-zinc-100">{rec.pj_name ?? "-"}</dd></div>
           <div><dt className={sectionLabelCls}>Hasil produksi</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{nf(totalExpected)} pcs</dd></div>
@@ -145,7 +147,7 @@ export default function VerifyForm({ receiptId, canVerify, onBack, onDone, onOpe
       )}
       {pending && !canVerify && (
         <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300">
-          Anda hanya bisa melihat. Verifikasi dilakukan oleh pemegang izin Verifikasi stok masuk.
+          Anda hanya bisa melihat. Verifikasi dilakukan oleh pemegang izin Verifikasi & penyesuaian stok.
         </div>
       )}
       {pending && lines.length === 0 && (
@@ -156,69 +158,71 @@ export default function VerifyForm({ receiptId, canVerify, onBack, onDone, onOpe
 
       {lines.length > 0 && (
         <div className={`${cardCls} overflow-hidden`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[560px]">
-              <thead>
-                <tr className="text-left bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
-                  <th className={`${sectionLabelCls} px-4 py-2.5`}>Varian</th>
-                  <th className={`${sectionLabelCls} px-4 py-2.5`}>Warna</th>
-                  <th className={`${sectionLabelCls} px-4 py-2.5`}>Ukuran</th>
-                  <th className={`${sectionLabelCls} px-4 py-2.5 text-right`}>Hasil produksi</th>
-                  <th className={`${sectionLabelCls} px-4 py-2.5 text-right`}>Hitung fisik</th>
-                  <th className={`${sectionLabelCls} px-4 py-2.5 text-right`}>Selisih</th>
+          <table className={md.table}>
+            <thead className={md.head}>
+              <tr className="text-left bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
+                <th className={`${sectionLabelCls} px-4 py-2.5`}>Varian</th>
+                <th className={`${sectionLabelCls} px-4 py-2.5`}>Warna</th>
+                <th className={`${sectionLabelCls} px-4 py-2.5`}>Ukuran</th>
+                <th className={`${sectionLabelCls} px-4 py-2.5 text-right`}>Hasil produksi</th>
+                <th className={`${sectionLabelCls} px-4 py-2.5 text-right`}>Hitung fisik</th>
+                <th className={`${sectionLabelCls} px-4 py-2.5 text-right`}>Selisih</th>
+              </tr>
+            </thead>
+            {groups.map((g) => (
+              <tbody key={g.name} className={`${md.body} max-md:pb-0`}>
+                <tr className="bg-zinc-50/60 dark:bg-zinc-900/40 max-md:bg-transparent max-md:col-span-full">
+                  <th colSpan={6} className="px-4 max-md:px-0 py-2 text-left text-xs font-semibold text-zinc-800 dark:text-zinc-200 max-md:block">{g.name}</th>
                 </tr>
-              </thead>
-              {groups.map((g) => (
-                <tbody key={g.name} className="divide-y divide-zinc-100 dark:divide-zinc-900">
-                  <tr className="bg-zinc-50/60 dark:bg-zinc-900/40">
-                    <th colSpan={6} className="px-4 py-2 text-left text-xs font-semibold text-zinc-800 dark:text-zinc-200">{g.name}</th>
-                  </tr>
-                  {g.items.map((l) => {
-                    const raw = counts[l.sku_key] ?? "";
-                    const valid = isCount(raw);
-                    const diff = valid ? Number(raw) - l.expected : 0;
-                    return (
-                      <tr key={l.sku_key}>
-                        <td className="px-4 py-2 text-zinc-700 dark:text-zinc-300">{l.varian || "-"}</td>
-                        <td className="px-4 py-2 text-zinc-700 dark:text-zinc-300">{l.warna || "-"}</td>
-                        <td className="px-4 py-2 font-mono tabular-nums text-zinc-700 dark:text-zinc-300">{l.ukuran || "-"}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-zinc-900 dark:text-zinc-100">{nf(l.expected)}</td>
-                        <td className="px-4 py-1.5 text-right">
-                          <input
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            aria-label={`Hitung fisik ${l.jenis_name} ${l.varian} ${l.warna} ${l.ukuran}`}
-                            disabled={!editable || saving}
-                            value={raw}
-                            onChange={(e) => setCounts((c) => ({ ...c, [l.sku_key]: e.target.value.replace(/\D/g, "").slice(0, 7) }))}
-                            onFocus={(e) => e.target.select()}
-                            className={`${inputCls} !w-24 h-11 text-right tabular-nums ${!valid && editable ? "!border-red-400" : ""}`}
-                          />
-                        </td>
-                        <td
-                          className={`px-4 py-2 text-right tabular-nums font-semibold ${
-                            !valid ? "text-zinc-300 dark:text-zinc-600" : diff < 0 ? "text-red-600 dark:text-red-400" : diff > 0 ? "text-amber-600 dark:text-amber-400" : "text-zinc-400 dark:text-zinc-500"
-                          }`}
-                        >
-                          {!valid ? "-" : diff === 0 ? "0" : `${diff > 0 ? "+" : "−"}${nf(Math.abs(diff))}`}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              ))}
-              <tfoot>
-                <tr className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
-                  <td colSpan={3} className="px-4 py-2.5 text-xs font-semibold text-zinc-700 dark:text-zinc-200">Total</td>
-                  <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{nf(totalExpected)}</td>
-                  <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{nf(totalCounted)}</td>
-                  <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                    {totalCounted === totalExpected ? "0" : `${totalCounted > totalExpected ? "+" : "−"}${nf(Math.abs(totalCounted - totalExpected))}`}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                {g.items.map((l) => {
+                  const raw = counts[l.sku_key] ?? "";
+                  const valid = isCount(raw);
+                  const diff = valid ? Number(raw) - l.expected : 0;
+                  return (
+                    <tr key={l.sku_key} className={md.row}>
+                      <td className="md:hidden col-span-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                        {skuLabel({ jenis_name: "", varian: l.varian, warna: l.warna, ukuran: l.ukuran }) || "-"}
+                      </td>
+                      <td className={`${md.cell} max-md:hidden text-zinc-700 dark:text-zinc-300`}>{l.varian || "-"}</td>
+                      <td className={`${md.cell} max-md:hidden text-zinc-700 dark:text-zinc-300`}>{l.warna || "-"}</td>
+                      <td className={`${md.cell} max-md:hidden font-mono tabular-nums text-zinc-700 dark:text-zinc-300`}>{l.ukuran || "-"}</td>
+                      <td data-label="Produksi" className={`${md.cell} ${md.caption} md:text-right tabular-nums text-zinc-900 dark:text-zinc-100`}>{nf(l.expected)}</td>
+                      <td data-label="Hitung fisik" className={`${md.cell} ${md.caption} md:!py-1.5 md:text-right`}>
+                        <input
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          aria-label={`Hitung fisik ${l.jenis_name} ${l.varian} ${l.warna} ${l.ukuran}`}
+                          disabled={!editable || saving}
+                          value={raw}
+                          onChange={(e) => setCounts((c) => ({ ...c, [l.sku_key]: e.target.value.replace(/\D/g, "").slice(0, 7) }))}
+                          onFocus={(e) => e.target.select()}
+                          className={`${inputCls} ${countInputCls} ${!valid && editable ? "!border-red-400" : ""}`}
+                        />
+                      </td>
+                      <td
+                        data-label="Selisih"
+                        className={`${md.cell} ${md.caption} md:text-right tabular-nums font-semibold ${
+                          !valid ? "text-zinc-300 dark:text-zinc-600" : diff < 0 ? "text-red-600 dark:text-red-400" : diff > 0 ? "text-amber-600 dark:text-amber-400" : "text-zinc-400 dark:text-zinc-500"
+                        }`}
+                      >
+                        {!valid ? "-" : diff === 0 ? "0" : `${diff > 0 ? "+" : "−"}${nf(Math.abs(diff))}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            ))}
+            <tfoot className={md.foot}>
+              <tr className="md:border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 max-md:grid max-md:grid-cols-3 max-md:gap-x-3 max-md:p-3">
+                <td colSpan={3} className="md:px-4 md:py-2.5 text-xs font-semibold text-zinc-700 dark:text-zinc-200 max-md:block max-md:col-span-full">Total</td>
+                <td data-label="Produksi" className={`${md.cell} ${md.caption} md:text-right font-semibold tabular-nums text-zinc-900 dark:text-zinc-100`}>{nf(totalExpected)}</td>
+                <td data-label="Hitung fisik" className={`${md.cell} ${md.caption} md:text-right font-semibold tabular-nums text-zinc-900 dark:text-zinc-100`}>{nf(totalCounted)}</td>
+                <td data-label="Selisih" className={`${md.cell} ${md.caption} md:text-right font-semibold tabular-nums text-zinc-900 dark:text-zinc-100`}>
+                  {totalCounted === totalExpected ? "0" : `${totalCounted > totalExpected ? "+" : "−"}${nf(Math.abs(totalCounted - totalExpected))}`}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       )}
 
@@ -242,7 +246,7 @@ export default function VerifyForm({ receiptId, canVerify, onBack, onDone, onOpe
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder={hasDiff ? "Mis. 2 pcs cacat jahitan, dipisah" : "Kosongkan bila hitungan cocok"}
-              className={`${inputCls} mt-1 resize-none`}
+              className={`${inputCls} mt-1 resize-none !text-base sm:!text-sm`}
             />
             {hasDiff && !noteOk && (
               <span className="block text-[11px] text-red-600 dark:text-red-400 mt-1">Ada selisih, alasan wajib diisi (minimal {MIN_NOTE} karakter).</span>
@@ -254,10 +258,10 @@ export default function VerifyForm({ receiptId, canVerify, onBack, onDone, onOpe
           )}
 
           <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2">
-            <button type="button" onClick={reset} disabled={saving} className="flex items-center justify-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 px-2 py-2 transition-colors duration-150">
+            <button type="button" onClick={reset} disabled={saving} className="flex items-center justify-center gap-1.5 min-h-11 text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 px-2 py-2 transition-colors duration-150">
               <RotateCcw className="w-3.5 h-3.5" /> Samakan dengan hasil produksi
             </button>
-            <PrimaryButton className="h-11 sm:min-w-64" disabled={!allValid || !noteOk} onClick={() => setConfirming(true)}>
+            <PrimaryButton className="h-11 w-full sm:w-auto sm:min-w-64" disabled={!allValid || !noteOk} onClick={() => setConfirming(true)}>
               Verifikasi &amp; tambah stok
             </PrimaryButton>
           </div>
@@ -279,8 +283,8 @@ export default function VerifyForm({ receiptId, canVerify, onBack, onDone, onOpe
             </p>
           )}
           <div className="mt-5 flex gap-2 justify-end">
-            <GhostButton onClick={() => setConfirming(false)} disabled={saving}>Batal</GhostButton>
-            <PrimaryButton onClick={() => void submit()} loading={saving}>Ya, tambah stok</PrimaryButton>
+            <GhostButton className="h-11 sm:h-auto" onClick={() => setConfirming(false)} disabled={saving}>Batal</GhostButton>
+            <PrimaryButton className="h-11 sm:h-auto" onClick={() => void submit()} loading={saving}>Ya, tambah stok</PrimaryButton>
           </div>
         </ModalShell>
       )}

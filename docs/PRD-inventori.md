@@ -291,7 +291,7 @@ Modul baru **`inventori`** di `types/index.ts` bertipe `ModuleViewEdit` (sudah a
 | Kolom | Arti |
 |---|---|
 | Lihat (`view`) | membuka menu, melihat stok, daftar verifikasi, dan riwayat |
-| `edit` (label: "Verifikasi stok masuk") | mengisi dan menyimpan verifikasi |
+| `edit` (label: "Verifikasi & penyesuaian stok") | mengisi dan menyimpan verifikasi, serta penyesuaian stok (§20) |
 
 Daftar yang disentuh: `DEFAULT_PERMISSIONS` (semua `false`), `MODULE_DEFS` di `lib/permissionModules.ts`,
 `MODULE_LABEL` di `lib/permissionRules.ts`. Aturan eskalasi migration `019` berlaku otomatis (Admin hanya bisa
@@ -426,3 +426,22 @@ Beda dari rancangan (disengaja):
 - Pesan galat database berawalan `INV:` ditampilkan tanpa awalan di browser (mis. Reset QC ditolak setelah verifikasi).
 
 Pertanyaan §18 masih terbuka; v1 memakai asumsi A1–A5 apa adanya.
+
+## 20. Penyesuaian stok (V.1.25, migration `026_inventory_adjustments.sql`)
+
+Pemegang izin `edit` (dan Super Admin) bisa menyesuaikan stok lewat tab **Penyesuaian**. Alasan selalu wajib (minimal 3 karakter).
+
+| Jenis (`kind`) | Untuk | Isi baris | Efek |
+|---|---|---|---|
+| `koreksi` | salah verifikasi | `sku_key`, `delta` (bertanda, tidak nol) | tambah atau kurang |
+| `rusak` | barang rusak | `sku_key`, `qty` (> 0) | kurang |
+| `hilang` | barang hilang | `sku_key`, `qty` (> 0) | kurang |
+| `opname` | hitung fisik berkala | `sku_key`, `counted` (≥ 0) | selisih terhadap saldo sistem |
+
+- Hasilnya baris baru di `inventory_movements` dengan `kind` terisi, `adjustment_id` yang sama untuk satu simpanan, dan alasan di kolom `note`. Baris lama tidak pernah disentuh; trigger anti-ubah/hapus tetap berlaku.
+- `receipt_id`, `order_id`, `kode_produksi` kini boleh kosong, tetapi hanya untuk `kind <> 'masuk'` (constraint `inventory_movements_source_check`).
+- Fungsi `inv_adjust_stock` (hanya `service_role`) menghitung selisih opname dan memeriksa saldo di dalam transaksi. Stok tidak boleh turun di bawah nol, dan barang harus sudah pernah masuk stok.
+- Kunci per SKU (advisory lock lewat trigger) membuat verifikasi dan penyesuaian yang bersamaan antre, sehingga saldo yang dibaca tidak basi.
+- Opname yang hitungannya cocok dengan saldo tidak menulis baris, jadi tidak ada jejak bahwa opname pernah dilakukan.
+- `last_in_at` di `v_inventory_stock` kini hanya dari stok masuk produksi.
+- API: `POST /api/inventori/adjustments`; `GET /api/inventori/stock?zero=1` menyertakan barang bersaldo nol untuk form.

@@ -71,7 +71,7 @@ export const MODULE_DEFS: ModuleDef[] = [
     columns: {},
   },
   { key: "config_harga", label: "Config Harga", columns: { edit: "Edit rate gaji & harga" } },
-  { key: "inventori", label: "Stok Barang Jadi", columns: { edit: "Verifikasi stok masuk" } },
+  { key: "inventori", label: "Stok Barang Jadi", columns: { edit: "Verifikasi & penyesuaian stok" } },
   { key: "logs", label: "Log Aktivitas", columns: {} },
   { key: "trash", label: "Sampah", columns: { delete: "Hapus permanen" } },
   {

@@ -35,7 +35,7 @@ export function ModalShell({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`bg-white dark:bg-zinc-950 w-full ${wide ? "sm:max-w-2xl" : "sm:max-w-md"} rounded-t-xl sm:rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden max-h-[92vh] flex flex-col`}
+        className={`bg-white dark:bg-zinc-950 w-full ${wide ? "sm:max-w-2xl" : "sm:max-w-md"} rounded-t-xl sm:rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden max-h-[92dvh] flex flex-col`}
       >
         <div className="flex items-start justify-between px-4 md:px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
           <div className="min-w-0">
@@ -47,7 +47,7 @@ export function ModalShell({
           <button
             onClick={onClose}
             aria-label="Tutup"
-            className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors duration-150"
+            className="-mt-2 -mr-2 flex items-center justify-center w-11 h-11 shrink-0 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors duration-150"
           >
             <X className="w-4 h-4" />
           </button>
@@ -158,10 +158,12 @@ export function SearchInput({
   value,
   onChange,
   placeholder,
+  className = "",
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  className?: string;
 }) {
   return (
     <div className="relative flex-1 min-w-0">
@@ -173,7 +175,7 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`${inputCls} h-10 !pl-9`}
+        className={`${inputCls} h-10 !pl-9 ${className}`}
       />
     </div>
   );

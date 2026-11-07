@@ -78,10 +78,10 @@ export default function VerifyTab({ version, canVerify, onChanged, onOpenOrder }
               <button
                 type="button"
                 onClick={() => setOpenId(r.id)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-150"
+                className="w-full flex items-center gap-3 px-3 sm:px-4 py-3.5 min-h-14 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-150"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold font-mono tabular-nums text-zinc-900 dark:text-zinc-100">{r.kode_produksi}</p>
+                  <p className="text-sm font-semibold font-mono tabular-nums text-zinc-900 dark:text-zinc-100 break-all">{r.kode_produksi}</p>
                   <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                     QC lolos {formatDateTime(r.qc_done_at)} · PJ {r.pj_name ?? "-"}
                   </p>

@@ -6,7 +6,7 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.24",
+  version: "V.1.25",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.25",
+    date: "2026-11-08",
+    changes: [
+      "Tab baru \"Penyesuaian\" di Stok Barang Jadi untuk koreksi salah verifikasi, barang rusak, barang hilang, dan hitung fisik berkala (opname). Alasan wajib diisi.",
+      "Penyesuaian tercatat sebagai baris tambah atau kurang di buku besar stok dan tampil di Riwayat; baris lama tidak pernah diubah. Stok tidak bisa dikurangi sampai di bawah nol.",
+      "Menu Stok Barang Jadi kini responsif: di HP tabel berubah jadi kartu tanpa geser samping, tab sejajar satu baris, dan semua tombol berukuran nyaman disentuh.",
+      "Izin \"Verifikasi stok masuk\" kini bernama \"Verifikasi & penyesuaian stok\"; pemegangnya otomatis bisa menyesuaikan stok. Perlu menjalankan migration 026.",
+    ],
+  },
   {
     version: "1.24",
     date: "2026-11-08",

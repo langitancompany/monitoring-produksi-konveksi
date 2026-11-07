@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import type { OrderItem, ProductionTypeData } from "../types/order";
 import { expectedLines, skuKey, skuLabel } from "../lib/inventory/sku";
-import { invError, stripInvPrefix, validateVerification } from "../lib/inventory/validate";
+import { invError, stripInvPrefix, validateAdjustment, validateVerification } from "../lib/inventory/validate";
 import { resolveInventoryCaps } from "../lib/inventory/caps";
 import { buildInitialSteps, currentPhase, deriveStatus, isStokOrder, STEP_TEMPLATES } from "../lib/steps";
 import { DEFAULT_PERMISSIONS, resolvePermissions } from "../types";
@@ -121,6 +121,45 @@ test("galat database: INV:/FIN: ditampilkan, lainnya disamarkan", () => {
   assert.equal(stripInvPrefix("INV: Stok pesanan ini sudah diverifikasi"), "Stok pesanan ini sudah diverifikasi");
 });
 
+console.log("validateAdjustment");
+test("rusak dan hilang: qty positif jadi delta negatif", () => {
+  const r = validateAdjustment("rusak", [{ sku_key: "a|||", qty: 3 }], " noda minyak ");
+  assert.ok(r.ok && r.reason === "noda minyak");
+  if (r.ok) assert.deepEqual(r.lines, [{ sku_key: "a|||", delta: -3 }]);
+  assert.ok(validateAdjustment("hilang", [{ sku_key: "a|||", qty: 1 }], "hilang di rak").ok);
+});
+test("rusak dan hilang menolak qty nol, negatif, pecahan", () => {
+  for (const qty of [0, -2, 1.5, NaN, 2_000_000]) {
+    assert.equal(validateAdjustment("rusak", [{ sku_key: "a|||", qty }], "alasan").ok, false, String(qty));
+  }
+});
+test("koreksi menerima delta bertanda dan menolak nol", () => {
+  const r = validateAdjustment("koreksi", [{ sku_key: "a|||", delta: 4 }, { sku_key: "b|||", delta: -2 }], "salah hitung");
+  assert.ok(r.ok && r.lines.length === 2);
+  assert.equal(validateAdjustment("koreksi", [{ sku_key: "a|||", delta: 0 }], "salah hitung").ok, false);
+  assert.equal(validateAdjustment("koreksi", [{ sku_key: "a|||", qty: 2 }], "salah hitung").ok, false);
+});
+test("opname memakai hitungan fisik; nol boleh, negatif tidak", () => {
+  const r = validateAdjustment("opname", [{ sku_key: "a|||", counted: 0 }], "opname Oktober");
+  assert.ok(r.ok);
+  if (r.ok) assert.deepEqual(r.lines, [{ sku_key: "a|||", counted: 0 }]);
+  assert.equal(validateAdjustment("opname", [{ sku_key: "a|||", counted: -1 }], "opname Oktober").ok, false);
+});
+test("alasan wajib, ganda dan jenis asing ditolak", () => {
+  const one = [{ sku_key: "a|||", qty: 1 }];
+  for (const reason of [undefined, "", "  ", "ab", "a".repeat(501)]) {
+    assert.equal(validateAdjustment("rusak", one, reason).ok, false, String(reason));
+  }
+  assert.equal(validateAdjustment("rusak", [...one, ...one], "alasan").ok, false);
+  assert.equal(validateAdjustment("buang", one, "alasan").ok, false);
+  assert.equal(validateAdjustment("rusak", [], "alasan").ok, false);
+  assert.equal(validateAdjustment("rusak", [{ qty: 1 }], "alasan").ok, false);
+});
+test("hak penyesuaian mengikuti izin edit", () => {
+  assert.equal(resolveInventoryCaps({ role: "qc" }, { view: true }).adjust, false);
+  assert.equal(resolveInventoryCaps({ role: "qc" }, { edit: true }).adjust, true);
+});
+
 console.log("Template tahap stok");
 test("pesanan stok punya empat tahap dan berhenti di QC; pesanan biasa tidak berubah", () => {
   assert.deepEqual(buildInitialSteps("utama", [], "A", "stok").map((s) => s.key), ["approval", "potong_kain", "produksi_massal", "qc"]);
@@ -146,9 +185,9 @@ test("modul inventori default mati dan user lama dapat default", () => {
   assert.deepEqual(resolvePermissions({ orders: { view: true } }).inventori, { view: false, edit: false });
 });
 test("hak: edit otomatis bisa melihat; view saja tidak bisa verifikasi; Super Admin penuh", () => {
-  assert.deepEqual(resolveInventoryCaps({ role: "qc" }, { view: true, edit: false }), { view: true, verify: false, isSuperAdmin: false });
-  assert.deepEqual(resolveInventoryCaps({ role: "qc" }, { edit: true }), { view: true, verify: true, isSuperAdmin: false });
-  assert.deepEqual(resolveInventoryCaps({ role: "qc" }, undefined), { view: false, verify: false, isSuperAdmin: false });
+  assert.deepEqual(resolveInventoryCaps({ role: "qc" }, { view: true, edit: false }), { view: true, verify: false, adjust: false, isSuperAdmin: false });
+  assert.deepEqual(resolveInventoryCaps({ role: "qc" }, { edit: true }), { view: true, verify: true, adjust: true, isSuperAdmin: false });
+  assert.deepEqual(resolveInventoryCaps({ role: "qc" }, undefined), { view: false, verify: false, adjust: false, isSuperAdmin: false });
   assert.equal(resolveInventoryCaps({ role: "admin", roles: ["super_admin"] }, null).verify, true);
 });
 test("grantModules hanya menyalakan modul ini; Admin tidak bisa memberi izin yang tidak ia punya", () => {

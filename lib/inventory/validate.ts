@@ -4,7 +4,7 @@
 // ini lapis pertama supaya galat jelas dan agar `expected` TIDAK PERNAH diterima dari klien
 // (PRD §9, §13). Diuji di tests/inventory.test.ts.
 
-import type { CountInput, ExpectedLine, VerifiedLine } from "./types";
+import type { AdjustKind, AdjustLineInput, CountInput, ExpectedLine, VerifiedLine } from "./types";
 
 export const MAX_COUNT = 1_000_000;
 export const MAX_NOTE = 500;
@@ -72,6 +72,68 @@ export function validateVerification(
     has_diff,
     note: text,
   };
+}
+
+export const MAX_ADJUST_LINES = 300;
+
+export const ADJUST_LABEL: Record<AdjustKind, string> = {
+  koreksi: "Koreksi verifikasi",
+  rusak: "Barang rusak",
+  hilang: "Barang hilang",
+  opname: "Hitung fisik (opname)",
+};
+
+export const isAdjustKind = (v: unknown): v is AdjustKind =>
+  typeof v === "string" && Object.prototype.hasOwnProperty.call(ADJUST_LABEL, v);
+
+/** Baris yang dikirim ke fungsi database: koreksi, rusak, hilang membawa `delta`; opname membawa `counted`. */
+export type AdjustPayloadLine = { sku_key: string; delta: number } | { sku_key: string; counted: number };
+
+export type AdjustmentResult =
+  | { ok: true; kind: AdjustKind; reason: string; lines: AdjustPayloadLine[] }
+  | { ok: false; error: string };
+
+/**
+ * Periksa bentuk permintaan penyesuaian. Apakah barangnya ada dan stoknya cukup diputuskan database,
+ * yang membaca saldo di dalam transaksi.
+ */
+export function validateAdjustment(kind: unknown, lines: unknown, reason: unknown): AdjustmentResult {
+  if (!isAdjustKind(kind)) return { ok: false, error: "Jenis penyesuaian tidak valid." };
+  if (!Array.isArray(lines) || lines.length === 0) return { ok: false, error: "Pilih minimal satu barang." };
+  if (lines.length > MAX_ADJUST_LINES) return { ok: false, error: `Maksimal ${MAX_ADJUST_LINES} barang sekali simpan.` };
+
+  const text = typeof reason === "string" ? reason.trim() : "";
+  if (text.length < MIN_NOTE) return { ok: false, error: "Alasan penyesuaian wajib diisi." };
+  if (text.length > MAX_NOTE) return { ok: false, error: `Alasan maksimal ${MAX_NOTE} karakter.` };
+
+  const seen = new Set<string>();
+  const out: AdjustPayloadLine[] = [];
+  for (const raw of lines as AdjustLineInput[]) {
+    const key = raw && typeof raw === "object" ? raw.sku_key : undefined;
+    if (typeof key !== "string" || key.trim() === "" || key.length > 400) {
+      return { ok: false, error: "Ada baris tanpa kunci stok." };
+    }
+    if (seen.has(key)) return { ok: false, error: "Ada barang ganda pada daftar." };
+    seen.add(key);
+
+    if (kind === "opname") {
+      if (!isCount(raw.counted)) return { ok: false, error: "Hitungan fisik harus bilangan bulat, tidak negatif." };
+      out.push({ sku_key: key, counted: raw.counted });
+    } else if (kind === "koreksi") {
+      const d = raw.delta;
+      if (typeof d !== "number" || !Number.isSafeInteger(d) || d === 0 || Math.abs(d) > MAX_COUNT) {
+        return { ok: false, error: "Jumlah koreksi harus bilangan bulat, tidak nol." };
+      }
+      out.push({ sku_key: key, delta: d });
+    } else {
+      const q = raw.qty;
+      if (typeof q !== "number" || !Number.isSafeInteger(q) || q <= 0 || q > MAX_COUNT) {
+        return { ok: false, error: "Jumlah barang harus bilangan bulat lebih dari nol." };
+      }
+      out.push({ sku_key: key, delta: -q });
+    }
+  }
+  return { ok: true, kind, reason: text, lines: out };
 }
 
 /**

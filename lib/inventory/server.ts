@@ -11,7 +11,7 @@ import { sumItems } from "@/lib/orderItems";
 import type { OrderItem } from "@/types/order";
 import { resolveInventoryCaps, type InvAction } from "./caps";
 import { expectedLines, makeLineComparator } from "./sku";
-import { invError, validateVerification } from "./validate";
+import { invError, validateAdjustment, validateVerification } from "./validate";
 import type {
   InventoryCaps,
   MovementRow,
@@ -103,9 +103,15 @@ export async function countPending(): Promise<number> {
 
 // ─── Stok ────────────────────────────────────────────────────────────────────
 
-export async function loadStock(opts: { jenis?: string | null; q?: string | null }): Promise<StockResponse> {
+export async function loadStock(opts: {
+  jenis?: string | null;
+  q?: string | null;
+  /** sertakan barang yang saldonya nol; form penyesuaian perlu memilihnya */
+  includeZero?: boolean;
+}): Promise<StockResponse> {
+  const stock = db().from("v_inventory_stock").select("*");
   const [{ data, error }, types] = await Promise.all([
-    db().from("v_inventory_stock").select("*").gt("qty", 0),
+    opts.includeZero ? stock : stock.gt("qty", 0),
     loadTypes(),
   ]);
   if (error) throw error;
@@ -307,7 +313,7 @@ export async function loadMovements(opts: {
 }): Promise<MovementRow[]> {
   let q = db()
     .from("inventory_movements")
-    .select("id, created_at, receipt_id, order_id, kode_produksi, sku_key, jenis_name, varian, warna, ukuran, delta, note, by_name")
+    .select("id, created_at, kind, receipt_id, order_id, kode_produksi, sku_key, jenis_name, varian, warna, ukuran, delta, note, by_name")
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
   if (opts.sku) q = q.eq("sku_key", opts.sku);
@@ -319,7 +325,8 @@ export async function loadMovements(opts: {
   if (moves.length === 0) return [];
 
   // Hasil produksi tiap baris diambil dari snapshot verifikasi, untuk menandai selisih.
-  const rids = [...new Set(moves.map((m) => m.receipt_id))];
+  const rids = [...new Set(moves.map((m) => m.receipt_id).filter((x): x is string => !!x))];
+  if (rids.length === 0) return moves.map((m) => ({ ...m, expected: null, diff: null }));
   const { data: recs, error: e2 } = await db().from("inventory_receipts").select("id, lines").in("id", rids);
   if (e2) throw e2;
   const expectedBy = new Map<string, number>();
@@ -327,7 +334,27 @@ export async function loadMovements(opts: {
     for (const l of r.lines ?? []) expectedBy.set(`${r.id}|${l.sku_key}`, l.expected);
   }
   return moves.map((m) => {
-    const exp = expectedBy.get(`${m.receipt_id}|${m.sku_key}`);
+    const exp = m.receipt_id ? expectedBy.get(`${m.receipt_id}|${m.sku_key}`) : undefined;
     return { ...m, expected: exp ?? null, diff: exp === undefined ? null : m.delta - exp };
   });
+}
+
+// ─── Penyesuaian ─────────────────────────────────────────────────────────────
+
+export async function adjustStock(
+  actor: InvActor,
+  body: { kind?: unknown; lines?: unknown; reason?: unknown },
+): Promise<NextResponse> {
+  const checked = validateAdjustment(body.kind, body.lines, body.reason);
+  if (!checked.ok) return bad(checked.error, 422);
+
+  const { data, error } = await db().rpc("inv_adjust_stock", {
+    p_actor: actor.userId,
+    p_actor_name: actor.name,
+    p_kind: checked.kind,
+    p_reason: checked.reason,
+    p_lines: checked.lines,
+  });
+  if (error) return invFail(error);
+  return NextResponse.json({ ok: true, ...(data as Record<string, unknown>) });
 }
