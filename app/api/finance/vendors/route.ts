@@ -1,57 +1,19 @@
 // GET  /api/finance/vendors                     -> daftar vendor/pemasok aktif
 // POST /api/finance/vendors  body: { name, phone? } -> tambah vendor (izin Maker keuangan), tercatat di audit
-import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { requireFinance, finFail, bad } from "@/lib/finance/server";
+import { NextRequest } from "next/server";
+import { requireFinance } from "@/lib/finance/server";
+import { listVendors, createVendorFromRequest } from "@/lib/finance/expenseEntry";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const guard = await requireFinance(req, "view");
   if (!guard.ok) return guard.response;
-
-  const { data, error } = await getSupabaseAdmin()
-    .from("finance_vendors")
-    .select("id, name, phone")
-    .eq("is_active", true)
-    .order("name")
-    .limit(1000);
-  if (error) return finFail(error);
-  return NextResponse.json({ vendors: data ?? [] });
+  return listVendors();
 }
 
 export async function POST(req: NextRequest) {
   const guard = await requireFinance(req, "maker");
   if (!guard.ok) return guard.response;
-  const { actor } = guard;
-
-  const body = await req.json().catch(() => null);
-  const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ") : "";
-  const phone = typeof body?.phone === "string" ? body.phone.trim().slice(0, 30) : "";
-  if (name.length < 2 || name.length > 80) return bad("Nama vendor 2–80 karakter");
-
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin
-    .from("finance_vendors")
-    .insert({ name, phone: phone || null })
-    .select("id, name, phone")
-    .single();
-
-  if (error) {
-    if (error.code === "23505") return bad("Vendor dengan nama itu sudah ada", 422);
-    return finFail(error);
-  }
-
-  await admin.rpc("fin_audit", {
-    p_actor: actor.userId,
-    p_actor_name: actor.name,
-    p_action: "vendor.create",
-    p_entity: "vendor",
-    p_entity_id: data.id,
-    p_order: null,
-    p_before: null,
-    p_after: { name },
-    p_reason: null,
-  });
-  return NextResponse.json({ vendor: data });
+  return createVendorFromRequest(req, guard.actor);
 }

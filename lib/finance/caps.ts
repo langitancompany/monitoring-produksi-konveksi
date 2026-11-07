@@ -22,6 +22,21 @@ export type FinCaps = Record<FinAction, boolean> & {
 
 type PermLike = (Partial<Record<FinAction, boolean>> & { create?: boolean; edit?: boolean }) | null | undefined;
 
+type EntryPerms = ({ keuangan?: PermLike; catat_pengeluaran?: { view?: boolean } | null } & Record<string, unknown>) | null | undefined;
+
+/**
+ * Boleh memakai aplikasi terpisah /pengeluaran (catat pengeluaran milik sendiri)?
+ * Ya bila punya izin modul `catat_pengeluaran`, atau Maker Keuangan (Super Admin otomatis Maker).
+ * Izin ini TIDAK memberi akses menu Keuangan: `keuangan.view` tidak ikut menyala.
+ */
+export function canRecordExpenses(
+  user: { role?: string | null; roles?: string[] | null } | null | undefined,
+  permissions: EntryPerms,
+): boolean {
+  if (resolveFinanceCaps(user, permissions?.keuangan).maker) return true;
+  return permissions?.catat_pengeluaran?.view === true;
+}
+
 export function resolveFinanceCaps(
   user: { role?: string | null; roles?: string[] | null } | null | undefined,
   perm: PermLike,

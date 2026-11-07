@@ -12,6 +12,8 @@ import {
   summarizeAccess,
 } from "../lib/permissionModules";
 import { sanitizePermissions } from "../lib/userAdmin";
+import { canRecordExpenses, resolveFinanceCaps } from "../lib/finance/caps";
+import { findPermissionEscalation } from "../lib/permissionRules";
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -135,6 +137,47 @@ test("sanitizePermissions (server) membaca create/edit lama sama seperti resolve
 test("sanitizePermissions: maker/approver yang sudah tertulis menang", () => {
   const s = sanitizePermissions({ keuangan: { view: true, maker: false, approver: true, create: true, edit: false } }).keuangan as any;
   assert.deepEqual([s.maker, s.approver], [false, true]);
+});
+
+console.log("Catat Pengeluaran (aplikasi /pengeluaran)");
+test("default: izin Catat Pengeluaran mati, dan modul terdaftar di layar Hak Akses", () => {
+  assert.equal(DEFAULT_PERMISSIONS.catat_pengeluaran.view, false);
+  assert.equal(MODULE_DEFS.some((d) => d.key === "catat_pengeluaran"), true);
+});
+test("memberi modul ini hanya menyalakan catat_pengeluaran, TIDAK keuangan", () => {
+  const p = grantModules(empty(), ["catat_pengeluaran"], NONE);
+  assert.equal(getField(p, "catat_pengeluaran", "view"), true);
+  assert.equal(moduleHasAccess(p, "keuangan"), false);
+  assert.equal(getField(p, "keuangan", "view"), false);
+});
+test("sanitizePermissions & resolvePermissions mempertahankan izin ini; user lama dapat default false", () => {
+  const raw = { catat_pengeluaran: { view: true } };
+  assert.equal(sanitizePermissions(raw).catat_pengeluaran.view, true);
+  assert.equal(resolvePermissions(raw as any).catat_pengeluaran.view, true);
+  assert.equal(resolvePermissions({ keuangan: { view: true } } as any).catat_pengeluaran.view, false);
+});
+test("canRecordExpenses: izin modul atau Maker atau Super Admin; selain itu tidak", () => {
+  const u = { role: "produksi", roles: ["produksi"] };
+  assert.equal(canRecordExpenses(u, { catat_pengeluaran: { view: true } }), true);
+  assert.equal(canRecordExpenses(u, { keuangan: { view: true, maker: true } }), true);
+  assert.equal(canRecordExpenses({ role: "super_admin" }, {}), true);
+  assert.equal(canRecordExpenses(u, { keuangan: { view: true, approver: true, delete: true } }), false);
+  assert.equal(canRecordExpenses(u, { catat_pengeluaran: { view: false } }), false);
+  assert.equal(canRecordExpenses(u, null), false);
+});
+test("izin Catat Pengeluaran tidak memberi hak Keuangan apa pun (view/maker/approver/delete)", () => {
+  const caps = resolveFinanceCaps({ role: "produksi" }, undefined);
+  assert.deepEqual(
+    [caps.view, caps.maker, caps.approver, caps.delete, caps.isSuperAdmin],
+    [false, false, false, false, false],
+  );
+});
+test("Admin tidak bisa memberi Catat Pengeluaran bila ia sendiri tidak punya", () => {
+  const next = grantModules(empty(), ["catat_pengeluaran"], NONE);
+  const over = findPermissionEscalation(next, empty(), empty());
+  assert.ok(over && over.includes("Catat Pengeluaran"));
+  const ok = findPermissionEscalation(next, empty(), grantModules(empty(), ["catat_pengeluaran"], NONE));
+  assert.equal(ok, null);
 });
 
 console.log(`\n${passed} test lulus`);

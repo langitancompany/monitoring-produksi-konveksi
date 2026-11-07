@@ -178,7 +178,7 @@ export const FAQ: { q: string; a: string }[] = [
   { q: "Bagaimana mengirim invoice ke pelanggan?",
     a: "Buka Rincian pesanan (atau tombol Invoice di daftar Tagihan), lalu klik Invoice pelanggan. Dari sana Anda bisa mengunduh PDF, membagikan file (di HP), mencetak ukuran A5, atau membuka WhatsApp dengan pesan siap kirim — file PDF dilampirkan sendiri. Invoice otomatis berstatus LUNAS begitu pembayaran terverifikasi menutup tagihan." },
   { q: "Rekening atau tanda tangan di invoice salah atau belum ada.",
-    a: "Super Admin mengaturnya di Akun & Pengaturan → Tampilan invoice (kop, rekening, tanda tangan, pratinjau langsung). Invoice yang belum lunas tanpa rekening tidak memuat cara pembayaran." },
+    a: "Maker atau Super Admin mengaturnya di Akun & Pengaturan → Tampilan invoice (kop, rekening, tanda tangan, pratinjau langsung). Invoice yang belum lunas tanpa rekening tidak memuat cara pembayaran." },
   { q: "Bagaimana mengekspor data ke Excel?",
     a: "Tombol Ekspor Excel ada di tab Tagihan, Transaksi, Pengeluaran, dan Laporan. File memuat data sesuai filter yang sedang tampil, dan setiap ekspor tercatat di log audit (siapa, kapan, berapa baris)." },
   { q: "Pesanan tidak bisa dihapus permanen dari Sampah.",

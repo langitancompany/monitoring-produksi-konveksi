@@ -73,6 +73,8 @@ export interface UserPermissions {
   finishing: ModuleFull;
   salary: ModuleViewCreateEdit;
   keuangan: ModuleKeuangan;
+  /** Aplikasi terpisah /pengeluaran: hanya mencatat pengeluaran sendiri, TANPA akses menu Keuangan. */
+  catat_pengeluaran: ModuleView;
   config_harga: ModuleViewEdit;
   logs: ModuleView;
   trash: ModuleTrash;
@@ -86,6 +88,7 @@ export const DEFAULT_PERMISSIONS: UserPermissions = {
   finishing: { view: true, create: false, edit: false, delete: false },
   salary: { view: false, create: false, edit: false },
   keuangan: { view: false, maker: false, approver: false, delete: false },
+  catat_pengeluaran: { view: false },
   config_harga: { view: false, edit: false },
   logs: { view: false },
   trash: { view: false, delete: false },

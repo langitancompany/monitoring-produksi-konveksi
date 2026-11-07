@@ -17,7 +17,8 @@ const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // tanya lagi setelah 7 hari
 const SHOW_DELAY_MS = 3000; // jangan langsung muncul saat halaman baru dibuka
 
 // Halaman yang tidak perlu ajakan install (isi prefix path jika ada)
-const EXCLUDED_PREFIXES: string[] = [];
+// /pengeluaran punya manifest sendiri: ajakan pasang aplikasi UTAMA tidak boleh tampil di sana.
+const EXCLUDED_PREFIXES: string[] = ["/pengeluaran"];
 
 function isStandalone(): boolean {
   if (typeof window === "undefined") return false;

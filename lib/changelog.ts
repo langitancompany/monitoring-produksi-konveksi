@@ -6,7 +6,7 @@
 
 export const APP_INFO = {
   name: "LCO SuperApp Konveksi",
-  version: "V.1.22",
+  version: "V.1.23",
   purpose: "Aplikasi produksi Konveksi, Langitan.co.",
   creator: "abdllahmajid",
   creationDate: "17 Oktober 2026",
@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.23",
+    date: "2026-11-07",
+    changes: [
+      "Aplikasi Catat Pengeluaran terpisah di alamat /pengeluaran: bisa dipasang ke layar utama HP dengan ikon sendiri dan langsung membuka form catat pengeluaran.",
+      "Izin baru \"Catat Pengeluaran\" di Pengaturan → Pengguna. Akun dengan izin ini hanya bisa mencatat pengeluaran dan melihat catatannya sendiri, tanpa akses menu Keuangan.",
+      "Pengeluaran yang dicatat dari aplikasi ini tetap masuk antrean persetujuan Approver di menu Keuangan.",
+      "Maker Keuangan kini juga bisa mengubah rekening dan catatan pembayaran pada tampilan invoice (sebelumnya hanya Super Admin).",
+    ],
+  },
   {
     version: "1.22",
     date: "2026-10-31",

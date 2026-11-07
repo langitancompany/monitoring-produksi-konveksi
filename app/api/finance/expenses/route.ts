@@ -5,12 +5,10 @@
 // auto_approve_own_expense menyala, pencatat berhak menyetujui, dan require_separate_verifier mati —
 // dan database memeriksa ulang ketiganya.
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import {
-  requireFinance, finFail, bad, isUuid, isDate, loadSettings, sniffProof, PROOF_BUCKET, MAX_PROOF_BYTES,
-} from "@/lib/finance/server";
-import { EXPENSE_COLUMNS, EXPENSE_STATUSES, parseExpenseFields } from "@/lib/finance/expenses";
+import { requireFinance, finFail, bad, isUuid, isDate } from "@/lib/finance/server";
+import { EXPENSE_COLUMNS, EXPENSE_STATUSES } from "@/lib/finance/expenses";
+import { recordExpenseFromRequest } from "@/lib/finance/expenseEntry";
 import { hydrateExpenses } from "@/lib/finance/expensesDb";
 
 export const dynamic = "force-dynamic";
@@ -50,61 +48,5 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const guard = await requireFinance(req, "maker");
   if (!guard.ok) return guard.response;
-  const { actor } = guard;
-
-  const form = await req.formData().catch(() => null);
-  if (!form) return bad("Data tidak valid");
-
-  const parsed = parseExpenseFields((k) => {
-    const v = form.get(k);
-    return typeof v === "string" ? v : "";
-  });
-  if (!parsed.ok) return bad(parsed.error, parsed.status);
-  const f = parsed.value;
-
-  // Bukti (opsional di sini; wajib-tidaknya diputuskan database sesuai ambang pengaturan)
-  const admin = getSupabaseAdmin();
-  let proofPath: string | null = null;
-  const file = form.get("proof");
-  if (file instanceof File && file.size > 0) {
-    if (file.size > MAX_PROOF_BYTES) return bad("Ukuran bukti maksimal 4 MB");
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const kindOfFile = sniffProof(bytes);
-    if (!kindOfFile) return bad("Format bukti harus JPG, PNG, WEBP, atau PDF");
-
-    proofPath = `expenses/${randomUUID()}.${kindOfFile.ext}`;
-    const up = await admin.storage.from(PROOF_BUCKET).upload(proofPath, bytes, {
-      contentType: kindOfFile.mime,
-      upsert: false,
-    });
-    if (up.error) return finFail(up.error, "Gagal mengunggah bukti");
-  }
-
-  const settings = await loadSettings();
-  const autoApprove = settings.auto_approve_own_expense && actor.caps.approver && !settings.require_separate_verifier;
-
-  const { data: id, error } = await admin.rpc("fin_record_expense", {
-    p_actor: actor.userId,
-    p_actor_name: actor.name,
-    p_category: f.categoryId,
-    p_account: f.accountId,
-    p_vendor: f.vendorId,
-    p_order: f.orderId,
-    p_source: "manual",
-    p_source_ref: null,
-    p_description: f.description,
-    p_amount: f.amount,
-    p_spent_at: f.spentAt,
-    p_proof_path: proofPath,
-    p_note: f.note,
-    p_auto_approve: autoApprove,
-  });
-
-  if (error) {
-    // Jangan tinggalkan file yatim bila pencatatan ditolak.
-    if (proofPath) await admin.storage.from(PROOF_BUCKET).remove([proofPath]);
-    return finFail(error);
-  }
-  const { data: row } = await admin.from("finance_expenses").select("status, expense_no").eq("id", id).maybeSingle();
-  return NextResponse.json({ id, status: row?.status ?? "pending", expense_no: row?.expense_no ?? null });
+  return recordExpenseFromRequest(req, guard.actor);
 }

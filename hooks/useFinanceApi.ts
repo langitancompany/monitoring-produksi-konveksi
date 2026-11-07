@@ -60,13 +60,13 @@ export function useFinanceMeta() {
 }
 
 /** Vendor/pemasok aktif (GET /api/finance/vendors) + `addVendor` untuk menambah hasil POST tanpa muat ulang. */
-export function useVendors() {
+export function useVendors(url: string = "/api/finance/vendors") {
   const [vendors, setVendors] = useState<FinanceVendor[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    finFetch<{ vendors: FinanceVendor[] }>("/api/finance/vendors")
+    finFetch<{ vendors: FinanceVendor[] }>(url)
       .then((r) => {
         if (!cancelled) setVendors(r.vendors);
       })
@@ -76,7 +76,7 @@ export function useVendors() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [url]);
 
   const addVendor = useCallback(
     (v: FinanceVendor) =>

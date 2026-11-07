@@ -21,6 +21,7 @@ const MODULE_LABEL: Record<string, string> = {
   finishing: "Finishing & QC",
   salary: "Gaji & Upah",
   keuangan: "Keuangan",
+  catat_pengeluaran: "Catat Pengeluaran",
   config_harga: "Config Harga",
   logs: "Log Aktivitas",
   trash: "Sampah",

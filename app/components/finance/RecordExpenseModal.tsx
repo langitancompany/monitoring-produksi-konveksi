@@ -18,7 +18,15 @@ import { ModalShell, Field, inputCls, PrimaryButton, GhostButton } from "./ui";
 import { formatRupiah, todayYmd } from "./utils";
 
 /** Cari pesanan (kode / nama pemesan) untuk menautkan biaya langsung. Opsional. */
-function OrderPicker({ value, onChange }: { value: OrderLookupRow | null; onChange: (o: OrderLookupRow | null) => void }) {
+function OrderPicker({
+  value,
+  onChange,
+  lookupUrl,
+}: {
+  value: OrderLookupRow | null;
+  onChange: (o: OrderLookupRow | null) => void;
+  lookupUrl: string;
+}) {
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<OrderLookupRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,7 +39,7 @@ function OrderPicker({ value, onChange }: { value: OrderLookupRow | null; onChan
     const t = setTimeout(async () => {
       setLoading(true);
       try {
-        const r = await finFetch<{ rows: OrderLookupRow[] }>(`/api/finance/order-lookup?q=${encodeURIComponent(q.trim())}`);
+        const r = await finFetch<{ rows: OrderLookupRow[] }>(`${lookupUrl}?q=${encodeURIComponent(q.trim())}`);
         if (!cancelled) setRows(r.rows);
       } catch {
         if (!cancelled) setRows([]);
@@ -43,7 +51,7 @@ function OrderPicker({ value, onChange }: { value: OrderLookupRow | null; onChan
       cancelled = true;
       clearTimeout(t);
     };
-  }, [q, searching]);
+  }, [q, searching, lookupUrl]);
 
   if (value) {
     return (
@@ -97,19 +105,42 @@ function OrderPicker({ value, onChange }: { value: OrderLookupRow | null; onChan
   );
 }
 
+/** Data minimal yang dibutuhkan form (menu Keuangan mengirim FinanceMeta utuh; aplikasi /pengeluaran mengirim versi ringkas). */
+export type ExpenseFormMeta = Pick<FinanceMeta, "accounts" | "categories"> & {
+  settings: Pick<FinanceMeta["settings"], "expense_proof_required_above">;
+  caps?: Pick<FinanceMeta["caps"], "maker">;
+};
+
+/** Alamat API. Bawaan = menu Keuangan; aplikasi /pengeluaran memakai /api/pengeluaran/*. */
+export interface ExpenseFormApi {
+  expenses: string;
+  vendors: string;
+  orderLookup: string;
+}
+export const FINANCE_EXPENSE_API: ExpenseFormApi = {
+  expenses: "/api/finance/expenses",
+  vendors: "/api/finance/vendors",
+  orderLookup: "/api/finance/order-lookup",
+};
+
 export default function RecordExpenseModal({
   meta,
   vendors,
   onVendorAdded,
   onClose,
   onDone,
+  api = FINANCE_EXPENSE_API,
+  canAddVendor,
 }: {
-  /** akun, kategori, dan pengaturan (dari GET /api/finance/meta) */
-  meta: FinanceMeta;
+  /** akun, kategori, dan ambang bukti */
+  meta: ExpenseFormMeta;
   vendors: FinanceVendor[];
   onVendorAdded: (v: FinanceVendor) => void;
   onClose: () => void;
   onDone: () => void;
+  api?: ExpenseFormApi;
+  /** boleh menambah vendor baru dari form; bawaan mengikuti meta.caps.maker */
+  canAddVendor?: boolean;
 }) {
   const { notify } = useDialog();
 
@@ -169,7 +200,7 @@ export default function RecordExpenseModal({
   const saveVendor = async () => {
     setSavingVendor(true);
     try {
-      const r = await postJson<{ vendor: FinanceVendor }>("/api/finance/vendors", { name: vendorName });
+      const r = await postJson<{ vendor: FinanceVendor }>(api.vendors, { name: vendorName });
       onVendorAdded(r.vendor);
       setVendorId(r.vendor.id);
       setAddingVendor(false);
@@ -195,7 +226,7 @@ export default function RecordExpenseModal({
       if (note.trim()) fd.append("note", note.trim());
       if (file) fd.append("proof", file);
 
-      const r = await finFetch<{ status: string }>("/api/finance/expenses", { method: "POST", body: fd });
+      const r = await finFetch<{ status: string }>(api.expenses, { method: "POST", body: fd });
       notify(
         r.status === "approved" ? "Pengeluaran tercatat dan disetujui." : "Pengeluaran tercatat, menunggu persetujuan.",
         { type: "success", title: "Berhasil" },
@@ -278,7 +309,7 @@ export default function RecordExpenseModal({
                   </option>
                 ))}
               </select>
-              {meta.caps.maker && (
+              {(canAddVendor ?? meta.caps?.maker ?? false) && (
                 <GhostButton type="button" onClick={() => setAddingVendor(true)} aria-label="Tambah vendor baru">
                   <Plus className="w-4 h-4" />
                 </GhostButton>
@@ -288,7 +319,7 @@ export default function RecordExpenseModal({
         </Field>
 
         <Field label="Biaya langsung untuk pesanan" hint="Opsional. Dipakai untuk menghitung laba per pesanan (laporan 6.6).">
-          <OrderPicker value={order} onChange={setOrder} />
+          <OrderPicker value={order} onChange={setOrder} lookupUrl={api.orderLookup} />
         </Field>
 
         <Field

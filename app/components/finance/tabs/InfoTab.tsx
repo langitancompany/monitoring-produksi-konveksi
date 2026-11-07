@@ -86,7 +86,7 @@ export default function InfoTab({ meta }: { meta: FinanceMeta }) {
         </p>
       </div>
 
-      {meta.caps.isSuperAdmin && <InvoiceSettingsCard />}
+      {meta.caps.maker && <InvoiceSettingsCard />}
 
       <div className={`${cardCls} p-4 md:col-span-2`}>
         <p className={`${sectionLabelCls} mb-3`}>Rencana pembangunan</p>

@@ -4,7 +4,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/apiAuth";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { resolveFinanceCaps, type FinAction, type FinCaps } from "./caps";
+import { canRecordExpenses, resolveFinanceCaps, type FinAction, type FinCaps } from "./caps";
 import { finError, parseSettings, SETTING_KEYS, type FinanceSettings } from "./validate";
 
 export { isUuid, isMoney, isDate, todayWib, sniffProof, PROOF_BUCKET, MAX_PROOF_BYTES } from "./validate";
@@ -37,6 +37,35 @@ export async function requireFinance(req: NextRequest, action: FinAction): Promi
     return {
       ok: false,
       response: NextResponse.json({ error: "Anda tidak memiliki hak akses untuk aksi ini" }, { status: 403 }),
+    };
+  }
+  return { ok: true, actor: { userId: auth.userId, name: row.name || "User", caps } };
+}
+
+/**
+ * Aplikasi terpisah /pengeluaran: boleh bila punya izin modul `catat_pengeluaran` ATAU Maker Keuangan
+ * (Super Admin otomatis Maker). Izin ini TIDAK memberi akses ke menu Keuangan: semua endpoint
+ * /api/pengeluaran/* hanya mencatat dan membaca pengeluaran milik pengguna itu sendiri.
+ * Dicek ke database, bukan ke klien.
+ */
+export async function requireExpenseEntry(req: NextRequest): Promise<GuardResult> {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth;
+
+  const { data: row, error } = await getSupabaseAdmin()
+    .from("users")
+    .select("name, role, roles, permissions")
+    .eq("id", auth.userId)
+    .maybeSingle();
+  if (error || !row) {
+    return { ok: false, response: NextResponse.json({ error: "Pengguna tidak ditemukan" }, { status: 403 }) };
+  }
+
+  const caps = resolveFinanceCaps(row, row.permissions?.keuangan);
+  if (!canRecordExpenses(row, row.permissions)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Anda tidak memiliki akses ke Catat Pengeluaran" }, { status: 403 }),
     };
   }
   return { ok: true, actor: { userId: auth.userId, name: row.name || "User", caps } };
